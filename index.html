@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meta Tennis Tour — Профессиональный Тур 300</title>
+    <meta name="description" content="Симулятор виртуальной теннисной вселенной с пулом из 300 игроков, 26 турнирами сезона и Олимпийскими играми, 52-недельным рейтингом ATP, Чемпионской гонкой, мультивселенными и ИИ-симуляцией матчей.">
+    <meta property="og:title" content="Meta Tennis Tour — Профессиональный Тур 300">
+    <meta property="og:description" content="Симулятор виртуальной теннисной вселенной с пулом из 300 игроков, 26 турнирами сезона и Олимпийскими играми, 52-недельным рейтингом ATP, Чемпионской гонкой, мультивселенными и ИИ-симуляцией матчей.">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="stylesheet" href="/styles/style.css">
+</head>
+<body>
+
+    <header class="app-header">
+        <div class="brand-lockup">
+            <div class="brand-identity">
+                <h1>META TENNIS TOUR</h1>
+                <div class="tour-meta-inline">
+                    <span class="tour-year-badge" id="currentYearDisplay">Сезон 2024</span>
+                    <span aria-hidden="true">·</span>
+                    <span class="tour-date-badge" id="currentDateDisplay">02 Января 2024</span>
+                </div>
+            </div>
+
+            <div class="universe-controls" aria-label="Управление вселенными и сохранениями">
+                <select id="universeSelect" aria-label="Выбор слота вселенной" onchange="handleUniverseChange(this.value)" class="universe-select">
+                    <option value="1">Вселенная Автора (Канон) · 2024</option>
+                </select>
+                <button type="button" class="btn-green btn-compact" id="btnOpenCreateUniverse" onclick="openCreateUniverseModal()" title="Создать новую параллельную теннисную вселенную">+ Создать новую вселенную</button>
+                <button type="button" class="btn-red btn-compact" id="btnDeleteUniverse" onclick="promptDeleteCurrentUniverse()" style="display: none;" title="Удалить текущую пользовательскую вселенную">🗑️ Удалить мир</button>
+                <button type="button" class="btn-edit btn-compact" onclick="exportCurrentUniverse()" title="Скачать сохранение мира (.json)">📥 Экспорт мира (.json)</button>
+                <button type="button" class="btn-edit btn-compact" id="btnImportUniverse" onclick="triggerImportUniverse()" title="Загрузить сохранение мира (.json)">📤 Загрузить мир (.json)</button>
+                <button type="button" class="btn-edit btn-compact" id="btnImport2023Archive" onclick="triggerImport2023ArchiveOnly()" title="Импортировать ТОЛЬКО сетки 2023 года (.json), не затрагивая сезон 2024">📥 Импорт сеток 2023 (.json)</button>
+                <button type="button" class="btn-gold btn-compact" id="btnTestSimSeason" onclick="runTestSeasonSimulation()" title="Пробная симуляция всех турниров сезона с возможностью отката назад в 1 клик">⚡ Пробная симуляция сезона (Тест)</button>
+                <button type="button" class="btn-edit btn-compact" id="btnCheckpoints" onclick="openCheckpointsModal()" title="Точки сохранения сезона (после ТБШ и Итогового)">🕒 Чекпоинты сезона</button>
+                <button type="button" class="btn-purple btn-compact" id="btnApiSettings" onclick="openApiSettingsModal()" title="Настройки Groq API (llama-3.3-70b-versatile)">⚙️ Настройки API</button>
+                <input type="file" id="importUniverseFile" accept=".json,application/json" onchange="handleImportUniverseFile(event)" style="display: none;">
+                <input type="file" id="import2023ArchiveFile" accept=".json,application/json" onchange="handleImport2023ArchiveFile(event)" style="display: none;">
+            </div>
+        </div>
+
+        <nav class="nav-tabs" aria-label="Основная навигация">
+            <button type="button" class="nav-btn active" id="nav-tourney" onclick="switchTab('tourney')">Сетка Турнира</button>
+            <button type="button" class="nav-btn" id="nav-players" onclick="switchTab('players')">Рейтинг (52 недели)</button>
+            <button type="button" class="nav-btn" id="nav-race" onclick="switchTab('race')">Чемпионская Гонка (Live Race)</button>
+            <button type="button" class="nav-btn" id="nav-calendar" onclick="switchTab('calendar')">График Календаря</button>
+            <button type="button" class="nav-btn" id="nav-history" onclick="switchTab('history')">Зал Славы (Архив Топ-50)</button>
+            <button type="button" class="nav-btn" id="nav-feed" onclick="switchTab('feed')">📰 Лента Тура (Tennis Feed)</button>
+        </nav>
+    </header>
+
+    <main>
+        <!-- ПЛАШКА РЕЖИМА «КАНОН АВТОРА — ТОЛЬКО ДЛЯ ЧТЕНИЯ» ДЛЯ ГОСТЕЙ -->
+        <div id="canonReadOnlyBanner" class="test-sim-active-bar" style="display: none; background: rgba(14, 165, 233, 0.08); border-color: rgba(56, 189, 248, 0.35);">
+            <div style="font-size: 12.5px; color: #e0f2fe; line-height: 1.45;">
+                🔒 <b>Каноничная вселенная Автора (Режим просмотра):</b> вы можете свободно изучать все турнирные сетки, рейтинги, H2H, профили и Зал Славы. Чтобы проводить собственные турниры и сезоны, создайте свою вселенную!
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                <button type="button" class="btn-green btn-compact" onclick="openCreateUniverseModal()">+ Создать свою вселенную</button>
+                <button type="button" class="btn-edit btn-compact" onclick="openAuthorUnlockModal()" title="Разблокировать редактирование Канона (только для Автора)">🔑 Я Автор</button>
+            </div>
+        </div>
+
+        <!-- ПЛАШКА ВЛАДЕЛЬЦА КАНОНА (ДЛЯ АВТОРА — С ПЕРЕКЛЮЧАТЕЛЕМ ПРЕВЬЮ ГОСТЯ) -->
+        <div id="canonOwnerControlBanner" class="test-sim-active-bar" style="display: none; background: rgba(16, 185, 129, 0.06); border-color: rgba(16, 185, 129, 0.28); padding: 6px 14px;">
+            <div style="font-size: 12px; color: var(--text-dim);">
+                👑 <b style="color: var(--primary);">Режим Автора активен:</b> полное управление «Вселенной Автора (Канон)». Гости на GitHub видят этот мир строго в режиме чтения.
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" class="btn-edit btn-compact" onclick="toggleGuestReadOnlyPreview(true)" style="font-size: 11.5px; padding: 3px 9px;">👁️ Проверить режим Гостя (Read-Only)</button>
+            </div>
+        </div>
+
+        <!-- ПЛАШКА АКТИВНОЙ ПРОБНОЙ СИМУЛЯЦИИ СЕЗОНА (С ОТКАТОМ И УТВЕРЖДЕНИЕМ) -->
+        <div id="testSimActiveBanner" class="test-sim-active-bar" style="display: none;">
+            <div style="font-size: 13px; color: var(--gold);">
+                🧪 <b>Активен режим пробной симуляции сезона!</b> Вы можете изучить сетки, рейтинг, гонку и Зал Славы, а затем откатить тур назад или утвердить итоги.
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button type="button" class="btn-edit btn-compact" onclick="openTestSeasonReportModal()">📊 Сводка сезона</button>
+                <button type="button" class="btn-red btn-compact" id="btnRollbackTestSeasonTop" onclick="rollbackTestSeasonSimulation()">⏪ Откатить тестовый сезон назад</button>
+                <button type="button" class="btn-green btn-compact" id="btnCommitTestSeasonTop" onclick="commitTestSeasonSimulation()">✅ Утвердить результаты сезона</button>
+            </div>
+        </div>
+
+        <!-- ВКЛАДКА СЕТКИ ТУРНИРА -->
+        <section id="tab-tourney" class="panel active" aria-label="Сетка Турнира">
+            <div class="tourney-bar">
+                <div>
+                    <label for="drawYearSelect" class="field-label">Просмотр сезона:</label>
+                    <select id="drawYearSelect" onchange="changeDrawYear()" style="font-weight: 700; color: var(--gold);">
+                        <option value="2024" selected>Сезон 2024</option>
+                        <option value="2023">Сезон 2023 (Архив)</option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 260px;">
+                    <label for="tourneySelect" class="field-label">Выбор турнира:</label>
+                    <select id="tourneySelect" onchange="loadSelectedTournament()" style="width: 100%;">
+                        <option value="m_1">#1 Хьюстон Masters (Мастерс • Хард) [02.01 - 11.01.2024]</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                    <button type="button" class="btn-edit" onclick="openPointsInfoModal()">Очки ATP</button>
+                    <button type="button" class="btn-edit" id="btnEditCurrentTourney" onclick="openEditCurrentTourney()">Ред. турнир</button>
+                    <button type="button" class="btn-green" id="btnMakeDraw" onclick="generateRealisticDraw()">🎲 Жеребьевка</button>
+                    <button type="button" class="btn-edit" id="btnSimRound" onclick="autoSimulateRound()">⚡ Симулировать раунд</button>
+                    <button type="button" class="btn-edit" id="btnSimAllTourney" onclick="autoSimulateEntireTournament()">⏩ Весь турнир</button>
+                    <button type="button" class="btn-gold" id="btnFinishTourney" onclick="finishTournamentAndAwardPoints()">🏆 Завершить турнир</button>
+                    <button type="button" class="btn-red" id="btnResetDraw" onclick="resetCurrentDraw()">Сброс сетки</button>
+                </div>
+
+                <div id="withdrawalsNotice" class="withdrawals-alert" style="display: none;"></div>
+                <div id="bg250Notice" class="bg250-alert" style="display: none;"></div>
+            </div>
+
+            <div class="round-nav" id="roundTabs" role="tablist" aria-label="Раунды турнира"></div>
+            <div id="finalsGroupTablesContainer" style="display: none; margin-bottom: 18px;"></div>
+            <div class="matches-grid" id="matchesContainer"></div>
+        </section>
+
+        <!-- ВКЛАДКА РЕЙТИНГА 52 НЕДЕЛИ -->
+        <section id="tab-players" class="panel" aria-label="Рейтинг 52 недели">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <input type="text" id="playerSearch" aria-label="Поиск игрока в рейтинге" placeholder="Поиск игрока или страны..." oninput="renderPlayersTable()" style="width: 260px;">
+                    <button type="button" class="btn-green" id="btnAddNewPlayer" onclick="openAddPlayerModal()">+ Создать игрока</button>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <button type="button" class="btn-edit" id="btnManualRepairPts" onclick="manualRepairPoints()">Синхронизировать очки</button>
+                    <button type="button" class="btn-red" id="btnResetJan2024" onclick="resetCurrentSeasonToCleanJanuary()" title="Сбросить текущий сезон 2024 на 02 января 2024 года с точным рейтингом 2023">🔄 Начать 2024 с 02.01</button>
+                    <button type="button" class="btn-gold" id="btnEndSeason" onclick="endSeasonAndDecayPoints()">Завершить сезон (Перейти в след. год)</button>
+                </div>
+            </div>
+            <div>
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 90px;">Ранг</th>
+                            <th style="width: 75px;">Страна</th>
+                            <th>Имя Фамилия / Профиль игрока</th>
+                            <th style="width: 90px;">Возраст</th>
+                            <th style="width: 115px;">Дата рожд.</th>
+                            <th style="width: 115px;">Пик ранга</th>
+                            <th>Очки (52 недели) · Δ за неделю</th>
+                            <th style="width: 155px;">Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody id="playersTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ВКЛАДКА ЧЕМПИОНСКОЙ ГОНКИ (LIVE RACE TO FINALS) -->
+        <section id="tab-race" class="panel" aria-label="Чемпионская Гонка">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                <div>
+                    <h2 style="font-size: 18px; color: var(--accent);">Чемпионская Гонка сезона <span id="raceYearHeader">2024</span></h2>
+                    <small style="color: var(--text-dim);">Очки текущего календарного года (на 02 января — строго 0 очков, далее только накапливаются). Топ-8 квалифицируется на Итоговый турнир в Стокгольме.</small>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="raceSearch" aria-label="Поиск в чемпионской гонке" placeholder="Поиск в гонке..." oninput="renderRaceTable()" style="width: 240px;">
+                </div>
+            </div>
+            <div>
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 85px;">Гонка</th>
+                            <th style="width: 75px;">Страна</th>
+                            <th>Имя Фамилия</th>
+                            <th style="width: 90px;">Возраст</th>
+                            <th>Очки Гонки (Race Pts) · + за турнир</th>
+                            <th>Статус отбора на World Tour Finals</th>
+                        </tr>
+                    </thead>
+                    <tbody id="raceTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ВКЛАДКА КАЛЕНДАРЯ -->
+        <section id="tab-calendar" class="panel" aria-label="График Календаря">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label for="calendarYearSelect"><b>Календарный год:</b></label>
+                    <select id="calendarYearSelect" onchange="renderCalendarTable()" style="font-weight: 700;">
+                        <option value="2024" selected>Сезон 2024 🏅 (ОИ)</option>
+                        <option value="2023">Сезон 2023</option>
+                    </select>
+                </div>
+                <div id="calendarSummaryText" style="font-size: 13px; color: var(--text-dim);">
+                    Турниров в сезоне: <b>27</b> (4 ТБШ · 9 Мастерсов · <b>1 Олимпиада 🏅</b> · 12 ATP 500 · 1 Итоговый)
+                </div>
+            </div>
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>№</th>
+                        <th>Даты проведения</th>
+                        <th>Категория</th>
+                        <th>Название турнира</th>
+                        <th>Покрытие</th>
+                        <th>Сетка</th>
+                        <th>Статус / Чемпион</th>
+                        <th style="width: 180px;">Действие</th>
+                    </tr>
+                </thead>
+                <tbody id="calendarTableBody"></tbody>
+            </table>
+        </section>
+
+        <!-- ВКЛАДКА ИСТОРИИ, ЗАЛА СЛАВЫ С ТОП-50 СНИМКАМИ И ЛЕГЕНДАМИ ТУРА -->
+        <section id="tab-history" class="panel" aria-label="Зал Славы и Архив">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                <div class="hall-subtabs" role="tablist" aria-label="Разделы Зала Славы" style="margin-bottom: 0;">
+                    <button type="button" class="hall-subtab-btn active" id="subtab-archive-btn" onclick="switchHallSubtab('archive')">Архив сезонов и Срезы Топ-50</button>
+                    <button type="button" class="hall-subtab-btn" id="subtab-legends-btn" onclick="switchHallSubtab('legends')">Завершившие карьеру (Легенды тура)</button>
+                </div>
+                <div id="historyYearPickerWrap" style="display: flex; align-items: center; gap: 10px;">
+                    <label for="historyYearSelect"><b>Выберите сезон архива:</b></label>
+                    <select id="historyYearSelect" onchange="renderHistoryYear()" style="font-weight: 700; color: var(--gold);">
+                        <option value="2023" selected>Сезон 2023</option>
+                        <option value="2024">Сезон 2024</option>
+                    </select>
+                </div>
+            </div>
+            <div id="historyContent"></div>
+            <div id="legendsContent" style="display: none;"></div>
+        </section>
+
+        <!-- ВКЛАДКА ИНТЕРАКТИВНОЙ КИБЕР-ГАЗЕТЫ «📰 ЛЕНТА ТУРА (TENNIS FEED)» -->
+        <section id="tab-feed" class="panel" aria-label="Лента Тура (Tennis Feed)">
+            <div class="feed-top-bar">
+                <div>
+                    <h2 style="font-size: 18px; color: var(--accent); display: flex; align-items: center; gap: 8px;">
+                        <span>📰 Лента Тура (Tennis Feed)</span>
+                        <span class="breaking-news-badge">🔴 LIVE INSIDER</span>
+                    </h2>
+                    <small style="color: var(--text-dim);">Прямой эфир соцсетей теннисного тура: главные сенсации, трэш-ток принципиальных соперников, медицинские сводки и аналитика журналистов.</small>
+                </div>
+                <div class="feed-filter-pills" role="tablist" aria-label="Фильтр ленты новостей">
+                    <button type="button" class="feed-filter-btn active" id="feed-filter-all" onclick="setTennisFeedFilter('all')">Все посты</button>
+                    <button type="button" class="feed-filter-btn" id="feed-filter-breaking" onclick="setTennisFeedFilter('breaking')">🔴 Breaking News</button>
+                    <button type="button" class="feed-filter-btn" id="feed-filter-rivalry" onclick="setTennisFeedFilter('rivalry')">🔥 Rivalry & Трэш-ток</button>
+                    <button type="button" class="feed-filter-btn" id="feed-filter-titles" onclick="setTennisFeedFilter('titles')">🏆 Титулы и Финалы</button>
+                </div>
+            </div>
+            <div id="tennisFeedContainer" class="tennis-feed-stream"></div>
+        </section>
+    </main>
+
+    <!-- МОДАЛКА МАТЧ-ЦЕНТРА (H2H + ВВОД СЧЕТА + СБРОС + GROQ AI СИМУЛЯЦИЯ И КОММЕНТАРИЙ) -->
+    <div class="modal" id="scoreModal" role="dialog" aria-modal="true" aria-labelledby="scoreModalTitle">
+        <div class="modal-content match-center-modal">
+            <div class="modal-header-row">
+                <div>
+                    <h3 id="scoreModalTitle" class="modal-main-title">🎾 Матч-центр и Личные встречи (H2H)</h3>
+                    <div id="scoreModalSubtitle" class="modal-sub-caption">Введите счет вручную или запустите ИИ-симуляцию Groq (Llama 3.3)</div>
+                </div>
+                <button type="button" class="btn-edit btn-compact" onclick="closeModal('scoreModal')">Закрыть ✕</button>
+            </div>
+
+            <!-- 1. ВЕРХНИЙ БЛОК: АНАЛИТИКА H2H + КАРТОЧКИ ULTIMATE TEAM + SPIDER CHART -->
+            <div class="h2h-card" id="h2hContainer"></div>
+
+            <!-- 1.5. ШКАЛА ИНИЦИАТИВЫ (TV-STYLE MOMENTUM BAR) -->
+            <div id="matchMomentumContainer" class="momentum-bar-section"></div>
+
+            <!-- 2. ЦЕНТРАЛЬНЫЙ БЛОК: ВВОД СЧЕТА И АННУЛИРОВАНИЕ РЕЗУЛЬТАТА -->
+            <div class="match-score-editor-section">
+                <div class="score-input-header-row">
+                    <label for="quickScoreStr" class="score-input-label">
+                        Ввод счёта текущего матча (со стороны Игрока 1 к Игроку 2):
+                    </label>
+                    <button type="button" class="btn-red btn-compact" id="btnResetMatchResult" onclick="promptResetMatchResult()">
+                        🗑️ Аннулировать результат матча
+                    </button>
+                </div>
+
+                <!-- ПОДТВЕРЖДЕНИЕ АННУЛИРОВАНИЯ РЕЗУЛЬТАТА МАТЧА -->
+                <div id="resetMatchConfirmBox" class="reset-confirm-banner" style="display: none;">
+                    <span>❓ <b>Сбросить результат этого матча?</b> Победитель также будет удалён из следующего раунда сетки, и матч можно будет переиграть.</span>
+                    <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                        <button type="button" class="btn-red btn-compact" id="btnConfirmResetMatch" onclick="confirmResetMatchResult()">Да, сбросить</button>
+                        <button type="button" class="btn-edit btn-compact" onclick="cancelResetMatchResult()">Отмена</button>
+                    </div>
+                </div>
+
+                <input type="text" id="quickScoreStr" class="score-quick-input" placeholder="например: 4-6 7-6(5) 6-3 или 6-4 3-1 RET" oninput="handleLiveScoreInputForMomentum()" onkeydown="if(event.key==='Enter') saveQuickStringScore()">
+
+                <div class="preset-sets-bar">
+                    <span class="preset-sets-title">Быстрый сет:</span>
+                    <div class="preset-buttons">
+                        <button type="button" class="preset-btn" onclick="appendSetScore('6-0')">6-0</button>
+                        <button type="button" class="preset-btn" onclick="appendSetScore('6-1')">6-1</button>
+                        <button type="button" class="preset-btn" onclick="appendSetScore('6-2')">6-2</button>
+                        <button type="button" class="preset-btn" onclick="appendSetScore('6-3')">6-3</button>
+                        <button type="button" class="preset-btn" onclick="appendSetScore('6-4')">6-4</button>
+                        <button type="button" class="preset-btn" onclick="appendSetScore('7-5')">7-5</button>
+                        <button type="button" class="preset-btn" onclick="appendSetScore('7-6(4)')">7-6(4)</button>
+                        <button type="button" class="preset-btn" onclick="appendSetScore('7-6(5)')">7-6(5)</button>
+                        <button type="button" class="preset-btn" onclick="appendSetScore('7-6(8)')">7-6(8)</button>
+                        <button type="button" class="preset-btn" onclick="appendSetScore('7-6(10)')" style="color: var(--gold)">7-6(10) Супер-ТБ</button>
+                        <button type="button" class="preset-btn" onclick="appendSetScore('RET')" style="color: #fca5a5; border-color: rgba(239, 68, 68, 0.45);">🚑 RET (Отказ)</button>
+                        <button type="button" class="preset-btn" onclick="generateRandomScoreToInput()" style="color: var(--accent)">🎲 Случайный счет</button>
+                        <button type="button" class="preset-btn" onclick="clearScoreInput()" style="color: var(--danger)">Очистить</button>
+                    </div>
+                </div>
+
+                <!-- ВЫБОР РЕЖИМА: С КОММЕНТАРИЯМИ ЛИБО ПРОСТО СЧЁТ БЕЗ КОММЕНТАРИЕВ -->
+                <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                    <span style="font-size: 12px; color: var(--text-dim); font-weight: 600;">Режим вывода и сохранения результата:</span>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button type="button" id="btnModeWithComments" class="btn-compact active-mode-pill" onclick="setMatchCommentaryMode(true)" style="font-size: 11.5px; padding: 4px 10px;">
+                            🎙️ С комментариями и интервью
+                        </button>
+                        <button type="button" id="btnModeScoreOnly" class="btn-compact" onclick="setMatchCommentaryMode(false)" style="font-size: 11.5px; padding: 4px 10px;">
+                            🔢 Только счёт (без комментариев)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. БЛОК ИИ-РЕПОРТАЖА (КРАТКАЯ ДРАМА МАТЧА + ПРЯМАЯ РЕЧЬ ИГРОКОВ) -->
+            <div id="aiMatchReportCard" class="ai-report-showcase" style="display: none;">
+                <div id="aiMatchNarrative" class="ai-narrative-banner"></div>
+                <div id="aiMatchQuotes" class="ai-quotes-block"></div>
+            </div>
+
+            <div id="scoreInputError" class="groq-error-alert" style="display: none;"></div>
+
+            <!-- ПЛАШКА READ-ONLY В МАТЧ-ЦЕНТРЕ ДЛЯ ГОСТЕЙ КАНОНА -->
+            <div id="canonReadOnlyMatchNotice" style="display: none; margin-bottom: 10px; padding: 9px 12px; border-radius: 8px; background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(56, 189, 248, 0.35); font-size: 12px; color: #bae6fd; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span>🔒 <b>Канон Автора (Только просмотр):</b> ввод счёта и симуляция заблокированы в каноничном мире.</span>
+                <button type="button" class="btn-green btn-compact" onclick="closeModal('scoreModal'); openCreateUniverseModal();">+ Создать свою вселенную</button>
+            </div>
+
+            <!-- БЫСТРЫЙ ВЫБОР ПОБЕДИТЕЛЯ -->
+            <div style="margin-bottom: 10px;">
+                <div style="font-size: 11.5px; color: var(--text-dim); margin-bottom: 5px; font-weight: 600;">Быстрый выбор победителя (1 клик):</div>
+                <div id="playerPresets" class="quick-winner-grid"></div>
+            </div>
+
+            <!-- 4. ЧЕТКИЕ РАЗДЕЛЬНЫЕ КНОПКИ ДЕЙСТВИЙ -->
+            <div class="sim-actions-grid">
+                <button type="button" class="btn-green action-btn-large" id="btnSaveScore" onclick="saveQuickStringScore()">
+                    💾 Сохранить счет
+                </button>
+                <button type="button" class="btn-edit action-btn-large" id="btnSaveScoreOnly" onclick="saveQuickStringScoreOnly()">
+                    🔢 Сохранить только счёт (без коммент.)
+                </button>
+                <button type="button" class="btn-gold action-btn-large" id="btnAiCommentScore" onclick="generateCommentaryForScoreWithAI()">
+                    🎙️ ИИ-комментарий к введенному счету
+                </button>
+                <button type="button" class="btn-purple action-btn-large" id="btnAiSimMatch" onclick="simulateMatchWithAI()">
+                    🧠 ИИ-симуляция матча (Groq)
+                </button>
+                <button type="button" class="btn-edit action-btn-large" id="btnInstantSimMatch" onclick="instantSimulateMatch()" style="grid-column: 1 / -1;">
+                    ⚡ Быстрый расчет (Оффлайн)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА СОЗДАНИЯ НОВОЙ ПРОИЗВОЛЬНОЙ ВСЕЛЕННОЙ (РАЗДЕЛ 3) -->
+    <div class="modal" id="createUniverseModal" role="dialog" aria-modal="true" aria-labelledby="createUniverseModalTitle">
+        <div class="modal-content" style="width: 560px;">
+            <div class="modal-header-row">
+                <div>
+                    <h3 id="createUniverseModalTitle" style="font-size: 17px; color: var(--accent);">🌌 Создать новую теннисную вселенную</h3>
+                    <div class="modal-sub-caption">Изолированный мир со своим собственным рейтингом, сетками и историей</div>
+                </div>
+                <button type="button" class="btn-edit btn-compact" onclick="closeModal('createUniverseModal')">Закрыть ✕</button>
+            </div>
+
+            <div class="form-group">
+                <label for="newUniverseNameInput">Название вселенной:</label>
+                <input type="text" id="newUniverseNameInput" placeholder="например: Вселенная 2: Новая Эра" value="Вселенная 2: Новая Эра">
+            </div>
+
+            <div class="form-group">
+                <label for="newUniverseYearSelect">Стартовый год сезона (02 января):</label>
+                <select id="newUniverseYearSelect">
+                    <option value="2023">Сезон 2023 (02 Января 2023)</option>
+                    <option value="2024" selected>Сезон 2024 (02 Января 2024 · Олимпийский год)</option>
+                    <option value="2025">Сезон 2025 (02 Января 2025)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>База игроков для новой вселенной:</label>
+                <div class="universe-mode-options">
+                    <label class="universe-mode-card">
+                        <input type="radio" name="newUniverseRosterMode" value="copy" checked>
+                        <div>
+                            <div style="font-weight: 700; color: var(--text-main);">📋 Своя карьера с классическим туром (300 игроков канона)</div>
+                            <div style="font-size: 12px; color: var(--text-dim); margin-top: 2px;">Начать собственное прохождение с 02 января с реальным ростером из 300 игроков канона и архивом 2023 года (не затрагивая Канон Автора).</div>
+                        </div>
+                    </label>
+                    <label class="universe-mode-card">
+                        <input type="radio" name="newUniverseRosterMode" value="random">
+                        <div>
+                            <div style="font-weight: 700; color: var(--text-main);">🎲 Сгенерировать 300 случайных игроков с нуля</div>
+                            <div style="font-size: 12px; color: var(--text-dim); margin-top: 2px;">Полностью новый процедурный тур с 300 уникальными именами на латинице, флагами стран и возрастами 17–35 лет.</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                <button type="button" class="btn-edit" onclick="closeModal('createUniverseModal')">Отмена</button>
+                <button type="button" class="btn-green" id="btnConfirmCreateUniverse" onclick="confirmCreateNewUniverse()">🌌 Создать вселенную</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ПОЛЬЗОВАТЕЛЬСКОЙ ВСЕЛЕННОЙ -->
+    <div class="modal" id="deleteUniverseModal" role="dialog" aria-modal="true" aria-labelledby="deleteUniverseModalTitle">
+        <div class="modal-content" style="width: 480px;">
+            <h3 id="deleteUniverseModalTitle" style="font-size: 16px; color: var(--danger); margin-bottom: 8px;">🗑️ Удаление пользовательской вселенной</h3>
+            <p id="deleteUniverseModalText" style="font-size: 13px; color: var(--text-main); line-height: 1.5; margin-bottom: 16px;">
+                Вы уверены, что хотите удалить этот мир? Все сетки и рейтинги этой вселенной будут удалены. «Вселенная Автора (Канон)» останется в полной сохранности.
+            </p>
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button type="button" class="btn-edit" onclick="closeModal('deleteUniverseModal')">Отмена</button>
+                <button type="button" class="btn-red" id="btnConfirmDeleteUniverse" onclick="confirmDeleteCurrentUniverse()">Да, удалить мир</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ПОЛНОЦЕННОЕ ОКНО ПРОФИЛЯ ИГРОКА (PLAYER PROFILE MODAL) -->
+    <div class="modal" id="playerProfileModal" role="dialog" aria-modal="true" aria-labelledby="playerProfileModalTitle">
+        <div class="modal-content" style="width: 800px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                    <h3 id="playerProfileTitle" style="font-size: 16px; color: var(--accent);">🎾 Профиль игрока</h3>
+                    <div id="playerProfileSubtitle" style="font-size: 12px; color: var(--text-dim); margin-top: 2px;"></div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button type="button" class="btn-edit btn-compact" id="btnProfileOpenEdit" onclick="openEditFromPlayerProfile()">✏️ Редактировать данные</button>
+                    <button type="button" onclick="closeModal('playerProfileModal')" style="padding: 4px 10px; font-size: 12px;">Закрыть ✕</button>
+                </div>
+            </div>
+            <div id="playerProfileBody"></div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА ОТЧЕТА СМЕНЫ СЕЗОНА (ЗАВЕРШИВШИЕ КАРЬЕРУ И НЬЮГЕНЫ) -->
+    <div class="modal" id="seasonTransitionModal" role="dialog" aria-modal="true" aria-labelledby="seasonTransitionTitle">
+        <div class="modal-content" style="width: 780px;">
+            <h3 id="seasonTransitionTitle" style="color: var(--gold); font-size: 18px; margin-bottom: 6px;">Итоги смены поколений и переход в новый сезон</h3>
+            <p id="seasonTransitionSubtitle" style="font-size: 13px; color: var(--text-dim); margin-bottom: 12px;"></p>
+            <div id="seasonTransitionBody"></div>
+            <div style="text-align: right; margin-top: 18px;">
+                <button type="button" class="btn-green" onclick="closeModal('seasonTransitionModal')">Продолжить в новый сезон</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА ШКАЛЫ ОЧКОВ ATP -->
+    <div class="modal" id="pointsInfoModal" role="dialog" aria-modal="true" aria-labelledby="pointsModalTitle">
+        <div class="modal-content" style="width: 720px; max-width: 95vw;">
+            <h3 id="pointsModalTitle" style="margin-bottom: 8px; color: var(--accent);">Официальная шкала очков ATP, Челленджеров и Олимпийских игр</h3>
+            <p style="font-size: 12.5px; color: var(--text-dim); margin-bottom: 12px;">
+                На всех регулярных турнирах (ТБШ, Мастерс, ATP 500, ATP 250, Челленджеры) за участие в 1-м круге начисляется <b>10 очков</b>. На Олимпийских играх и Итоговом турнире за вылет без побед очки не начисляются (<b>0 pts</b>).
+            </p>
+            <table class="custom-table" style="font-size: 12px; text-align: center;">
+                <thead>
+                    <tr>
+                        <th style="text-align: left;">Раунд</th>
+                        <th>ТБШ (128)</th>
+                        <th>Мастерс (64)</th>
+                        <th>Олимпиада (64)</th>
+                        <th>ATP 500 (32)</th>
+                        <th>ATP 250 / CH (32)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td style="text-align: left; font-weight: bold; color: var(--gold);">Титул / 🥇 Золото</td><td><b>2000</b></td><td><b>1000</b></td><td><b>1000</b></td><td><b>500</b></td><td><b>250</b> <small>(175/125/100/75)</small></td></tr>
+                    <tr><td style="text-align: left;">Финал / 🥈 Серебро</td><td>1300</td><td>650</td><td>650</td><td>330</td><td>165 <small>(115/90/75/60)</small></td></tr>
+                    <tr><td style="text-align: left;">🥉 Бронза ОИ</td><td>—</td><td>—</td><td><b>500</b></td><td>—</td><td>—</td></tr>
+                    <tr><td style="text-align: left;">1/2 финала</td><td>800</td><td>400</td><td>400</td><td>200</td><td>100 <small>(80/65/50/40)</small></td></tr>
+                    <tr><td style="text-align: left;">1/4 финала</td><td>400</td><td>200</td><td>200</td><td>100</td><td>50 <small>(45/35/30/25)</small></td></tr>
+                    <tr><td style="text-align: left;">1/8 финала</td><td>200</td><td>100</td><td>100</td><td>50</td><td>25 <small>(25/20/18/15)</small></td></tr>
+                    <tr><td style="text-align: left;">1/16 финала</td><td>100</td><td>50</td><td>50</td><td><b style="color: var(--primary);">10</b></td><td><b style="color: var(--primary);">10</b></td></tr>
+                    <tr><td style="text-align: left;">1/32 финала</td><td>50</td><td><b style="color: var(--primary);">10</b></td><td><b style="color: #94a3b8;">0</b></td><td>—</td><td>—</td></tr>
+                    <tr><td style="text-align: left;">1/64 финала</td><td><b style="color: var(--primary);">10</b></td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                </tbody>
+            </table>
+            <div style="margin-top: 10px; font-size: 12px; color: var(--text-dim); background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 6px; padding: 8px 12px;">
+                👑 <b>Итоговый турнир ATP (Топ-8):</b> +200 pts за каждую победу в группе (0 побед = <b>0 pts</b>), +400 pts за победу в 1/2 финала, +500 pts за титул (максимум <b>1500 pts</b>).<br>
+                ⚖️ <b>Формула 52 недель (0 виртуальных очков):</b> <code>Очки 52 нед. = Осталось защитить + Чемпионская Гонка (+ Итоговый для Топ-8)</code>. К концу года Чемпионская Гонка на 100% сходится с Рейтингом 52 недель!
+            </div>
+            <div style="text-align: right; margin-top: 15px;">
+                <button type="button" class="btn-green" onclick="closeModal('pointsInfoModal')">Понятно</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА РЕДАКТИРОВАНИЯ ИГРОКА (ОЧКИ ЗАБЛОКИРОВАНЫ) -->
+    <div class="modal" id="editPlayerModal" role="dialog" aria-modal="true" aria-labelledby="editPlayerModalTitle">
+        <div class="modal-content" style="width: 480px;">
+            <h3 id="editPlayerModalTitle" style="margin-bottom: 15px;">Редактировать игрока</h3>
+            <input type="hidden" id="editPlayerId">
+            <div class="form-group">
+                <label for="editPlayerName">Имя Фамилия (Латиница):</label>
+                <input type="text" id="editPlayerName">
+            </div>
+            <div class="form-group">
+                <label for="editPlayerFlag">Страна (напр: USA, SLO, NOR, ITA, RUS):</label>
+                <input type="text" id="editPlayerFlag">
+            </div>
+            <div class="form-group">
+                <label for="editPlayerBirth">Дата рождения:</label>
+                <input type="date" id="editPlayerBirth">
+            </div>
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <label for="editPlayerNickname" style="margin-bottom: 0;">Прозвище игрока (для ньюгенов и звезд тура):</label>
+                    <button type="button" class="btn-purple btn-compact" id="btnGenPlayerStyleGroq" onclick="generateSinglePlayerStyleWithGroq()" style="font-size: 11px; padding: 3px 8px;">🧠 Сгенерировать профиль (Groq)</button>
+                </div>
+                <input type="text" id="editPlayerNickname" placeholder="напр: Молния корта">
+            </div>
+            <div class="form-group">
+                <label for="editPlayerPlayStyle">Стиль игры и характер:</label>
+                <input type="text" id="editPlayerPlayStyle" placeholder="напр: Агрессивный бейслайнер с мощной подачей">
+            </div>
+            <div class="form-group">
+                <label for="editPlayerPoints">Очки рейтинга (рассчитываются строго на турнирах):</label>
+                <input type="number" id="editPlayerPoints" disabled style="opacity: 0.6; cursor: not-allowed; background: #1f2937;">
+                <small style="color: var(--text-dim); font-size: 11px;">Ручной ввод отключен (disabled), чтобы не нарушать математику 52 недель и Чемпионской гонки.</small>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 15px;">
+                <button type="button" onclick="closeModal('editPlayerModal')">Отмена</button>
+                <button type="button" class="btn-green" onclick="savePlayerEdit()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА СОЗДАНИЯ НОВОГО ИГРОКА -->
+    <div class="modal" id="addPlayerModal" role="dialog" aria-modal="true" aria-labelledby="addPlayerModalTitle">
+        <div class="modal-content" style="width: 480px;">
+            <h3 id="addPlayerModalTitle" style="margin-bottom: 15px;">Создать нового игрока</h3>
+            <div class="form-group">
+                <label for="newPlayerName">Имя и Фамилия (Латиница без цифр):</label>
+                <input type="text" id="newPlayerName" placeholder="Julian Stone">
+            </div>
+            <div class="form-group">
+                <label for="newPlayerFlag">Код страны (3 буквы, напр: USA, ESP, FRA):</label>
+                <input type="text" id="newPlayerFlag" placeholder="USA" value="USA">
+            </div>
+            <div class="form-group">
+                <label for="newPlayerBirth">Дата рождения:</label>
+                <input type="date" id="newPlayerBirth" value="2002-05-15">
+            </div>
+            <div id="addPlayerError" style="color: var(--danger); font-size: 12px; margin-bottom: 10px; display: none;"></div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 15px;">
+                <button type="button" onclick="closeModal('addPlayerModal')">Отмена</button>
+                <button type="button" class="btn-green" onclick="confirmAddPlayer()">Создать игрока</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА РЕДАКТИРОВАНИЯ ТУРНИРА -->
+    <div class="modal" id="editTourneyModal" role="dialog" aria-modal="true" aria-labelledby="editTourneyModalTitle">
+        <div class="modal-content" style="width: 480px;">
+            <h3 id="editTourneyModalTitle" style="margin-bottom: 15px;">Редактировать турнир</h3>
+            <input type="hidden" id="editTourneyId">
+            <div class="form-group">
+                <label for="editTourneyName">Название турнира:</label>
+                <input type="text" id="editTourneyName">
+            </div>
+            <div class="form-group">
+                <label for="editTourneySurface">Покрытие:</label>
+                <select id="editTourneySurface">
+                    <option value="Хард">Хард (Hard)</option>
+                    <option value="Грунт">Грунт (Clay)</option>
+                    <option value="Трава">Трава (Grass)</option>
+                    <option value="Зал">Зал (Indoor Hard)</option>
+                </select>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 15px;">
+                <button type="button" onclick="closeModal('editTourneyModal')">Отмена</button>
+                <button type="button" class="btn-green" onclick="saveTourneyEdit()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА НАСТРОЕК GROQ API -->
+    <div class="modal" id="apiSettingsModal" role="dialog" aria-modal="true" aria-labelledby="apiSettingsModalTitle">
+        <div class="modal-content" style="width: 520px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 id="apiSettingsModalTitle" style="color: #e9d5ff; font-size: 16px;">⚙️ Настройки Groq API (Llama 3.3 / 3.1)</h3>
+                <button type="button" onclick="closeModal('apiSettingsModal')" style="padding: 4px 9px; font-size: 12px;">Закрыть ✕</button>
+            </div>
+            <p style="font-size: 12.5px; color: var(--text-dim); margin-bottom: 12px;">
+                Сверхбыстрый Groq API используется для умной ИИ-симуляции матчей с цитатами игроков, ИИ-комментариев к введенному счету, послематчевых колонок финалов и генерации стилей игры молодых новичков.
+            </p>
+            <div id="groqKeyStatusBadge" class="api-status-badge" style="margin-bottom: 12px;"></div>
+            <div class="form-group">
+                <label for="groqApiKeyInput">Groq API Key (<code>localStorage: groq_api_key</code> / <code>VITE_GROQ_API_KEY</code>):</label>
+                <input type="password" id="groqApiKeyInput" placeholder="gsk_..." autocomplete="off">
+                <small style="color: var(--text-dim); font-size: 11px;">По умолчанию предустановлен рабочий ключ Groq API. Вы можете заменить его на собственный в любой момент.</small>
+            </div>
+            <div class="form-group">
+                <label for="groqModelSelect">Модель Groq (строго в нижнем регистре):</label>
+                <select id="groqModelSelect">
+                    <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Максимальное качество)</option>
+                    <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (Ультра-быстрая)</option>
+                </select>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 16px;">
+                <button type="button" class="btn-red" onclick="clearGroqApiKeySettings()">Сбросить к дефолтному</button>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" onclick="closeModal('apiSettingsModal')">Отмена</button>
+                    <button type="button" class="btn-green" onclick="saveGroqApiSettings()">💾 Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА ОТЧЕТА ПРОБНОЙ СИМУЛЯЦИИ СЕЗОНА (ТЕСТ + ОТКАТ / УТВЕРЖДЕНИЕ) -->
+    <div class="modal" id="testSeasonReportModal" role="dialog" aria-modal="true" aria-labelledby="testSeasonReportTitle">
+        <div class="modal-content" style="width: 760px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 id="testSeasonReportTitle" style="color: var(--gold); font-size: 17px;">⚡ Отчет пробной симуляции сезона (Тестовый прогон)</h3>
+                <button type="button" onclick="closeModal('testSeasonReportModal')" style="padding: 4px 10px; font-size: 12px;">Закрыть ✕</button>
+            </div>
+            <p style="font-size: 12.5px; color: var(--text-dim); margin-bottom: 12px;">
+                Перед симуляцией сохранен полный слепок состояния тура (<code>window._preSimSnapshot</code>). Вы можете откатить тестовый сезон назад к исходной дате или утвердить эти результаты:
+            </p>
+            <div id="testSeasonReportBody"></div>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap;">
+                <button type="button" class="btn-red" id="btnRollbackTestSeasonModal" onclick="rollbackTestSeasonSimulation()">⏪ Откатить тестовый сезон назад</button>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn-edit" onclick="closeModal('testSeasonReportModal')">Посмотреть сетки и таблицы</button>
+                    <button type="button" class="btn-green" id="btnCommitTestSeasonModal" onclick="commitTestSeasonSimulation()">✅ Утвердить результаты сезона</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА СЕЗОННЫХ ЧЕКПОИНТОВ (ТОЧКИ ОТКАТА ПОСЛЕ ТБШ И ИТОГОВОГО) -->
+    <div class="modal" id="checkpointsModal" role="dialog" aria-modal="true" aria-labelledby="checkpointsModalTitle">
+        <div class="modal-content" style="width: 680px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 id="checkpointsModalTitle" style="color: var(--accent); font-size: 16px;">🕒 Чекпоинты сезона (Точки отката состояния)</h3>
+                <button type="button" onclick="closeModal('checkpointsModal')" style="padding: 4px 10px; font-size: 12px;">Закрыть ✕</button>
+            </div>
+            <p style="font-size: 12.5px; color: var(--text-dim); margin-bottom: 10px;">
+                Система автоматически сохраняет чекпоинты на старте сезона (02.01), после каждого из 4 Турниров Большого Шлема и после Итогового турнира. Вы также можете создать ручной чекпоинт и откатиться к любой точке в 1 клик:
+            </p>
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                <button type="button" class="btn-green btn-compact" id="btnCreateManualCheckpoint" onclick="createManualCheckpoint()">💾 Создать ручной чекпоинт текущего момента</button>
+            </div>
+            <div id="checkpointsListContainer" class="checkpoint-list"></div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА АВТОРИЗАЦИИ АВТОРА КАНОНА -->
+    <div class="modal" id="authorUnlockModal" role="dialog" aria-modal="true" aria-labelledby="authorUnlockModalTitle">
+        <div class="modal-content" style="width: 440px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 id="authorUnlockModalTitle" style="color: var(--gold); font-size: 16px;">🔑 Вход Автора (Управление Каноном)</h3>
+                <button type="button" onclick="closeModal('authorUnlockModal')" style="padding: 4px 10px; font-size: 12px;">Закрыть ✕</button>
+            </div>
+            <p style="font-size: 12.5px; color: var(--text-dim); margin-bottom: 12px;">
+                «Вселенная Автора (Канон)» защищена от изменений гостями. Введите ключ Автора для разблокировки полного редактирования каноничной вселенной в этом браузере:
+            </p>
+            <div class="form-group">
+                <label for="authorPasscodeInput">Ключ / Логин Автора:</label>
+                <input type="password" id="authorPasscodeInput" placeholder="Введите ключ Автора..." autocomplete="off" onkeydown="if(event.key==='Enter') confirmAuthorUnlock()">
+            </div>
+            <div id="authorUnlockError" style="display: none; color: var(--danger); font-size: 12px; margin-bottom: 10px;"></div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+                <button type="button" class="btn-edit" onclick="closeModal('authorUnlockModal')">Отмена</button>
+                <button type="button" class="btn-green" onclick="confirmAuthorUnlock()">🔓 Разблокировать Канон</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- УВЕДОМЛЕНИЕ TOAST -->
+    <div id="toastBanner" class="toast-banner" style="display: none;" role="status" aria-live="polite"></div>
+
+    <!-- ПОДКЛЮЧЕНИЕ МОДУЛЬНОЙ АРХИТЕКТУРЫ -->
+    <script type="module" src="/src/app.js"></script>
+</body>
+</html>

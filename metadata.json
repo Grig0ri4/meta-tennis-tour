@@ -1,0 +1,6 @@
+{
+  "name": "Meta Tennis Tour — Профессиональный Тур 300",
+  "description": "Симулятор виртуальной теннисной вселенной с пулом из 300 игроков, 26 турнирами сезона, 52-недельным рейтингом ATP, Чемпионской гонкой, системой завершения карьеры и генерацией молодых талантов.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
