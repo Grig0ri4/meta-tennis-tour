@@ -8,4 +8,5 @@ coverage/
 !.env.example
 .tempmediaStorage/
 .aistudio/
+public/assets/aistudio/
 
