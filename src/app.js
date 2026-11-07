@@ -717,8 +717,12 @@ export function initData() {
     if (p.rankChange === undefined) p.rankChange = 0;
     if (p.racePoints === undefined) p.racePoints = 0;
     const histPeak = HISTORICAL_PEAK_RANK_BY_NAME[String(p.name || '').toLowerCase()];
-    if (histPeak) {
-      p.bestRank = histPeak;
+    if (histPeak !== undefined) {
+      if (!p.bestRank || p.bestRank > histPeak) {
+        p.bestRank = histPeak;
+      } else if (p.bestRank === 1 && histPeak > 1 && (p.seasonStartRank || 999) >= histPeak && (p.rank || 999) >= histPeak) {
+        p.bestRank = histPeak;
+      }
     } else if (!p.bestRank) {
       p.bestRank = p.rank || (idx + 1);
     }
@@ -973,8 +977,12 @@ function repairOvercountedPoints() {
       p.seasonStartRank = startRankMap[p.id];
     }
     const histPeak = HISTORICAL_PEAK_RANK_BY_NAME[String(p.name || '').toLowerCase()];
-    if (histPeak) {
-      p.bestRank = histPeak;
+    if (histPeak !== undefined) {
+      if (!p.bestRank || p.bestRank > histPeak) {
+        p.bestRank = histPeak;
+      } else if (p.bestRank === 1 && histPeak > 1 && (p.seasonStartRank || 999) >= histPeak && (p.rank || 999) >= histPeak) {
+        p.bestRank = histPeak;
+      }
     } else if (peakRankMap[p.id]) {
       p.bestRank = Math.min(p.bestRank || 999, peakRankMap[p.id]);
     }

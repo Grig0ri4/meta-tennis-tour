@@ -41,14 +41,14 @@ export const PARALLEL_TOUR_SCALES = {
  */
 export const CANONICAL_2023_START_TOP10 = [
   { name: 'Max Kyupan', flag: 'GEO', points: 12300, peakRank: 1 },
-  { name: 'Will Wentra', flag: 'NOR', points: 11950, peakRank: 2 },
-  { name: 'Istep Fofol', flag: 'SLO', points: 6800, peakRank: 1 },
-  { name: 'Ussistian Shifter', flag: 'USA', points: 5050, peakRank: 4 },
-  { name: 'Fite Memsy Staprin', flag: '?', points: 4690, peakRank: 5 },
-  { name: 'Puddy Mexalino', flag: 'CHI', points: 4060, peakRank: 4 },
-  { name: 'Gary Riffay', flag: 'USA', points: 3800, peakRank: 6 },
+  { name: 'Will Wentra', flag: 'NOR', points: 11950, peakRank: 1 },
+  { name: 'Istep Fofol', flag: 'SLO', points: 7260, peakRank: 1 },
+  { name: 'Ussistian Shifter', flag: 'USA', points: 7060, peakRank: 4 },
+  { name: 'Fite Memsy Staprin', flag: '?', points: 5460, peakRank: 5 },
+  { name: 'Puddy Mexalino', flag: 'CHI', points: 5000, peakRank: 4 },
+  { name: 'Gary Riffay', flag: 'USA', points: 4280, peakRank: 6 },
+  { name: 'Pen Klak', flag: '?', points: 3760, peakRank: 8 },
   { name: 'Omar Netigios', flag: '?', points: 3300, peakRank: 8 },
-  { name: 'Pen Klak', flag: '?', points: 3130, peakRank: 9 },
   { name: 'Shaun Salkar', flag: '?', points: 2870, peakRank: 5 }
 ];
 
@@ -108,7 +108,7 @@ export function buildCanonical2023StartMap(players) {
       .filter(p => !usedIds.has(p.id))
       .map(p => ({
         player: p,
-        legitBasePts: PRESERVED_BASE_POINTS_BY_ID[p.id] || p.basePoints || p.start2023Points || p.points || 250
+        legitBasePts: p.start2023Points || PRESERVED_BASE_POINTS_BY_ID[p.id] || p.basePoints || p.points || 250
       }))
       .sort((a, b) => b.legitBasePts - a.legitBasePts);
 
@@ -231,9 +231,17 @@ export function sortAndRankPlayers(players, updateRankChange = false) {
     const canonicalPeak = HISTORICAL_PEAK_RANK_BY_NAME[String(p.name || '').toLowerCase()];
     if (canonicalPeak !== undefined) {
       p.historicalBestRank = canonicalPeak;
-      // Исправляем ошибочный #1 (например, у Shaun Salkar пик #5, если он реально не выше #5 сейчас)
-      const prevValidBest = (p.bestRank && p.bestRank >= canonicalPeak) ? p.bestRank : canonicalPeak;
-      p.bestRank = Math.min(prevValidBest, newRank);
+      // Пик не может быть хуже исторического канонического (у Wentra пик #1, а не #2).
+      // Если у игрока висел старый баг с ошибочным #1 (например, у Salkar с каноническим пиком #5), сбрасываем его
+      let currentBest = p.bestRank || canonicalPeak;
+      if (currentBest > canonicalPeak) {
+        currentBest = canonicalPeak;
+      } else if (currentBest < canonicalPeak && canonicalPeak > 1) {
+        if (currentBest === 1 && (p.seasonStartRank || 999) >= canonicalPeak && newRank >= canonicalPeak) {
+          currentBest = canonicalPeak;
+        }
+      }
+      p.bestRank = Math.min(currentBest, newRank);
     } else {
       const floorPeak = p.historicalBestRank || p.seasonStartRank || newRank;
       const currentBest = (p.bestRank && p.bestRank > 1) ? p.bestRank : floorPeak;
@@ -479,6 +487,9 @@ export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, 
   fixedTargetsByName.set('shramysul leontiev', 2810);
   const excludedNamesLower = new Set(fixedTargetsByName.keys());
 
+  const protectedTourneysMap = new Map();
+  players.forEach(p => protectedTourneysMap.set(p.id, new Set()));
+
   tourneys2023.forEach((t, tIdx) => {
     let earnedMap = {};
     let participantsList = [];
@@ -489,14 +500,23 @@ export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, 
       const res = calculateTournamentEarnedPoints(t, drawToUse);
       earnedMap = res.earnedMap;
       participantsList = res.participantsList;
+      Object.keys(earnedMap).forEach(pid => protectedTourneysMap.get(pid)?.add(t.id));
     } else if (savedDraw && savedDraw.length > 0 && savedDraw[savedDraw.length - 1]?.[0]?.winner) {
       const res = calculateTournamentEarnedPoints(t, savedDraw);
       earnedMap = res.earnedMap;
       participantsList = res.participantsList;
+      const finalMatch = savedDraw[savedDraw.length - 1]?.[0];
+      if (finalMatch && finalMatch.winner) {
+        protectedTourneysMap.get(finalMatch.winner.id)?.add(t.id);
+        const ru = finalMatch.p1?.id === finalMatch.winner.id ? finalMatch.p2 : finalMatch.p1;
+        if (ru) protectedTourneysMap.get(ru.id)?.add(t.id);
+      }
     } else {
       const spec = finalsSpecMap[t.id];
       const wP = spec ? players.find(x => String(x.name || '').toLowerCase() === String(spec.winnerName || '').toLowerCase()) : null;
       const ruP = spec ? players.find(x => String(x.name || '').toLowerCase() === String(spec.runnerUpName || '').toLowerCase()) : null;
+      if (wP) protectedTourneysMap.get(wP.id)?.add(t.id);
+      if (ruP) protectedTourneysMap.get(ruP.id)?.add(t.id);
       const pool32 = [];
       if (wP) pool32.push(wP);
       if (ruP && (!wP || ruP.id !== wP.id)) pool32.push(ruP);
@@ -558,9 +578,12 @@ export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, 
 
     if (target !== undefined) {
       let diff = target - sum;
-      const poolIds = [...t500Ids, ...allRegIds];
+      // В список пула для балансировки включаем ТОЛЬКО турниры, где у игрока не было реальной сетки
+      const protectedSet = protectedTourneysMap.get(p.id) || new Set();
+      const flexibleTids = [...t500Ids, ...allRegIds].filter(tid => !protectedSet.has(tid));
+      const poolIds = flexibleTids.length > 0 ? flexibleTids : allRegIds.filter(tid => !protectedSet.has(tid));
       let safety = 0;
-      while (diff !== 0 && safety < 20) {
+      while (diff !== 0 && safety < 30 && poolIds.length > 0) {
         safety++;
         let changed = false;
         for (const tid of poolIds) {
@@ -572,8 +595,8 @@ export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, 
             p.tournamentPoints[tid][2023] = cur + add;
             diff -= add;
             changed = true;
-          } else if (diff < 0 && cur > 5) {
-            const sub = Math.min(-diff, cur - 5);
+          } else if (diff < 0 && cur > 0) {
+            const sub = Math.min(-diff, cur);
             if (sub > 0) {
               p.tournamentPoints[tid][2023] = cur - sub;
               diff += sub;
@@ -591,6 +614,8 @@ export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, 
     // Истинные стартовые очки на 02.01.2024 СТРОГО равны сумме всех турниров 2023 года (0 виртуальных очков!)
     p.start2023Points = finalSum2023;
     p.basePoints = finalSum2023;
+    p.points = finalSum2023;
+    p.remainingDefending = finalSum2023;
   });
 }
 

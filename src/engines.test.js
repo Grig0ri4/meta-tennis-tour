@@ -116,19 +116,19 @@ test('Раздел 1: Архив 2023 года фиксирует GEO Max Kyupan
   assert.equal(top10[1].name, 'Will Wentra');
   assert.equal(top10[1].points, 11950);
   assert.equal(top10[2].name, 'Istep Fofol');
-  assert.equal(top10[2].points, 6800);
+  assert.equal(top10[2].points, 7260);
   assert.equal(top10[3].name, 'Ussistian Shifter');
-  assert.equal(top10[3].points, 5050);
+  assert.equal(top10[3].points, 7060);
   assert.equal(top10[4].name, 'Fite Memsy Staprin');
-  assert.equal(top10[4].points, 4690);
+  assert.equal(top10[4].points, 5460);
   assert.equal(top10[5].name, 'Puddy Mexalino');
-  assert.equal(top10[5].points, 4060);
+  assert.equal(top10[5].points, 5000);
   assert.equal(top10[6].name, 'Gary Riffay');
-  assert.equal(top10[6].points, 3800);
-  assert.equal(top10[7].name, 'Omar Netigios');
-  assert.equal(top10[7].points, 3300);
-  assert.equal(top10[8].name, 'Pen Klak');
-  assert.equal(top10[8].points, 3130);
+  assert.equal(top10[6].points, 4280);
+  assert.equal(top10[7].name, 'Pen Klak');
+  assert.equal(top10[7].points, 3760);
+  assert.equal(top10[8].name, 'Omar Netigios');
+  assert.equal(top10[8].points, 3300);
   assert.equal(top10[9].name, 'Shaun Salkar');
   assert.equal(top10[9].points, 2870);
 
@@ -205,10 +205,10 @@ test('Блок 2: Базовые очки старта 2024 года, Пик р�
 
   assert.equal(players[1].name, 'Will Wentra');
   assert.equal(players[1].points, 11950);
-  assert.equal(players[1].bestRank, 2);
+  assert.equal(players[1].bestRank, 1, 'У Вилла Вентры пик ранга #1, так как он был первой ракеткой');
 
   assert.equal(players[2].name, 'Istep Fofol');
-  assert.equal(players[2].points, 6800);
+  assert.equal(players[2].points, 7260);
   assert.equal(players[2].bestRank, 1);
 
   const salkar = players.find(p => p.name === 'Shaun Salkar');
@@ -545,14 +545,14 @@ test('Раздел 1 (Рефакторинг 2024): Канонический с�
   // Топ-10 рейтинга 52 недель на 02.01.2024 строго соответствует итогам 2023 года
   const expectedTop10 = [
     { name: 'Max Kyupan', points: 12300, bestRank: 1 },
-    { name: 'Will Wentra', points: 11950, bestRank: 2 },
-    { name: 'Istep Fofol', points: 6800, bestRank: 1 },
-    { name: 'Ussistian Shifter', points: 5050, bestRank: 4 },
-    { name: 'Fite Memsy Staprin', points: 4690, bestRank: 5 },
-    { name: 'Puddy Mexalino', points: 4060, bestRank: 4 },
-    { name: 'Gary Riffay', points: 3800, bestRank: 6 },
+    { name: 'Will Wentra', points: 11950, bestRank: 1 },
+    { name: 'Istep Fofol', points: 7260, bestRank: 1 },
+    { name: 'Ussistian Shifter', points: 7060, bestRank: 4 },
+    { name: 'Fite Memsy Staprin', points: 5460, bestRank: 5 },
+    { name: 'Puddy Mexalino', points: 5000, bestRank: 4 },
+    { name: 'Gary Riffay', points: 4280, bestRank: 6 },
+    { name: 'Pen Klak', points: 3760, bestRank: 8 },
     { name: 'Omar Netigios', points: 3300, bestRank: 8 },
-    { name: 'Pen Klak', points: 3130, bestRank: 9 },
     { name: 'Shaun Salkar', points: 2870, bestRank: 5 }
   ];
 
@@ -591,7 +591,7 @@ test('Раздел 1 (Рефакторинг 2024): Канонический с�
   assert.equal(players.every(p => p.racePoints >= 0), true);
   const fofolEarned2024 = fofol.tournamentPoints['m_1'][2024] || 0;
   assert.equal(fofol.racePoints, fofolEarned2024, 'Гонка ТОЛЬКО накапливает очки 2024 года без вычета защиты 2023');
-  assert.equal(fofol.points, 6800 - 1000 + fofolEarned2024, 'Рейтинг 52 недель вычитает защиту 2023 и прибавляет очки 2024');
+  assert.equal(fofol.points, 7260 - 1000 + fofolEarned2024, 'Рейтинг 52 недель вычитает защиту 2023 и прибавляет очки 2024');
 });
 
 test('Раздел 2 (Умный ИИ-модуль матча): Запрет шаблона 6-3 6-2, Сценарий А (ИИ-комментарий к счету) и Сценарий Б (реалистичная симуляция)', async () => {
