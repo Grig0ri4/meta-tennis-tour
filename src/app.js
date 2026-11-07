@@ -86,6 +86,12 @@ import {
   buildFallbackFinalPressColumn,
   enrichNewgensWithGroq
 } from './aiService.js';
+import {
+  COUNTRY_CATALOG,
+  getCountryMeta,
+  normalizeCountryCode,
+  renderFlagBadge
+} from './countryFlags.js';
 
 // --- СИСТЕМА МУЛЬТИВСЕЛЕННЫХ (SAVE SLOTS В LOCALSTORAGE) И ЗАЩИТА КАНОНА АВТОРА ---
 const UNIVERSES_LIST_KEY = 'meta_universes_registry_v1';
@@ -533,6 +539,148 @@ function loadUniverseStateFromStorage() {
   }
 }
 
+const CUSTOM_PLAYER_OVERRIDES_KEY = 'meta_custom_player_overrides_v1';
+
+function loadCustomPlayerOverrides() {
+  const merged = {};
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const globalRaw = localStorage.getItem(`${CUSTOM_PLAYER_OVERRIDES_KEY}_${activeUniverseId}`);
+      if (globalRaw) Object.assign(merged, JSON.parse(globalRaw));
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    const univRaw = universeStorage.getItem(CUSTOM_PLAYER_OVERRIDES_KEY);
+    if (univRaw) Object.assign(merged, JSON.parse(univRaw));
+  } catch {
+    // ignore
+  }
+  return merged;
+}
+
+function saveCustomPlayerOverridesMap(overridesMap) {
+  const json = JSON.stringify(overridesMap || {});
+  try {
+    universeStorage.setItem(CUSTOM_PLAYER_OVERRIDES_KEY, json);
+  } catch {
+    // ignore
+  }
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(`${CUSTOM_PLAYER_OVERRIDES_KEY}_${activeUniverseId}`, json);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function recordCustomPlayerOverride(player, canonicalName = null) {
+  if (!player) return;
+  const overrides = loadCustomPlayerOverrides();
+  const payload = {
+    name: player.name,
+    flag: player.flag,
+    birthDate: player.birthDate,
+    nickname: player.nickname || '',
+    playStyle: player.playStyle || ''
+  };
+  if (player.id) overrides[`id:${player.id}`] = payload;
+  const normName = String(canonicalName || player.name || '').trim().toLowerCase();
+  if (normName) overrides[`name:${normName}`] = payload;
+  saveCustomPlayerOverridesMap(overrides);
+}
+
+function propagatePlayerIdentityUpdate(updatedPlayer, oldNameLower = '') {
+  if (!updatedPlayer) return;
+  const targetId = String(updatedPlayer.id);
+  const targetNameLower = String(updatedPlayer.name || '').trim().toLowerCase();
+
+  const matchesPlayerRef = (ref) => {
+    if (!ref) return false;
+    if (ref.id !== undefined && String(ref.id) === targetId) return true;
+    const rn = String(ref.name || '').trim().toLowerCase();
+    return Boolean(rn && (rn === targetNameLower || (oldNameLower && rn === oldNameLower)));
+  };
+
+  const patchRef = (ref) => {
+    if (!matchesPlayerRef(ref)) return false;
+    let changed = false;
+    if (ref.name !== updatedPlayer.name) { ref.name = updatedPlayer.name; changed = true; }
+    if (ref.flag !== updatedPlayer.flag) { ref.flag = updatedPlayer.flag; changed = true; }
+    if (updatedPlayer.birthDate && ref.birthDate !== updatedPlayer.birthDate) { ref.birthDate = updatedPlayer.birthDate; changed = true; }
+    return changed;
+  };
+
+  // 1) Текущая открытая сетка в памяти
+  if (Array.isArray(currentDraw)) {
+    currentDraw.forEach(round => {
+      if (!Array.isArray(round)) return;
+      round.forEach(m => {
+        if (!m) return;
+        patchRef(m.p1);
+        patchRef(m.p2);
+        patchRef(m.winner);
+      });
+    });
+  }
+
+  // 2) Все сохраненные сетки в universeStorage
+  const allTourneyTemplates = [...FULL_CALENDAR_TEMPLATE];
+  if (!allTourneyTemplates.some(t => t.id === 'olympics')) {
+    allTourneyTemplates.push(OLYMPIC_TOURNAMENT_TEMPLATE);
+  }
+  const maxYear = Math.max(2024, currentTourYear || 2024);
+  for (let yr = 2023; yr <= maxYear; yr++) {
+    allTourneyTemplates.forEach(t => {
+      const draw = readSavedDraw(t.id, yr);
+      if (!draw || !Array.isArray(draw) || draw.length === 0) return;
+      let drawChanged = false;
+      draw.forEach(round => {
+        if (!Array.isArray(round)) return;
+        round.forEach(m => {
+          if (!m) return;
+          if (patchRef(m.p1)) drawChanged = true;
+          if (patchRef(m.p2)) drawChanged = true;
+          if (patchRef(m.winner)) drawChanged = true;
+        });
+      });
+      if (drawChanged) {
+        universeStorage.setItem(`draw_${t.id}_${yr}`, JSON.stringify(draw));
+      }
+    });
+  }
+
+  // 3) Чемпионы и призеры в списке турниров
+  let tourneysChanged = false;
+  (tournaments || []).forEach(t => {
+    if (!t) return;
+    if (patchRef(t.lastWinner)) tourneysChanged = true;
+    if (patchRef(t.lastRunnerUp)) tourneysChanged = true;
+    if (patchRef(t.lastBronze)) tourneysChanged = true;
+  });
+  if (tourneysChanged) saveTournaments();
+
+  // 4) Архив сезонов и срезы Топ-50
+  let historyChanged = false;
+  Object.values(seasonsHistory || {}).forEach(sec => {
+    if (!sec) return;
+    if (patchRef(sec.worldNumberOne)) historyChanged = true;
+    (sec.seasonStartTop50 || []).forEach(item => { if (patchRef(item)) historyChanged = true; });
+    (sec.yearEndTop50 || []).forEach(item => { if (patchRef(item)) historyChanged = true; });
+    Object.values(sec.slamSnapshots || {}).forEach(snap => {
+      (snap?.top50 || []).forEach(item => { if (patchRef(item)) historyChanged = true; });
+    });
+    (sec.tournamentsData || []).forEach(td => {
+      if (patchRef(td?.winner)) historyChanged = true;
+      if (patchRef(td?.runnerUp)) historyChanged = true;
+      if (patchRef(td?.bronze)) historyChanged = true;
+    });
+  });
+  if (historyChanged) saveHistory();
+}
+
 function repairCanonicalPlayersAndDraws() {
   const canonicalRoster = buildInitial300Players();
   const canonByName = new Map();
@@ -542,7 +690,10 @@ function repairCanonicalPlayersAndDraws() {
     canonById.set(String(c.id), c);
   });
 
-  // 1) Восстанавливаем строгое каноническое соответствие (id <-> name, flag, birthDate) без потери очков и прогресса
+  const customOverrides = loadCustomPlayerOverrides();
+  let overridesModified = false;
+
+  // 1) Восстанавливаем строгое каноническое соответствие, СОХРАНЯЯ все отредактированные пользователем страны (flag), имена и даты рождения
   const newgensAndCustom = (players || []).filter(p => p && (p.isNewgen || p.isProcedural));
   const byNameBest = new Map();
   const unmappedById = new Map();
@@ -569,6 +720,48 @@ function repairCanonicalPlayersAndDraws() {
     }
   });
 
+  const resolvePlayerFields = (source, canon) => {
+    const normName = String(canon.name || '').trim().toLowerCase();
+    const ov = {
+      ...(customOverrides[`name:${normName}`] || {}),
+      ...(customOverrides[`id:${canon.id}`] || {})
+    };
+    const resolvedFlag = (ov.flag && ov.flag !== '?')
+      ? ov.flag
+      : ((source.flag && source.flag !== '?') ? source.flag : canon.flag);
+    const resolvedName = (ov.name && !/\s+\d+$/.test(ov.name))
+      ? ov.name
+      : ((source.name && !/\s+\d+$/.test(source.name)) ? source.name : canon.name);
+    const resolvedBirth = ov.birthDate || source.birthDate || canon.birthDate;
+    const resolvedNick = ov.nickname !== undefined ? ov.nickname : (source.nickname || '');
+    const resolvedStyle = ov.playStyle !== undefined ? ov.playStyle : (source.playStyle || '');
+
+    if (resolvedFlag && resolvedFlag !== '?' && resolvedFlag !== canon.flag && !ov.flag) {
+      const entry = {
+        name: resolvedName,
+        flag: resolvedFlag,
+        birthDate: resolvedBirth,
+        nickname: resolvedNick,
+        playStyle: resolvedStyle
+      };
+      customOverrides[`id:${canon.id}`] = entry;
+      customOverrides[`name:${normName}`] = entry;
+      overridesModified = true;
+    }
+
+    return {
+      ...source,
+      id: canon.id,
+      name: resolvedName,
+      flag: resolvedFlag,
+      birthDate: resolvedBirth,
+      nickname: resolvedNick,
+      playStyle: resolvedStyle,
+      basePoints: canon.basePoints,
+      start2023Points: canon.start2023Points
+    };
+  };
+
   const repairedPlayers = [];
   const usedIds = new Set();
 
@@ -576,15 +769,7 @@ function repairCanonicalPlayersAndDraws() {
     canonicalRoster.forEach(canon => {
       const normName = String(canon.name || '').trim().toLowerCase();
       const source = byNameBest.get(normName) || unmappedById.get(String(canon.id)) || canon;
-      repairedPlayers.push({
-        ...source,
-        id: canon.id,
-        name: canon.name,
-        flag: canon.flag,
-        birthDate: canon.birthDate,
-        basePoints: canon.basePoints,
-        start2023Points: canon.start2023Points
-      });
+      repairedPlayers.push(resolvePlayerFields(source, canon));
       usedIds.add(String(canon.id));
     });
   } else {
@@ -599,15 +784,7 @@ function repairCanonicalPlayersAndDraws() {
       const canon = canonByName.get(normName) || canonById.get(String(p.id));
       if (canon && !usedIds.has(String(canon.id))) {
         const bestSource = byNameBest.get(String(canon.name).trim().toLowerCase()) || p;
-        repairedPlayers.push({
-          ...bestSource,
-          id: canon.id,
-          name: canon.name,
-          flag: canon.flag,
-          birthDate: canon.birthDate,
-          basePoints: canon.basePoints,
-          start2023Points: canon.start2023Points
-        });
+        repairedPlayers.push(resolvePlayerFields(bestSource, canon));
         usedIds.add(String(canon.id));
       } else if (!usedIds.has(String(p.id))) {
         repairedPlayers.push(p);
@@ -617,8 +794,10 @@ function repairCanonicalPlayersAndDraws() {
   }
 
   players = repairedPlayers;
+  const liveById = new Map(players.map(p => [String(p.id), p]));
+  const liveByName = new Map(players.map(p => [String(p.name || '').trim().toLowerCase(), p]));
 
-  // 2) Ремонтируем все сохраненные сетки (2023..currentTourYear): синхронизируем канонические ID по имени игрока и восстанавливаем историю усталости
+  // 2) Ремонтируем все сохраненные сетки (2023..currentTourYear): синхронизируем ID и флаги из актуального состава (не затирая страны на '?')
   const allTourneyTemplates = [...FULL_CALENDAR_TEMPLATE];
   if (!allTourneyTemplates.some(t => t.id === 'olympics')) {
     allTourneyTemplates.push(OLYMPIC_TOURNAMENT_TEMPLATE);
@@ -638,19 +817,27 @@ function repairCanonicalPlayersAndDraws() {
           ['p1', 'p2', 'winner'].forEach(slot => {
             const ref = m[slot];
             if (!ref || !ref.name) return;
-            const canon = canonByName.get(String(ref.name).trim().toLowerCase());
-            if (canon) {
-              if (ref.id !== canon.id || ref.flag !== canon.flag || ref.birthDate !== canon.birthDate) {
-                ref.id = canon.id;
-                ref.flag = canon.flag;
-                ref.birthDate = canon.birthDate;
+            const normRefName = String(ref.name).trim().toLowerCase();
+            const liveP = liveByName.get(normRefName) || (canonByName.has(normRefName) ? liveById.get(String(canonByName.get(normRefName).id)) : null);
+            if (liveP) {
+              // Если в сетке была указана страна, а у игрока стоял '?', восстанавливаем страну из сетки
+              if ((!liveP.flag || liveP.flag === '?') && ref.flag && ref.flag !== '?') {
+                liveP.flag = ref.flag;
+                customOverrides[`id:${liveP.id}`] = { ...(customOverrides[`id:${liveP.id}`] || {}), name: liveP.name, flag: liveP.flag, birthDate: liveP.birthDate };
+                overridesModified = true;
+              }
+              const targetFlag = (liveP.flag && liveP.flag !== '?') ? liveP.flag : (ref.flag || liveP.flag);
+              if (ref.id !== liveP.id || ref.flag !== targetFlag || ref.birthDate !== liveP.birthDate) {
+                ref.id = liveP.id;
+                ref.flag = targetFlag;
+                ref.birthDate = liveP.birthDate;
                 drawChanged = true;
               }
-            } else if (/\s+\d+$/.test(String(ref.name)) && canonById.has(String(ref.id))) {
-              const canonIdObj = canonById.get(String(ref.id));
-              ref.name = canonIdObj.name;
-              ref.flag = canonIdObj.flag;
-              ref.birthDate = canonIdObj.birthDate;
+            } else if (/\s+\d+$/.test(String(ref.name)) && liveById.has(String(ref.id))) {
+              const liveIdObj = liveById.get(String(ref.id));
+              ref.name = liveIdObj.name;
+              ref.flag = liveIdObj.flag;
+              ref.birthDate = liveIdObj.birthDate;
               drawChanged = true;
             }
           });
@@ -683,6 +870,10 @@ function repairCanonicalPlayersAndDraws() {
         universeStorage.setItem(`draw_${t.id}_${yr}`, jsonStr);
       }
     });
+  }
+
+  if (overridesModified) {
+    saveCustomPlayerOverridesMap(customOverrides);
   }
 }
 
@@ -1918,7 +2109,7 @@ export function renderMatches() {
                 <tr class="${i < 2 ? 'qualified-row' : ''}">
                   <td><b>${i + 1}</b></td>
                   <td>
-                    ${st.player.flag} <span class="player-profile-link" onclick="openPlayerProfileModal('${st.player.id}')">${st.player.name}</span>
+                    ${renderFlagBadge(st.player.flag, { compact: true })} <span class="player-profile-link" onclick="openPlayerProfileModal('${st.player.id}')">${st.player.name}</span>
                     <span class="player-age-tag">${calculateAge(st.player.birthDate, refDateStr)}</span>
                     ${i < 2 ? '<span style="color:var(--primary); font-size:11px; margin-left:4px;">· 1/2 финала</span>' : ''}
                   </td>
@@ -1999,7 +2190,7 @@ export function renderMatches() {
       </div>
       <div class="match-player ${p1Win ? 'winner' : ''}">
         <div class="player-info">
-          <span style="font-size: 11px; color: var(--text-dim); width: 32px;">${m.p1 ? m.p1.flag : ''}</span>
+          <span style="min-width: 48px; display: inline-flex; align-items: center;">${m.p1 ? renderFlagBadge(p1Live?.flag || m.p1.flag, { compact: true }) : ''}</span>
           ${p1NameHtml}
           ${p1Live ? renderPlayerMedalsHtml(p1Live) : ''}
           <span class="player-age-tag">${m.p1 ? calculateAge(m.p1.birthDate, refDateStr) : ''}</span>
@@ -2009,7 +2200,7 @@ export function renderMatches() {
       </div>
       <div class="match-player ${p2Win ? 'winner' : ''}">
         <div class="player-info">
-          <span style="font-size: 11px; color: var(--text-dim); width: 32px;">${m.p2 ? m.p2.flag : ''}</span>
+          <span style="min-width: 48px; display: inline-flex; align-items: center;">${m.p2 ? renderFlagBadge(p2Live?.flag || m.p2.flag, { compact: true }) : ''}</span>
           ${p2NameHtml}
           ${p2Live ? renderPlayerMedalsHtml(p2Live) : ''}
           <span class="player-age-tag">${m.p2 ? calculateAge(m.p2.birthDate, refDateStr) : ''}</span>
@@ -2111,7 +2302,7 @@ export function renderUltimateTeamCardHtml(player, surface = 'Хард', options
           <div class="ut-player-identity">
             <div class="ut-tier-ribbon">${tierRibbon}</div>
             <div class="ut-player-title">
-              <span>${player.flag || 'ATP'}</span>
+              <span>${renderFlagBadge(player.flag || 'ATP', { compact: true })}</span>
               <span class="player-profile-link" onclick="event.stopPropagation(); openPlayerProfileModal('${player.id}')">${player.name}</span>
               ${renderPlayerMedalsHtml(player)}
             </div>
@@ -2400,7 +2591,7 @@ export function openScoreModal(rIdx, mIdx) {
 
     <div class="h2h-players-banner" style="margin-top: 6px;">
       <div class="h2h-col">
-        <div class="h2h-player-name">${match.p1.flag} <span class="player-profile-link" onclick="openPlayerProfileModal('${match.p1.id}')">${match.p1.name}</span> ${renderPlayerMedalsHtml(p1Live)}</div>
+        <div class="h2h-player-name">${renderFlagBadge(p1Live?.flag || match.p1.flag, { compact: true })} <span class="player-profile-link" onclick="openPlayerProfileModal('${match.p1.id}')">${match.p1.name}</span> ${renderPlayerMedalsHtml(p1Live)}</div>
         <div class="h2h-meta">Ранг: #${p1Live.rank || match.p1.rank} · OVR: <b style="color:var(--gold);">${p1Skills.ovr}</b> · Энергия: <b>${Math.round(p1Live.stamina ?? 100)}%</b></div>
       </div>
       <div class="h2h-center-score">
@@ -2408,7 +2599,7 @@ export function openScoreModal(rIdx, mIdx) {
         <div class="h2h-big-score">${h2h.p1Wins} : ${h2h.p2Wins}</div>
       </div>
       <div class="h2h-col right">
-        <div class="h2h-player-name">${renderPlayerMedalsHtml(p2Live)} <span class="player-profile-link" onclick="openPlayerProfileModal('${match.p2.id}')">${match.p2.name}</span> ${match.p2.flag}</div>
+        <div class="h2h-player-name">${renderPlayerMedalsHtml(p2Live)} <span class="player-profile-link" onclick="openPlayerProfileModal('${match.p2.id}')">${match.p2.name}</span> ${renderFlagBadge(p2Live?.flag || match.p2.flag, { compact: true })}</div>
         <div class="h2h-meta">Ранг: #${p2Live.rank || match.p2.rank} · OVR: <b style="color:var(--gold);">${p2Skills.ovr}</b> · Энергия: <b>${Math.round(p2Live.stamina ?? 100)}%</b></div>
       </div>
     </div>
@@ -3445,16 +3636,84 @@ export function renderRaceDeltaBadge(raceDelta, player = null) {
   return `<span class="pts-delta-badge pts-delta-zero" title="За последний турнир${tName} очки в Гонку не добавлялись">+0</span>`;
 }
 
+let filterOnlyUnknownCountry = false;
+
+export function matchesPlayerSearchQuery(p, rawQuery) {
+  if (!p) return false;
+  const q = String(rawQuery || '').trim().toLowerCase();
+  if (!q) return true;
+  const tokens = q.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+
+  const meta = getCountryMeta(p.flag);
+  const nameWords = String(p.name || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const reversedName = [...nameWords].reverse().join(' ');
+  const haystack = [
+    String(p.name || '').toLowerCase(),
+    reversedName,
+    String(p.flag || '').toLowerCase(),
+    String(meta.code || '').toLowerCase(),
+    String(meta.nameRu || '').toLowerCase(),
+    String(meta.nameEn || '').toLowerCase(),
+    String(p.nickname || '').toLowerCase(),
+    String(p.playStyle || '').toLowerCase(),
+    `#${p.rank}`
+  ].join(' ');
+
+  return tokens.every(tok => haystack.includes(tok));
+}
+
+export function clearPlayerSearch() {
+  const input = document.getElementById('playerSearch');
+  if (input) input.value = '';
+  renderPlayersTable();
+}
+
+export function toggleUnknownCountryFilter() {
+  filterOnlyUnknownCountry = !filterOnlyUnknownCountry;
+  renderPlayersTable();
+}
+
 export function renderPlayersTable() {
   const tbody = document.getElementById('playersTableBody');
   if (!tbody) return;
-  const search = (document.getElementById('playerSearch')?.value || '').toLowerCase();
-  const filtered = players.filter(p =>
-    p.name.toLowerCase().includes(search) ||
-    p.flag.toLowerCase().includes(search) ||
-    (p.nickname && p.nickname.toLowerCase().includes(search)) ||
-    (p.playStyle && p.playStyle.toLowerCase().includes(search))
-  );
+  const rawSearch = document.getElementById('playerSearch')?.value || '';
+  const clearBtn = document.getElementById('btnClearPlayerSearch');
+  if (clearBtn) {
+    clearBtn.style.display = rawSearch.trim().length > 0 ? 'inline-block' : 'none';
+  }
+
+  const unknownCount = players.filter(p => !p.flag || p.flag === '?').length;
+  const filterBtn = document.getElementById('btnFilterUnknownCountry');
+  if (filterBtn) {
+    filterBtn.classList.toggle('active', filterOnlyUnknownCountry);
+    filterBtn.textContent = `❓ Без страны (?) · ${unknownCount}`;
+  }
+
+  const filtered = players.filter(p => {
+    if (filterOnlyUnknownCountry && p.flag && p.flag !== '?') return false;
+    return matchesPlayerSearchQuery(p, rawSearch);
+  });
+
+  const countEl = document.getElementById('playerSearchCount');
+  if (countEl) {
+    if (rawSearch.trim().length > 0 || filterOnlyUnknownCountry) {
+      countEl.innerHTML = `Показано: <b style="color: var(--accent);">${filtered.length}</b> из ${players.length}`;
+    } else {
+      countEl.textContent = '';
+    }
+  }
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align: center; padding: 24px; color: var(--text-dim);">
+          Игроки по запросу не найдены. Попробуйте изменить запрос или отключить фильтр «❓ Без страны (?)».
+        </td>
+      </tr>
+    `;
+    return;
+  }
 
   tbody.innerHTML = filtered.map(p => `
     <tr>
@@ -3462,7 +3721,7 @@ export function renderPlayersTable() {
         <div style="font-weight: 700; font-size: 14px;">#${p.rank}</div>
         <div>${renderRankChangeBadge(p.rankChange || 0)}</div>
       </td>
-      <td><b>${p.flag}</b></td>
+      <td>${renderFlagBadge(p.flag)}</td>
       <td>
         <div>
           <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${p.id}')" title="Открыть профиль игрока">${p.name}</button>
@@ -3495,7 +3754,7 @@ export function renderPlayersTable() {
 export function renderRaceTable() {
   const tbody = document.getElementById('raceTableBody');
   if (!tbody) return;
-  const search = (document.getElementById('raceSearch')?.value || '').toLowerCase();
+  const rawSearch = document.getElementById('raceSearch')?.value || '';
 
   const raceSorted = [...players].sort((a, b) => {
     const diff = (b.racePoints || 0) - (a.racePoints || 0);
@@ -3503,7 +3762,7 @@ export function renderRaceTable() {
     return a.rank - b.rank;
   });
 
-  const filtered = raceSorted.filter(p => p.name.toLowerCase().includes(search) || p.flag.toLowerCase().includes(search));
+  const filtered = raceSorted.filter(p => matchesPlayerSearchQuery(p, rawSearch));
 
   tbody.innerHTML = filtered.map(p => {
     const raceRank = raceSorted.findIndex(x => x.id === p.id) + 1;
@@ -3522,7 +3781,7 @@ export function renderRaceTable() {
           <div style="font-weight: 700; font-size: 14px;">#${raceRank}</div>
           <div>${renderRankChangeBadge(p.raceRankChange || 0)}</div>
         </td>
-        <td><b>${p.flag}</b></td>
+        <td>${renderFlagBadge(p.flag)}</td>
         <td>
           <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${p.id}')" title="Открыть профиль игрока">${p.name}</button>
           ${renderPlayerMedalsHtml(p)}
@@ -3576,9 +3835,13 @@ export function renderCalendarTable() {
     const isDone = (selectedYear < currentTourYear && (histEntry?.winner || drawExists)) ||
                    (selectedYear === currentTourYear && Boolean(t.completed));
 
-    const champName = (selectedYear === currentTourYear && t.lastWinner)
-      ? `${t.lastWinner.flag} ${t.lastWinner.name}`
-      : (histEntry?.winner ? `${histEntry.winner.flag} ${histEntry.winner.name}` : (drawWinner ? `${drawWinner.flag} ${drawWinner.name}` : ''));
+    const champObj = (selectedYear === currentTourYear && t.lastWinner)
+      ? t.lastWinner
+      : (histEntry?.winner || drawWinner || null);
+    const liveChamp = champObj ? (players.find(x => String(x.id) === String(champObj.id)) || champObj) : null;
+    const champName = liveChamp
+      ? `${renderFlagBadge(liveChamp.flag, { compact: true })} ${liveChamp.name}`
+      : '';
 
     const statusBadge = isDone
       ? `<span style="color: var(--primary); font-weight: 600;">Завершен ✅ ${champName ? '· 🏆 ' + champName : ''}</span>`
@@ -3846,7 +4109,7 @@ export function openPlayerProfileModal(playerId) {
   const titleEl = document.getElementById('playerProfileTitle');
   const subEl = document.getElementById('playerProfileSubtitle');
   if (titleEl) {
-    titleEl.innerHTML = `👤 Профиль игрока · ${player.flag} ${player.name}`;
+    titleEl.innerHTML = `👤 Профиль игрока · ${renderFlagBadge(player.flag)} ${player.name}`;
   }
   if (subEl) {
     subEl.innerHTML = `Мировой рейтинг ATP (52 недели), Зал Трофеев и детальная статистика сезона ${currentTourYear}`;
@@ -3893,7 +4156,7 @@ export function openPlayerProfileModal(playerId) {
         ${utCardHtml}
         <div class="profile-header-card" style="margin-bottom: 0; flex-direction: column; justify-content: space-between; align-items: stretch;">
           <div class="profile-identity">
-            <div class="profile-flag-badge">${player.flag}</div>
+            <div class="profile-flag-badge" style="padding: 6px 10px;">${renderFlagBadge(player.flag)}</div>
             <div>
               <div class="profile-name-title">
                 ${player.name}
@@ -4049,10 +4312,35 @@ export function openEditFromPlayerProfile() {
 }
 
 // --- 8. МОДАЛКИ РЕДАКТИРОВАНИЯ ИГРОКОВ, ТУРНИРОВ И GROQ API ---
+function ensureCountryCodesDatalistPopulated() {
+  if (typeof document === 'undefined') return;
+  const dl = document.getElementById('countryCodesDatalist');
+  if (!dl || dl.dataset.populated === '1') return;
+  dl.innerHTML = COUNTRY_CATALOG.map(c =>
+    `<option value="${c.code}">${c.ru} (${c.en})</option>`
+  ).join('');
+  dl.dataset.populated = '1';
+}
+
+export function updateEditPlayerFlagPreview() {
+  if (typeof document === 'undefined') return;
+  const input = document.getElementById('editPlayerFlag');
+  const preview = document.getElementById('editPlayerFlagPreview');
+  if (!input || !preview) return;
+  const raw = input.value.trim();
+  const normCode = normalizeCountryCode(raw || '?');
+  const meta = getCountryMeta(normCode);
+  preview.innerHTML = `
+    ${renderFlagBadge(normCode)}
+    <span style="font-size: 11.5px; color: var(--text-dim); font-weight: 600; white-space: nowrap;">${meta.ru}</span>
+  `;
+}
+
 export function openEditPlayerModal(id) {
   if (guardCanonReadOnly()) return;
-  const p = players.find(x => x.id === id);
+  const p = players.find(x => String(x.id) === String(id));
   if (!p) return;
+  ensureCountryCodesDatalistPopulated();
   document.getElementById('editPlayerId').value = p.id;
   document.getElementById('editPlayerName').value = p.name;
   document.getElementById('editPlayerFlag').value = p.flag;
@@ -4062,28 +4350,40 @@ export function openEditPlayerModal(id) {
   const styleInput = document.getElementById('editPlayerPlayStyle');
   if (styleInput) styleInput.value = p.playStyle || '';
   document.getElementById('editPlayerPoints').value = p.points;
+  updateEditPlayerFlagPreview();
   document.getElementById('editPlayerModal').classList.add('open');
 }
 
 export function savePlayerEdit() {
   if (guardCanonReadOnly()) return;
   const id = document.getElementById('editPlayerId').value;
-  const p = players.find(x => x.id === id);
+  const p = players.find(x => String(x.id) === String(id));
   if (p) {
+    const oldNameLower = String(p.name || '').trim().toLowerCase();
     const newName = document.getElementById('editPlayerName').value.trim();
-    const newFlag = document.getElementById('editPlayerFlag').value.trim();
+    const rawFlag = document.getElementById('editPlayerFlag').value.trim();
     if (newName && !/\d/.test(newName)) p.name = newName;
-    if (newFlag) p.flag = newFlag.toUpperCase();
+    if (rawFlag) {
+      p.flag = normalizeCountryCode(rawFlag);
+    }
     p.birthDate = document.getElementById('editPlayerBirth').value || p.birthDate;
     const nickInput = document.getElementById('editPlayerNickname');
     if (nickInput) p.nickname = nickInput.value.trim();
     const styleInput = document.getElementById('editPlayerPlayStyle');
     if (styleInput) p.playStyle = styleInput.value.trim();
+
+    recordCustomPlayerOverride(p);
+    propagatePlayerIdentityUpdate(p, oldNameLower);
     savePlayers(false);
     renderPlayersTable();
     renderRaceTable();
+    renderCalendarTable();
+    if (currentDraw && currentDraw.length > 0) {
+      renderDraw();
+    }
+    const meta = getCountryMeta(p.flag);
     closeModal('editPlayerModal');
-    showToast(`✅ Данные игрока <b>${p.name}</b> обновлены.`);
+    showToast(`✅ Данные игрока <b>${p.name}</b> сохранены (${renderFlagBadge(p.flag, { compact: true })} ${meta.ru}).`);
   }
 }
 
@@ -4132,7 +4432,7 @@ export function openAddPlayerModal() {
 export function confirmAddPlayer() {
   if (guardCanonReadOnly()) return;
   const name = document.getElementById('newPlayerName').value.trim();
-  const country = (document.getElementById('newPlayerFlag').value.trim() || 'USA').toUpperCase();
+  const country = normalizeCountryCode(document.getElementById('newPlayerFlag').value.trim() || 'USA');
   const birth = document.getElementById('newPlayerBirth').value || '2003-05-15';
   const errEl = document.getElementById('addPlayerError');
 
@@ -4412,14 +4712,15 @@ export function renderHistoryYear() {
 
   const majorColumnsList = fullTourneysList.filter(t => t.winner && t.pressColumn && t.pressColumn.headline);
 
-  const worldNo1 = data.worldNumberOne || activeList[0] || players[0];
+  const rawWorldNo1 = data.worldNumberOne || activeList[0] || players[0];
+  const worldNo1 = rawWorldNo1 ? (players.find(x => String(x.id) === String(rawWorldNo1.id)) || rawWorldNo1) : players[0];
 
   const html = `
     <div class="history-card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
       <div>
         <div style="font-size: 12px; color: var(--gold); font-weight: 700;">ПЕРВАЯ РАКЕТКА МИРА ПО ИТОГАМ ${year} ГОДА</div>
-        <div style="font-size: 21px; font-weight: 800; margin-top: 4px;">
-          ${worldNo1.flag} <button type="button" class="player-profile-link" style="font-size: 21px; font-weight: 800;" onclick="openPlayerProfileModal('${worldNo1.id}')">${worldNo1.name}</button>
+        <div style="font-size: 21px; font-weight: 800; margin-top: 4px; display: flex; align-items: center; gap: 8px;">
+          ${renderFlagBadge(worldNo1.flag)} <button type="button" class="player-profile-link" style="font-size: 21px; font-weight: 800;" onclick="openPlayerProfileModal('${worldNo1.id}')">${worldNo1.name}</button>
         </div>
       </div>
       <div style="text-align: right;">
@@ -4471,14 +4772,15 @@ export function renderHistoryYear() {
             ${activeList.map(p => {
               const refRank = refRankMap[p.id] || refRankMap[p.name];
               const delta = refRank !== undefined ? (refRank - p.rank) : (p.rankDelta || 0);
-              const liveP = players.find(x => x.id === p.id) || p;
+              const liveP = players.find(x => String(x.id) === String(p.id)) || p;
+              const dispFlag = (liveP && liveP.flag && liveP.flag !== '?') ? liveP.flag : p.flag;
               return `
                 <tr>
                   <td><b>#${p.rank}</b></td>
                   <td>${renderRankChangeBadge(delta)}</td>
-                  <td><b>${p.flag}</b></td>
+                  <td>${renderFlagBadge(dispFlag)}</td>
                   <td>
-                    <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${liveP.id}')">${p.name}</button>
+                    <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${liveP.id}')">${liveP.name || p.name}</button>
                     ${renderPlayerMedalsHtml(liveP)}
                   </td>
                   <td style="color: var(--accent);">${p.age || calculateAge(p.birthDate, `${year}-06-15`)}</td>
@@ -4509,14 +4811,17 @@ export function renderHistoryYear() {
         <tbody>
           ${fullTourneysList.map((t, idx) => {
             const isOly = t.id === 'olympics';
-            const champCell = t.winner
-              ? `${isOly ? '🥇 ' : ''}${t.winner.flag} <button type="button" class="player-profile-link" style="color: var(--primary);" onclick="openPlayerProfileModal('${t.winner.id}')">${t.winner.name}</button>`
+            const liveW = t.winner ? (players.find(x => String(x.id) === String(t.winner.id)) || t.winner) : null;
+            const liveRU = t.runnerUp ? (players.find(x => String(x.id) === String(t.runnerUp.id)) || t.runnerUp) : null;
+            const liveBr = t.bronze ? (players.find(x => String(x.id) === String(t.bronze.id)) || t.bronze) : null;
+            const champCell = liveW
+              ? `${isOly ? '🥇 ' : ''}${renderFlagBadge(liveW.flag, { compact: true })} <button type="button" class="player-profile-link" style="color: var(--primary);" onclick="openPlayerProfileModal('${liveW.id}')">${liveW.name}</button>`
               : '—';
-            let ruCell = t.runnerUp
-              ? `${isOly ? '🥈 ' : ''}${t.runnerUp.flag} <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${t.runnerUp.id}')">${t.runnerUp.name}</button>`
+            let ruCell = liveRU
+              ? `${isOly ? '🥈 ' : ''}${renderFlagBadge(liveRU.flag, { compact: true })} <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${liveRU.id}')">${liveRU.name}</button>`
               : '—';
-            if (isOly && t.bronze) {
-              ruCell += ` · <span style="color:#fb923c;">🥉 ${t.bronze.flag} ${t.bronze.name}</span>`;
+            if (isOly && liveBr) {
+              ruCell += ` · <span style="color:#fb923c;">🥉 ${renderFlagBadge(liveBr.flag, { compact: true })} ${liveBr.name}</span>`;
             }
             return `
               <tr>
@@ -5531,6 +5836,10 @@ if (typeof window !== 'undefined') {
   window.saveQuickStringScore = saveQuickStringScore;
   window.saveQuickStringScoreOnly = saveQuickStringScoreOnly;
   window.renderPlayersTable = renderPlayersTable;
+  window.clearPlayerSearch = clearPlayerSearch;
+  window.toggleUnknownCountryFilter = toggleUnknownCountryFilter;
+  window.updateEditPlayerFlagPreview = updateEditPlayerFlagPreview;
+  window.renderFlagBadge = renderFlagBadge;
   window.renderRaceTable = renderRaceTable;
   window.renderCalendarTable = renderCalendarTable;
   window.jumpToTourney = jumpToTourney;

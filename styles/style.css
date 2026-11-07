@@ -1921,5 +1921,117 @@ button:disabled {
     font-weight: 600;
 }
 
+/* --- ГРАФИЧЕСКИЕ ФЛАГИ СТРАН И ПОИСК ИГРОКОВ --- */
+.country-flag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.country-flag-chip.flag-compact {
+    gap: 4px;
+}
+
+.country-flag-img {
+    width: 20px;
+    height: 14px;
+    object-fit: cover;
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    flex-shrink: 0;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.country-flag-chip.flag-compact .country-flag-img {
+    width: 17px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.country-flag-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--text-main);
+}
+
+.country-flag-chip.flag-compact .country-flag-code {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.country-flag-unknown {
+    opacity: 0.85;
+}
+
+.country-flag-qmark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 14px;
+    border-radius: 3px;
+    background: rgba(245, 158, 11, 0.16);
+    border: 1px dashed rgba(245, 158, 11, 0.55);
+    color: var(--gold);
+    font-size: 10px;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.country-flag-chip.flag-compact .country-flag-qmark {
+    width: 16px;
+    height: 12px;
+    font-size: 9px;
+}
+
+.search-input-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.search-input-wrap input {
+    padding-left: 32px !important;
+    padding-right: 28px !important;
+}
+
+.search-input-icon {
+    position: absolute;
+    left: 10px;
+    font-size: 13px;
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.search-clear-btn {
+    position: absolute;
+    right: 6px;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 2px 6px;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.search-clear-btn:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.filter-qmark-btn.active {
+    background: rgba(245, 158, 11, 0.22) !important;
+    border-color: var(--gold) !important;
+    color: var(--gold) !important;
+}
+
+
 
 

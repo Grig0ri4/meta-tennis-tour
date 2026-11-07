@@ -1268,3 +1268,27 @@ test('Публичный снимок канона (public/canon.json): гост
   assert.ok(drawKeys2024.length >= 1, 'В снимке есть сетки 2024 года');
   assert.equal(applyCanonSnapshotToMemory({ players: [] }, {}), false, 'Пустой снимок игнорируется');
 });
+
+test('Графические флаги стран и нормализация кодов (countryFlags.js)', async () => {
+  const { getCountryMeta, normalizeCountryCode, renderFlagBadge } = await import('./countryFlags.js');
+
+  assert.equal(normalizeCountryCode('Испания'), 'ESP');
+  assert.equal(normalizeCountryCode('spn'), 'ESP');
+  assert.equal(normalizeCountryCode('Норвегия'), 'NOR');
+  assert.equal(normalizeCountryCode('it'), 'ITA');
+  assert.equal(normalizeCountryCode('tad'), 'TJK');
+  assert.equal(normalizeCountryCode('?'), '?');
+
+  const norMeta = getCountryMeta('NOR');
+  assert.equal(norMeta.code, 'NOR');
+  assert.equal(norMeta.iso2, 'no');
+  assert.equal(norMeta.ru, 'Норвегия');
+
+  const badgeHtml = renderFlagBadge('NOR');
+  assert.ok(badgeHtml.includes('flagcdn.com/w40/no.png'), 'Рендерится графический флаг Норвегии');
+  assert.ok(badgeHtml.includes('NOR'), 'Рендерится код NOR');
+
+  const unknownBadge = renderFlagBadge('?');
+  assert.ok(unknownBadge.includes('country-flag-unknown'), 'Для ? рендерится бейдж неизвестной страны');
+});
+
