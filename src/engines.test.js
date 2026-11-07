@@ -1255,3 +1255,16 @@ test('Модернизация рейтинга ATP: 10 очков за 1-й к�
 
 
 
+
+test('Публичный снимок канона (public/canon.json): гость видит сетки 2024 автора, ключи раскладываются по вселенной 1', async () => {
+  const fs = await import('node:fs');
+  const { applyCanonSnapshotToMemory } = await import('./app.js');
+  const data = JSON.parse(fs.readFileSync(new URL('../public/canon.json', import.meta.url), 'utf8'));
+  const store = {};
+  assert.equal(applyCanonSnapshotToMemory(data, store), true);
+  assert.equal(JSON.parse(store['universe_1_meta_players_v8']).length, 300);
+  assert.equal(store['universe_1_meta_jan2024_clean_start_v2'], 'true', 'Флаг чистого старта стоит, чтобы канон не сбрасывался на январь');
+  const drawKeys2024 = Object.keys(store).filter(k => k.startsWith('draw_1_') && k.endsWith('_2024'));
+  assert.ok(drawKeys2024.length >= 1, 'В снимке есть сетки 2024 года');
+  assert.equal(applyCanonSnapshotToMemory({ players: [] }, {}), false, 'Пустой снимок игнорируется');
+});

@@ -196,6 +196,19 @@ export function updateCanonReadOnlyUI() {
   const ownerBanner = document.getElementById('canonOwnerControlBanner');
   if (roBanner) {
     roBanner.style.display = (canonActive && readOnly) ? 'flex' : 'none';
+    const textBox = roBanner.querySelector('div');
+    if (textBox && canonSnapshotInfo) {
+      let stamp = document.getElementById('canonSnapshotStamp');
+      if (!stamp) {
+        stamp = document.createElement('div');
+        stamp.id = 'canonSnapshotStamp';
+        stamp.style.cssText = 'font-size: 11.5px; color: #7dd3fc; margin-top: 3px;';
+        textBox.appendChild(stamp);
+      }
+      const tourDate = canonSnapshotInfo.date ? formatDateDisplay(canonSnapshotInfo.date) : '';
+      const pubDate = canonSnapshotInfo.exportedAt ? new Date(canonSnapshotInfo.exportedAt).toLocaleString('ru-RU') : '';
+      stamp.innerHTML = `📡 Снимок канона: тур на <b>${tourDate}</b>${pubDate ? ` · опубликован ${pubDate}` : ''}`;
+    }
   }
   if (ownerBanner) {
     ownerBanner.style.display = (canonActive && !readOnly) ? 'flex' : 'none';
@@ -342,6 +355,8 @@ export const universeStorage = {
     const strVal = String(v);
     const fullKey = this.key(k);
     memoryUniverseStore[fullKey] = strVal;
+    // Опубликованный канон у гостя живёт только в памяти: не тратим квоту localStorage гостя
+    if (canonSnapshotInfo && activeUniverseId === '1') return;
     try {
       localStorage.setItem(fullKey, strVal);
       if (String(k).startsWith('draw_')) {
@@ -381,6 +396,68 @@ export const universeStorage = {
     }
   }
 };
+
+// --- ПУБЛИЧНЫЙ СНИМОК КАНОНА АВТОРА (public/canon.json) ДЛЯ ГОСТЕЙ НА GITHUB PAGES ---
+// Гости получают актуальный канон автора из опубликованного файла canon.json.
+// Снимок кладётся только в память (memoryUniverseStore) и всегда имеет приоритет над localStorage гостя,
+// поэтому у гостя канон всегда свежий, а локальная вселенная автора на localhost никогда не перезаписывается.
+const CANON_SNAPSHOT_URL = './canon.json';
+let canonSnapshotInfo = null;
+
+export function shouldLoadPublishedCanonSnapshot() {
+  try {
+    if (typeof window === 'undefined' || !window.location) return false;
+    const host = String(window.location.hostname || '').toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '') return false;
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(CANON_AUTHOR_UNLOCK_KEY) === 'true') return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function applyCanonSnapshotToMemory(data, store = memoryUniverseStore) {
+  if (!data || !Array.isArray(data.players) || data.players.length === 0) return false;
+  const uKey = (k) => `universe_1_${k}`;
+  const u = data.universe || {};
+  store[uKey('meta_tour_year_v8')] = String(Number(u.currentTourYear) || 2024);
+  store[uKey('meta_tour_date_v8')] = String(u.currentTourDateStr || '2024-01-02');
+  store[uKey('meta_active_tourney_v8')] = String(u.activeTourneyId || 'm_1');
+  store[uKey('meta_players_v8')] = JSON.stringify(data.players);
+  store[uKey('meta_tournaments_v8')] = JSON.stringify(data.tournaments || []);
+  store[uKey('meta_seasons_history_v8')] = JSON.stringify(data.seasonsHistory || {});
+  store[uKey('meta_retired_legends_v8')] = JSON.stringify(data.retiredLegends || []);
+  ['meta_archive_2023_clean_v5', 'meta_archive_2023_real_user_draws_v6', 'meta_jan2024_clean_start_v2', 'meta_april2024_initialized_v2']
+    .forEach(flag => { store[uKey(flag)] = 'true'; });
+  Object.entries(data.draws || {}).forEach(([k, v]) => {
+    const rest = String(k).startsWith('draw_') ? String(k).slice(5) : String(k);
+    store[`draw_1_${rest}`] = typeof v === 'string' ? v : JSON.stringify(v);
+  });
+  Object.entries(data.withdrawals || {}).forEach(([k, v]) => {
+    store[uKey(k)] = typeof v === 'string' ? v : JSON.stringify(v);
+  });
+  Object.entries(data.bg250 || {}).forEach(([k, v]) => {
+    store[uKey(k)] = String(v);
+  });
+  return true;
+}
+
+async function loadPublishedCanonSnapshot() {
+  if (!shouldLoadPublishedCanonSnapshot()) return false;
+  try {
+    const res = await fetch(CANON_SNAPSHOT_URL, { cache: 'no-cache' });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const ok = applyCanonSnapshotToMemory(data);
+    if (ok) {
+      canonSnapshotInfo = { exportedAt: data.exportedAt, date: data.universe?.currentTourDateStr };
+    }
+    return ok;
+  } catch (err) {
+    console.warn('Canon snapshot load failed:', err);
+    return false;
+  }
+}
 
 // --- ГЛОБАЛЬНОЕ СОСТОЯНИЕ ТУРА ---
 let currentTourYear = 2024;
@@ -5488,8 +5565,9 @@ if (typeof window !== 'undefined') {
   window.confirmAuthorUnlock = confirmAuthorUnlock;
   window.toggleGuestReadOnlyPreview = toggleGuestReadOnlyPreview;
 
-  const bootstrapApp = () => {
+  const bootstrapApp = async () => {
     pruneLegacyDuplicateStorageKeys();
+    await loadPublishedCanonSnapshot();
     initData();
     initUI();
   };
