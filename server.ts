@@ -1,17 +1,59 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const OVERRIDES_FILE_PATH = path.join(__dirname, "data", "user_player_overrides.json");
+
+function readServerOverrides(): Record<string, any> {
+  try {
+    if (fs.existsSync(OVERRIDES_FILE_PATH)) {
+      return JSON.parse(fs.readFileSync(OVERRIDES_FILE_PATH, "utf8")) || {};
+    }
+  } catch {
+    // ignore
+  }
+  return {};
+}
+
+function writeServerOverrides(map: Record<string, any>) {
+  try {
+    fs.writeFileSync(OVERRIDES_FILE_PATH, JSON.stringify(map || {}, null, 2), "utf8");
+  } catch (err) {
+    console.warn("Failed to write user_player_overrides.json:", err);
+  }
+}
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: "10mb" }));
+
+  app.get("/api/player-overrides", (_req, res) => {
+    res.json(readServerOverrides());
+  });
+
+  app.post("/api/player-overrides", (req, res) => {
+    const incoming = req.body && typeof req.body === "object" ? req.body : {};
+    const current = readServerOverrides();
+    for (const [k, v] of Object.entries(incoming)) {
+      if (v && typeof v === "object") {
+        const val = v as any;
+        if (val.flag && val.flag !== "?") {
+          current[k] = { ...(current[k] || {}), ...val };
+        } else if (!current[k]) {
+          current[k] = val;
+        }
+      }
+    }
+    writeServerOverrides(current);
+    res.json({ ok: true, overrides: current });
+  });
 
   app.post("/api/simulate-match", async (req, res) => {
     const {

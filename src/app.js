@@ -293,13 +293,21 @@ function saveUniversesRegistry() {
 
 const memoryUniverseStore = {};
 
-function pruneLegacyDuplicateStorageKeys() {
+function pruneLegacyDuplicateStorageKeys(aggressive = false) {
   if (typeof localStorage === 'undefined') return;
   try {
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k) continue;
+      // Освобождаем 3.5+ МБ квоты localStorage от раздутых чекпоинтов с полными сетками и временных слепков
+      if (k.includes('meta_checkpoints_v2') || k.includes('meta_pre_sim_snapshot_v1')) {
+        const val = localStorage.getItem(k);
+        if (aggressive || (val && val.length > 180000)) {
+          keysToRemove.push(k);
+          continue;
+        }
+      }
       // Удаляем старые не-префиксированные дубликаты, если уже есть префиксированный ключ universe_1_*
       if (
         !k.startsWith('universe_') &&
@@ -308,6 +316,7 @@ function pruneLegacyDuplicateStorageKeys() {
         k !== 'groq_api_key' &&
         k !== 'groq_model' &&
         k !== 'meta_include_match_comments_v1' &&
+        !k.startsWith('meta_custom_player_overrides_v1') &&
         localStorage.getItem(`universe_1_${k}`) !== null
       ) {
         keysToRemove.push(k);
@@ -375,7 +384,7 @@ export const universeStorage = {
         localStorage.removeItem(k);
       }
     } catch {
-      pruneLegacyDuplicateStorageKeys();
+      pruneLegacyDuplicateStorageKeys(true);
       try {
         localStorage.setItem(fullKey, strVal);
       } catch {
@@ -541,8 +550,10 @@ function loadUniverseStateFromStorage() {
 
 const CUSTOM_PLAYER_OVERRIDES_KEY = 'meta_custom_player_overrides_v1';
 
+let serverPlayerOverridesCache = {};
+
 function loadCustomPlayerOverrides() {
-  const merged = {};
+  const merged = { ...serverPlayerOverridesCache };
   try {
     if (typeof localStorage !== 'undefined') {
       const globalRaw = localStorage.getItem(`${CUSTOM_PLAYER_OVERRIDES_KEY}_${activeUniverseId}`);
@@ -560,8 +571,41 @@ function loadCustomPlayerOverrides() {
   return merged;
 }
 
+function pushOverridesToLocalServer(overridesMap) {
+  try {
+    if (typeof window === 'undefined' || !window.location) return;
+    const host = String(window.location.hostname || '').toLowerCase();
+    if (host !== 'localhost' && host !== '127.0.0.1') return;
+    fetch('/api/player-overrides', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(overridesMap || {})
+    }).catch(() => {});
+  } catch {
+    // ignore
+  }
+}
+
+async function fetchOverridesFromLocalServer() {
+  try {
+    if (typeof window === 'undefined' || !window.location) return;
+    const host = String(window.location.hostname || '').toLowerCase();
+    if (host !== 'localhost' && host !== '127.0.0.1') return;
+    const res = await fetch('/api/player-overrides', { cache: 'no-cache' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        serverPlayerOverridesCache = data;
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
 function saveCustomPlayerOverridesMap(overridesMap) {
-  const json = JSON.stringify(overridesMap || {});
+  serverPlayerOverridesCache = { ...serverPlayerOverridesCache, ...(overridesMap || {}) };
+  const json = JSON.stringify(serverPlayerOverridesCache);
   try {
     universeStorage.setItem(CUSTOM_PLAYER_OVERRIDES_KEY, json);
   } catch {
@@ -569,11 +613,17 @@ function saveCustomPlayerOverridesMap(overridesMap) {
   }
   try {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(`${CUSTOM_PLAYER_OVERRIDES_KEY}_${activeUniverseId}`, json);
+      try {
+        localStorage.setItem(`${CUSTOM_PLAYER_OVERRIDES_KEY}_${activeUniverseId}`, json);
+      } catch {
+        pruneLegacyDuplicateStorageKeys(true);
+        localStorage.setItem(`${CUSTOM_PLAYER_OVERRIDES_KEY}_${activeUniverseId}`, json);
+      }
     }
   } catch {
     // ignore
   }
+  pushOverridesToLocalServer(serverPlayerOverridesCache);
 }
 
 function recordCustomPlayerOverride(player, canonicalName = null) {
@@ -1085,9 +1135,7 @@ function repairCanonicalPlayersAndDraws() {
     });
   }
 
-  if (overridesModified) {
-    saveCustomPlayerOverridesMap(customOverrides);
-  }
+  saveCustomPlayerOverridesMap(customOverrides);
 }
 
 export function initData() {
@@ -1336,6 +1384,26 @@ function repairOvercountedPoints() {
   const lastCompletedTourney = completedTourneys.length > 0 ? completedTourneys[completedTourneys.length - 1] : null;
 
   players.forEach(p => {
+    if (p.isCleanReplacement) {
+      p.points = 0;
+      p.basePoints = 0;
+      p.start2023Points = 0;
+      p.racePoints = 0;
+      p.finalsPoints = 0;
+      p.defendedSoFar = 0;
+      p.remainingDefending = 0;
+      p.tournamentPoints = {};
+      p.lastPointsDelta = 0;
+      p.lastRaceDelta = 0;
+      p.lastTourneyEarned = 0;
+      p.lastTourneyDefended = 0;
+      p.lastTourneyName = '';
+      p.seasonStartRank = 300;
+      p.historicalBestRank = 300;
+      p.bestRank = 300;
+      return;
+    }
+
     const raceEarned = exactRaceEarned[p.id] || 0;
     const finalsEarned = exactFinalsEarned[p.id] || 0;
     p.racePoints = raceEarned;
@@ -3887,7 +3955,34 @@ export function toggleUnknownCountryFilter() {
   renderPlayersTable();
 }
 
+export function quickSaveInlineFlag(playerId, rawValue, moveFocusToNext = false) {
+  if (guardCanonReadOnly()) return;
+  const cleanVal = String(rawValue || '').trim();
+  if (!cleanVal || cleanVal === '?') return;
+  const p = players.find(x => String(x.id) === String(playerId));
+  if (!p) return;
+  const oldNameLower = String(p.name || '').trim().toLowerCase();
+  p.flag = normalizeCountryCode(cleanVal);
+  recordCustomPlayerOverride(p);
+  propagatePlayerIdentityUpdate(p, oldNameLower);
+  savePlayers(false);
+  renderPlayersTable();
+  renderRaceTable();
+  if (currentDraw && currentDraw.length > 0) {
+    renderDraw();
+  }
+  const meta = getCountryMeta(p.flag);
+  showToast(`✅ Страна для <b>${p.name}</b> сохранена: ${renderFlagBadge(p.flag, { compact: true })} <b>${meta.ru}</b>`, 2400);
+  if (moveFocusToNext && typeof document !== 'undefined') {
+    setTimeout(() => {
+      const firstInline = document.querySelector('.inline-flag-quick-input');
+      if (firstInline) firstInline.focus();
+    }, 30);
+  }
+}
+
 export function renderPlayersTable() {
+  ensureCountryCodesDatalistPopulated();
   const tbody = document.getElementById('playersTableBody');
   if (!tbody) return;
   const rawSearch = document.getElementById('playerSearch')?.value || '';
@@ -3928,13 +4023,32 @@ export function renderPlayersTable() {
     return;
   }
 
-  tbody.innerHTML = filtered.map(p => `
+  const readOnly = isCanonReadOnly();
+  tbody.innerHTML = filtered.map(p => {
+    const isUnknownFlag = !p.flag || p.flag === '?';
+    const flagCellHtml = (isUnknownFlag && !readOnly)
+      ? `<div style="display: flex; align-items: center; gap: 4px;">
+          ${renderFlagBadge(p.flag)}
+          <input
+            type="text"
+            class="inline-flag-quick-input"
+            list="countryCodesDatalist"
+            placeholder="Код/Страна"
+            title="Введите код (ESP, SRB, RUS) или страну и нажмите Enter"
+            style="width: 82px; padding: 3px 6px; font-size: 11.5px; background: #0d1522; border: 1px solid rgba(251, 191, 36, 0.45); border-radius: 5px; color: #f8fafc;"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();quickSaveInlineFlag('${p.id}', this.value, true);}"
+            onchange="if(this.value.trim().length>=2){quickSaveInlineFlag('${p.id}', this.value, false);}"
+          />
+        </div>`
+      : renderFlagBadge(p.flag);
+
+    return `
     <tr>
       <td>
         <div style="font-weight: 700; font-size: 14px;">#${p.rank}</div>
         <div>${renderRankChangeBadge(p.rankChange || 0)}</div>
       </td>
-      <td>${renderFlagBadge(p.flag)}</td>
+      <td>${flagCellHtml}</td>
       <td>
         <div>
           <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${p.id}')" title="Открыть профиль игрока">${p.name}</button>
@@ -3961,7 +4075,8 @@ export function renderPlayersTable() {
         ${isCanonReadOnly() ? '' : `<button type="button" class="btn-edit" onclick="openEditPlayerModal('${p.id}')">Ред.</button>`}
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 }
 
 export function renderRaceTable() {
@@ -6049,6 +6164,7 @@ if (typeof window !== 'undefined') {
   window.saveQuickStringScore = saveQuickStringScore;
   window.saveQuickStringScoreOnly = saveQuickStringScoreOnly;
   window.renderPlayersTable = renderPlayersTable;
+  window.quickSaveInlineFlag = quickSaveInlineFlag;
   window.clearPlayerSearch = clearPlayerSearch;
   window.toggleUnknownCountryFilter = toggleUnknownCountryFilter;
   window.updateEditPlayerFlagPreview = updateEditPlayerFlagPreview;
@@ -6096,7 +6212,8 @@ if (typeof window !== 'undefined') {
   window.toggleGuestReadOnlyPreview = toggleGuestReadOnlyPreview;
 
   const bootstrapApp = async () => {
-    pruneLegacyDuplicateStorageKeys();
+    pruneLegacyDuplicateStorageKeys(true);
+    await fetchOverridesFromLocalServer();
     await loadPublishedCanonSnapshot();
     initData();
     initUI();
