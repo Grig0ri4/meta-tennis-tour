@@ -69,17 +69,50 @@ async function startServer() {
     try {
       const body = req.body;
       if (body && Array.isArray(body.players) && body.players.length === 300) {
-        // Защита от повреждения или перезаписи канона устаревшим кэшем браузера:
-        // На 27.07.2024 #2 — строго Ussistian Shifter, Топ-10 >= 2500 очков, а у #300 не 0 очков
-        const isStaleCorruptedPayload =
-          body.players[1]?.name !== "Ussistian Shifter" ||
-          (body.players[9]?.points || 0) < 2500 ||
-          (body.players[299]?.points || 0) === 0;
-
-        if (!isStaleCorruptedPayload) {
-          const canonPath = path.join(__dirname, "public", "canon.json");
-          fs.writeFileSync(canonPath, JSON.stringify(body), "utf8");
+        const canonPath = path.join(__dirname, "public", "canon.json");
+        let existingCanon: any = {};
+        if (fs.existsSync(canonPath)) {
+          try {
+            existingCanon = JSON.parse(fs.readFileSync(canonPath, "utf8"));
+          } catch {
+            existingCanon = {};
+          }
         }
+
+        // Объединяем сетки: прошлые завершенные турниры (Галле, Queen's, Дублин, ТБШ 3, Гамбург и 2023)
+        // НИКОГДА не должны исчезать или затираться пустыми данными!
+        const mergedDraws = { ...(existingCanon.draws || {}) };
+        if (body.draws && typeof body.draws === "object") {
+          for (const [k, d] of Object.entries(body.draws)) {
+            if (Array.isArray(d) && d.length > 0) {
+              // Если это Олимпиада — сохраняем сыгранные матчи пользователя любой ценой!
+              if (k === "draw_olympics_2024") {
+                mergedDraws[k] = d;
+              } else {
+                mergedDraws[k] = d;
+              }
+            }
+          }
+        }
+
+        // Если в теле запроса есть живая сетка Олимпиады — сохраняем её также в отдельный бэкап data/
+        if (body.draws?.draw_olympics_2024) {
+          try {
+            const liveBackupPath = path.join(__dirname, "data", "live_olympics_draw.json");
+            fs.writeFileSync(liveBackupPath, JSON.stringify(body.draws.draw_olympics_2024, null, 2), "utf8");
+          } catch (e) {
+            console.warn("live_olympics_draw backup write err:", e);
+          }
+        }
+
+        const mergedCanon = {
+          ...existingCanon,
+          ...body,
+          draws: mergedDraws,
+          exportedAt: new Date().toISOString()
+        };
+
+        fs.writeFileSync(canonPath, JSON.stringify(mergedCanon, null, 2), "utf8");
       }
       res.json({ ok: true });
     } catch (e) {

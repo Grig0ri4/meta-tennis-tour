@@ -1207,5 +1207,19 @@
     "birthDate": "2004-10-30",
     "nickname": "",
     "playStyle": ""
+  },
+  "id:p_157": {
+    "name": "Casper Holm",
+    "flag": "DEN",
+    "birthDate": "2001-08-16",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:casper holm": {
+    "name": "Casper Holm",
+    "flag": "DEN",
+    "birthDate": "2001-08-16",
+    "nickname": "",
+    "playStyle": ""
   }
 }
