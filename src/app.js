@@ -2139,6 +2139,46 @@ export function loadSelectedTournament() {
   saveDate();
 
   currentDraw = readSavedDraw(activeTourney.id, viewingYear);
+  if (
+    activeTourney.id === 'olympics' &&
+    viewingYear === currentTourYear &&
+    !activeTourney.completed &&
+    Array.isArray(currentDraw) &&
+    currentDraw.length > 0 &&
+    Array.isArray(currentDraw[0]) &&
+    currentDraw[0].length === 32 &&
+    currentDraw.every(round => Array.isArray(round) && round.every(m => !m.winner))
+  ) {
+    let hasQuarterCollision = false;
+    for (let q = 0; q < 4; q++) {
+      const seenInQuarter = new Set();
+      for (let mIdx = q * 8; mIdx < q * 8 + 8; mIdx++) {
+        const m = currentDraw[0][mIdx];
+        for (const side of [m?.p1, m?.p2]) {
+          if (!side) continue;
+          const liveP = players.find(x => x.id === side.id) || side;
+          const normC = normalizeCountryCode(liveP.flag || side.flag);
+          if (normC && normC !== '?') {
+            if (seenInQuarter.has(normC)) {
+              hasQuarterCollision = true;
+              break;
+            }
+            seenInQuarter.add(normC);
+          }
+        }
+        if (hasQuarterCollision) break;
+      }
+      if (hasQuarterCollision) break;
+    }
+    if (hasQuarterCollision) {
+      const rebuilt = createTournamentDraw(activeTourney, players);
+      currentDraw = rebuilt.draw;
+      if (rebuilt.withdrawals.length > 0) {
+        universeStorage.setItem(`withdrawals_${activeTourney.id}_${viewingYear}`, JSON.stringify(rebuilt.withdrawals));
+      }
+      saveDraw();
+    }
+  }
   const hasFinishedFinal = currentDraw.length > 0 && Boolean(currentDraw[currentDraw.length - 1]?.[0]?.winner);
   activeRoundIdx = hasFinishedFinal ? currentDraw.length - 1 : 0;
 

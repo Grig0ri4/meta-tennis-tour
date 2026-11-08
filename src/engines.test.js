@@ -284,11 +284,13 @@ test('Раздел 2: Олимпийские игры проводятся ра�
   const { qualified, countryCounts } = selectOlympicParticipantsWithQuota(players, 4, 64);
   assert.equal(qualified.length, 64);
   assert.equal(countryCounts['USA'], 4, 'От США должно пройти ровно 4 игрока по квоте');
+  assert.equal(countryCounts['IT'], undefined, 'Устаревший код IT должен нормализоваться в ITA');
+  assert.ok((countryCounts['ITA'] || 0) <= 4, 'От Италии (включая бывшие IT/ITA) должно быть не более 4 игроков');
   Object.entries(countryCounts).forEach(([country, cnt]) => {
     assert.ok(cnt <= 4, `Квота страны ${country} (${cnt}) не должна превышать 4`);
   });
 
-  // Проверим структуру сетки Олимпиады и Матч за 3-е место
+  // Проверим структуру сетки Олимпиады, разведение соотечественников по четвертям и Матч за 3-е место
   const olyTourney = cal2024.find(t => t.id === 'olympics');
   const { draw } = createTournamentDraw(olyTourney, players);
   assert.equal(draw.length, 6);
@@ -297,6 +299,27 @@ test('Раздел 2: Олимпийские игры проводятся ра�
   assert.equal(draw[5].length, 2);
   assert.equal(draw[5][0].isGoldMatch, true);
   assert.equal(draw[5][1].isBronzeMatch, true);
+
+  // В каждой из 4 четвертей (по 8 матчей 1/32 финала в четверти) не должно быть двух игроков из одной страны
+  for (let q = 0; q < 4; q++) {
+    const seenCountriesInQuarter = new Set();
+    for (let mIdx = q * 8; mIdx < q * 8 + 8; mIdx++) {
+      const m = draw[0][mIdx];
+      assert.notEqual(
+        m.p1.flag,
+        m.p2.flag,
+        `Матч #${mIdx + 1} в 1/32 финала ОИ не должен сводить соотечественников (${m.p1.name} vs ${m.p2.name}, ${m.p1.flag})`
+      );
+      for (const pl of [m.p1, m.p2]) {
+        assert.equal(
+          seenCountriesInQuarter.has(pl.flag),
+          false,
+          `В четверти Q${q + 1} страна ${pl.flag} встретилась более 1 раза (${pl.name})`
+        );
+        seenCountriesInQuarter.add(pl.flag);
+      }
+    }
+  }
 
   // Симулируем все раунды Олимпиады
   for (let r = 0; r < draw.length; r++) {

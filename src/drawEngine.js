@@ -1,9 +1,10 @@
 /**
  * Meta Tennis Tour — Движок жеребьевки (drawEngine.js)
- * Посев: ТБШ 1..32, Мастерс 1..16, Олимпиада 1..16 (квота не более 4 игроков от страны + Матч за 3-е место),
+ * Посев: ТБШ 1..32, Мастерс 1..16, Олимпиада 1..16 (квота не более 4 игроков от страны + разведение по разным четвертям + Матч за 3-е место),
  * ATP 500 1..8, Итоговый 2 группы по 4.
  * Реалистичные снятия (отдых/травма) и заявки для игроков 50–85 мест.
  */
+import { normalizeCountryCode } from './countryFlags.js';
 
 export function shuffleArray(arr) {
   const res = [...arr];
@@ -57,6 +58,7 @@ export function buildStandardRounds(bracket, size, isOlympics = false) {
 /**
  * Отбирает 64 участников на Олимпийские игры по мировому рейтингу
  * со строгим соблюдением национальной квоты: максимум 4 игрока от одной страны!
+ * Нормализует коды стран через normalizeCountryCode (например, IT -> ITA, SPN -> ESP, GRC -> GRE).
  */
 export function selectOlympicParticipantsWithQuota(players, maxQuotaPerCountry = 4, drawSize = 64) {
   const sortedByRank = [...players].sort((a, b) => (a.rank || 999) - (b.rank || 999));
@@ -67,32 +69,237 @@ export function selectOlympicParticipantsWithQuota(players, maxQuotaPerCountry =
   for (let i = 0; i < sortedByRank.length; i++) {
     if (qualified.length >= drawSize) break;
     const p = sortedByRank[i];
-    const country = (p.flag || '?').toUpperCase();
+    const country = normalizeCountryCode(p.flag);
+    if (!country || country === '?') continue;
     const count = countryCounts[country] || 0;
 
     if (count < maxQuotaPerCountry) {
       countryCounts[country] = count + 1;
-      qualified.push({ ...p, entryTag: 'OLY' });
+      qualified.push({ ...p, flag: country, entryTag: 'OLY' });
     } else {
-      if (i < 85) {
+      if (i < 100) {
         quotaExcluded.push(`${p.name} (${country} — квота > ${maxQuotaPerCountry})`);
       }
     }
   }
 
-  // На случай если в кастомной базе мало стран — добираем из оставшихся
+  // На случай если в тестовой/кастомной базе не хватило игроков с известными флагами — добираем с соблюдением квоты
   if (qualified.length < drawSize) {
     const usedIds = new Set(qualified.map(p => p.id));
     for (const p of sortedByRank) {
       if (qualified.length >= drawSize) break;
-      if (!usedIds.has(p.id)) {
-        qualified.push({ ...p, entryTag: 'ITF' });
+      if (usedIds.has(p.id)) continue;
+      const country = normalizeCountryCode(p.flag);
+      const count = countryCounts[country] || 0;
+      if (country === '?' || count < maxQuotaPerCountry) {
+        countryCounts[country] = count + 1;
+        qualified.push({ ...p, flag: country, entryTag: 'ITF' });
         usedIds.add(p.id);
       }
     }
   }
 
   return { qualified, quotaExcluded, countryCounts };
+}
+
+/**
+ * Строит 64-местную олимпийскую сетку со строгим разведением представителей одной страны
+ * по разным четвертям (Q0: 0..15, Q1: 16..31, Q2: 32..47, Q3: 48..63),
+ * чтобы соотечественники гарантированно не встречались в 1/32, 1/16, 1/8 и 1/4 финала,
+ * а при 2 участниках от страны по возможности разводились в разные половины сетки.
+ */
+export function buildOlympicQuarterSeparatedBracket(qualified) {
+  const bracket = new Array(64).fill(null);
+  const seedsCount = 16;
+  const seeds = qualified.slice(0, seedsCount).map((p, idx) => ({
+    ...p,
+    flag: normalizeCountryCode(p.flag),
+    seedNum: idx + 1,
+    entryTag: undefined
+  }));
+  const unseededAll = qualified.slice(seedsCount, 64).map(p => ({
+    ...p,
+    flag: normalizeCountryCode(p.flag),
+    seedNum: undefined
+  }));
+
+  const quarterCountries = [new Set(), new Set(), new Set(), new Set()];
+  const addCountryToQuarter = (q, flag) => {
+    if (flag && flag !== '?') quarterCountries[q].add(flag);
+  };
+  const hasCountryInHalf = (halfIdx, flag) => {
+    if (!flag || flag === '?') return false;
+    const qA = halfIdx * 2;
+    const qB = halfIdx * 2 + 1;
+    return quarterCountries[qA].has(flag) || quarterCountries[qB].has(flag);
+  };
+
+  // 1. Посев #1 (Q0, слот 0) и #2 (Q3, слот 63)
+  if (seeds[0]) {
+    bracket[0] = seeds[0];
+    addCountryToQuarter(0, seeds[0].flag);
+  }
+  if (seeds[1]) {
+    bracket[63] = seeds[1];
+    addCountryToQuarter(3, seeds[1].flag);
+  }
+
+  // 2. Посев #3 и #4 (Q1 слот 31 и Q2 слот 32) — разводим по половинам с соотечественниками #1/#2
+  const s34 = shuffleArray(seeds.slice(2, 4));
+  if (s34.length === 2) {
+    const optA = (hasCountryInHalf(0, s34[0].flag) ? 1 : 0) + (hasCountryInHalf(1, s34[1].flag) ? 1 : 0);
+    const optB = (hasCountryInHalf(0, s34[1].flag) ? 1 : 0) + (hasCountryInHalf(1, s34[0].flag) ? 1 : 0);
+    const pair = optB < optA ? [s34[1], s34[0]] : [s34[0], s34[1]];
+    bracket[31] = pair[0];
+    addCountryToQuarter(1, pair[0].flag);
+    bracket[32] = pair[1];
+    addCountryToQuarter(2, pair[1].flag);
+  }
+
+  // 3. Посев #5..#8 (по одному в каждую четверть: Q0=15, Q1=16, Q2=47, Q3=48)
+  const slots58ByQ = [15, 16, 47, 48];
+  const s58 = shuffleArray(seeds.slice(4, 8));
+  if (s58.length === 4) {
+    const perms = [
+      [0, 1, 2, 3], [0, 1, 3, 2], [0, 2, 1, 3], [0, 2, 3, 1], [0, 3, 1, 2], [0, 3, 2, 1],
+      [1, 0, 2, 3], [1, 0, 3, 2], [1, 2, 0, 3], [1, 2, 3, 0], [1, 3, 0, 2], [1, 3, 2, 0],
+      [2, 0, 1, 3], [2, 0, 3, 1], [2, 1, 0, 3], [2, 1, 3, 0], [2, 3, 0, 1], [2, 3, 1, 0],
+      [3, 0, 1, 2], [3, 0, 2, 1], [3, 1, 0, 2], [3, 1, 2, 0], [3, 2, 0, 1], [3, 2, 1, 0]
+    ];
+    let bestPerm = perms[0];
+    let bestPenalty = Infinity;
+    for (const perm of shuffleArray(perms)) {
+      let penalty = 0;
+      for (let q = 0; q < 4; q++) {
+        const pl = s58[perm[q]];
+        if (pl && pl.flag && pl.flag !== '?') {
+          if (quarterCountries[q].has(pl.flag)) penalty += 100;
+          if (hasCountryInHalf(Math.floor(q / 2), pl.flag)) penalty += 5;
+        }
+      }
+      if (penalty < bestPenalty) {
+        bestPenalty = penalty;
+        bestPerm = perm;
+      }
+    }
+    for (let q = 0; q < 4; q++) {
+      const pl = s58[bestPerm[q]];
+      bracket[slots58ByQ[q]] = pl;
+      addCountryToQuarter(q, pl.flag);
+    }
+  }
+
+  // 4. Посев #9..#16 (по 2 слота в каждой четверти: Q0=[7,8], Q1=[23,24], Q2=[39,40], Q3=[55,56])
+  const slots916ByQ = [[7, 8], [23, 24], [39, 40], [55, 56]];
+  const totalCountryFreq = {};
+  qualified.forEach(p => {
+    const f = normalizeCountryCode(p.flag);
+    totalCountryFreq[f] = (totalCountryFreq[f] || 0) + 1;
+  });
+  const s916 = shuffleArray(seeds.slice(8, 16)).sort(
+    (a, b) => (totalCountryFreq[b.flag] || 0) - (totalCountryFreq[a.flag] || 0)
+  );
+  for (const pl of s916) {
+    const candidateQuarters = shuffleArray([0, 1, 2, 3]).filter(q => slots916ByQ[q].length > 0);
+    candidateQuarters.sort((qA, qB) => {
+      const penA =
+        (quarterCountries[qA].has(pl.flag) ? 100 : 0) +
+        (hasCountryInHalf(Math.floor(qA / 2), pl.flag) ? 5 : 0) -
+        slots916ByQ[qA].length;
+      const penB =
+        (quarterCountries[qB].has(pl.flag) ? 100 : 0) +
+        (hasCountryInHalf(Math.floor(qB / 2), pl.flag) ? 5 : 0) -
+        slots916ByQ[qB].length;
+      return penA - penB;
+    });
+    const chosenQ = candidateQuarters[0];
+    const slot = slots916ByQ[chosenQ].pop();
+    bracket[slot] = pl;
+    addCountryToQuarter(chosenQ, pl.flag);
+  }
+
+  // 5. Несеяные игроки (48 человек, по 12 свободных слотов в каждой четверти Q0..Q3)
+  const quarterUnseeded = [[], [], [], []];
+  const byCountry = {};
+  for (const pl of shuffleArray(unseededAll)) {
+    const f = pl.flag || '?';
+    if (!byCountry[f]) byCountry[f] = [];
+    byCountry[f].push(pl);
+  }
+
+  // Сначала распределяем страны с наибольшим общим числом участников (4, 3, 2), затем одиночные (1)
+  const sortedCountries = shuffleArray(Object.keys(byCountry)).sort((cA, cB) => {
+    if (cA === '?') return 1;
+    if (cB === '?') return -1;
+    const totDiff = (totalCountryFreq[cB] || 0) - (totalCountryFreq[cA] || 0);
+    if (totDiff !== 0) return totDiff;
+    return byCountry[cB].length - byCountry[cA].length;
+  });
+
+  for (const country of sortedCountries) {
+    const group = byCountry[country];
+    for (const pl of group) {
+      let openQuarters = shuffleArray([0, 1, 2, 3]).filter(q => quarterUnseeded[q].length < 12);
+      let validQuarters =
+        country === '?'
+          ? openQuarters
+          : openQuarters.filter(q => !quarterCountries[q].has(country));
+
+      if (validQuarters.length > 0) {
+        validQuarters.sort((qA, qB) => {
+          const halfPenA = hasCountryInHalf(Math.floor(qA / 2), country) ? 10 : 0;
+          const halfPenB = hasCountryInHalf(Math.floor(qB / 2), country) ? 10 : 0;
+          if (halfPenA !== halfPenB) return halfPenA - halfPenB;
+          return quarterUnseeded[qA].length - quarterUnseeded[qB].length;
+        });
+        const targetQ = validQuarters[0];
+        quarterUnseeded[targetQ].push(pl);
+        addCountryToQuarter(targetQ, country);
+      } else {
+        // Если свободная от этой страны четверть уже заполнена (12/12), меняем местами с игроком другой страны
+        const nonCollidingFullQuarters = [0, 1, 2, 3].filter(q => !quarterCountries[q].has(country));
+        let swapped = false;
+        for (const fullQ of nonCollidingFullQuarters) {
+          for (const spareQ of openQuarters) {
+            const swapIdx = quarterUnseeded[fullQ].findIndex(
+              cand => cand.flag === '?' || !quarterCountries[spareQ].has(cand.flag)
+            );
+            if (swapIdx !== -1) {
+              const [movedPlayer] = quarterUnseeded[fullQ].splice(swapIdx, 1);
+              if (movedPlayer.flag && movedPlayer.flag !== '?') {
+                quarterCountries[fullQ].delete(movedPlayer.flag);
+                quarterCountries[spareQ].add(movedPlayer.flag);
+              }
+              quarterUnseeded[spareQ].push(movedPlayer);
+              quarterUnseeded[fullQ].push(pl);
+              addCountryToQuarter(fullQ, country);
+              swapped = true;
+              break;
+            }
+          }
+          if (swapped) break;
+        }
+        if (!swapped && openQuarters.length > 0) {
+          const fallbackQ = openQuarters[0];
+          quarterUnseeded[fallbackQ].push(pl);
+          addCountryToQuarter(fallbackQ, country);
+        }
+      }
+    }
+  }
+
+  // 6. Заполняем пустые слоты внутри каждой четверти и исключаем однофамильцев/соотечественников в парах 1/32
+  for (let q = 0; q < 4; q++) {
+    const startSlot = q * 16;
+    const pool = shuffleArray(quarterUnseeded[q]);
+    for (let s = startSlot; s < startSlot + 16; s++) {
+      if (!bracket[s]) {
+        bracket[s] = pool.pop() || null;
+      }
+    }
+  }
+
+  return bracket;
 }
 
 export function calculateGroupStandings(groupMatches) {
@@ -204,32 +411,10 @@ export function createTournamentDraw(tourney, players) {
     return { draw, withdrawals: [] };
   }
 
-  // ОЛИМПИЙСКИЕ ИГРЫ (64 игрока, национальная квота <= 4 игроков от страны, Матч за 3-е место + Финал)
+  // ОЛИМПИЙСКИЕ ИГРЫ (64 игрока, национальная квота <= 4 игроков от страны, разведение по разным четвертям, Матч за 3-е место + Финал)
   if (tourney.id === 'olympics' || tourney.type === 'Олимпиада' || tourney.isOlympics) {
     const { qualified, quotaExcluded } = selectOlympicParticipantsWithQuota(players, 4, 64);
-    const bracket = new Array(64).fill(null);
-
-    const seedsCount = 16;
-    const seeds = qualified.slice(0, seedsCount).map((p, idx) => ({ ...p, seedNum: idx + 1, entryTag: undefined }));
-
-    bracket[0] = seeds[0];
-    bracket[63] = seeds[1];
-    const s34 = shuffleArray(seeds.slice(2, 4));
-    bracket[31] = s34[0];
-    bracket[32] = s34[1];
-
-    const slots5_8 = [15, 16, 47, 48];
-    const s58 = shuffleArray(seeds.slice(4, 8));
-    slots5_8.forEach((pos, idx) => { bracket[pos] = s58[idx]; });
-
-    const slots9_16 = [7, 8, 23, 24, 39, 40, 55, 56];
-    const s916 = shuffleArray(seeds.slice(8, 16));
-    slots9_16.forEach((pos, idx) => { bracket[pos] = s916[idx]; });
-
-    const unseeded = shuffleArray(qualified.slice(16, 64).map(p => ({ ...p, seedNum: undefined })));
-    for (let i = 0; i < 64; i++) {
-      if (!bracket[i]) bracket[i] = unseeded.pop();
-    }
+    const bracket = buildOlympicQuarterSeparatedBracket(qualified);
 
     return {
       draw: buildStandardRounds(bracket, 64, true),
