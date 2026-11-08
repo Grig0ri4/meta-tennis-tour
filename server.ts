@@ -65,6 +65,17 @@ async function startServer() {
     res.json({ ok: true });
   });
 
+  app.get("/api/restored-draws", (_req, res) => {
+    try {
+      const restoredPath = path.join(__dirname, "data", "restored_halle_hamburg_draws.json");
+      if (fs.existsSync(restoredPath)) {
+        res.json(JSON.parse(fs.readFileSync(restoredPath, "utf8")));
+        return;
+      }
+    } catch {}
+    res.json({});
+  });
+
   app.post("/api/canon-snapshot", (req, res) => {
     try {
       const body = req.body;
@@ -79,18 +90,23 @@ async function startServer() {
           }
         }
 
-        // Объединяем сетки: прошлые завершенные турниры (Галле, Queen's, Дублин, ТБШ 3, Гамбург и 2023)
-        // НИКОГДА не должны исчезать или затираться пустыми данными!
-        const mergedDraws = { ...(existingCanon.draws || {}) };
+        const restoredPath = path.join(__dirname, "data", "restored_halle_hamburg_draws.json");
+        let restoredBaseDraws: Record<string, any> = {};
+        if (fs.existsSync(restoredPath)) {
+          try {
+            restoredBaseDraws = JSON.parse(fs.readFileSync(restoredPath, "utf8")) || {};
+          } catch {}
+        }
+
+        // Объединяем сетки:
+        // 1) Гарантированные завершенные турниры (Галле, Queen's, Дублин, ТБШ 3, Гамбург)
+        // 2) Существующие на сервере сетки
+        // 3) Входящие из браузера сетки (для Олимпиады приоритет у живых матчей пользователя)
+        const mergedDraws = { ...restoredBaseDraws, ...(existingCanon.draws || {}) };
         if (body.draws && typeof body.draws === "object") {
           for (const [k, d] of Object.entries(body.draws)) {
             if (Array.isArray(d) && d.length > 0) {
-              // Если это Олимпиада — сохраняем сыгранные матчи пользователя любой ценой!
-              if (k === "draw_olympics_2024") {
-                mergedDraws[k] = d;
-              } else {
-                mergedDraws[k] = d;
-              }
+              mergedDraws[k] = d;
             }
           }
         }

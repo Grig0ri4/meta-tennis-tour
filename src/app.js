@@ -6,6 +6,7 @@
  */
 
 import { PRESERVED_BASE, CLEAN_UNIQUE_POOL, PROCEDURAL_FLAGS, buildInitial300Players, generateRandom300Players } from '../data/players.js';
+import RESTORED_2024_DRAWS from '../data/restored_halle_hamburg_draws.json' with { type: 'json' };
 import {
   FULL_CALENDAR_TEMPLATE,
   OLYMPIC_TOURNAMENT_TEMPLATE,
@@ -1649,9 +1650,33 @@ function readSavedDraw(tourneyId, year) {
         localStorage.getItem(`universe_${activeUniverseId}_${drawKey}`) ||
         (activeUniverseId === '1' ? localStorage.getItem(drawKey) : null);
     }
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed.some(r => Array.isArray(r) && r.some(m => m && m.winner))) {
+        return parsed;
+      }
+    }
+    // ЖЕЛЕЗНЫЙ ФОЛЛБЭК: Если для завершенного турнира 2024 года (Галле, Queen's, Дублин, ТБШ 3, Гамбург)
+    // в localStorage сетка отсутствует или пуста — мгновенно отдаем и восстанавливаем каноническую сетку!
+    if ((activeUniverseId === '1' || activeUniverseId === 1) && Number(year) === 2024 && RESTORED_2024_DRAWS && RESTORED_2024_DRAWS[drawKey]) {
+      const fallbackDraw = RESTORED_2024_DRAWS[drawKey];
+      if (Array.isArray(fallbackDraw) && fallbackDraw.length > 0) {
+        try {
+          const str = JSON.stringify(fallbackDraw);
+          universeStorage.setItem(drawKey, str);
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(unifiedKey, str);
+            localStorage.setItem(`draw_1_${tourneyId}_${year}`, str);
+          }
+        } catch {}
+        return fallbackDraw;
+      }
+    }
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+    return [];
   } catch {
     return [];
   }
@@ -7134,13 +7159,16 @@ if (typeof window !== 'undefined') {
       if (typeof window === 'undefined' || !window.location || typeof localStorage === 'undefined') return;
       const host = String(window.location.hostname || '').toLowerCase();
       if (host !== 'localhost' && host !== '127.0.0.1') return;
-      if (localStorage.getItem('universe_1_meta_canon_0047fd5_restored_v9') === 'true') return;
-      const res = await fetch(CANON_SNAPSHOT_URL, { cache: 'no-cache' });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!data || !Array.isArray(data.players) || data.players.length !== 300) return;
 
-      // 1. Восстанавливаем завершенные сетки 2024 года (Галле, Queen's, Дублин, ТБШ 3, Гамбург), если они пропали в браузере:
+      let canonData = null;
+      try {
+        const res = await fetch(CANON_SNAPSHOT_URL, { cache: 'no-cache' });
+        if (res.ok) canonData = await res.json();
+      } catch {
+        // ignore
+      }
+
+      // 1. Всегда гарантируем наличие сеток завершенных турниров 2024 года (Галле, Queen's, Дублин, ТБШ 3, Гамбург):
       const pastTourneyKeys = [
         'draw_500_5_2024',
         'draw_500_6_2024',
@@ -7149,9 +7177,9 @@ if (typeof window !== 'undefined') {
         'draw_500_7_2024'
       ];
       pastTourneyKeys.forEach(drawKey => {
-        const canonDraw = data.draws?.[drawKey];
+        const canonDraw = canonData?.draws?.[drawKey] || RESTORED_2024_DRAWS?.[drawKey];
         if (canonDraw && Array.isArray(canonDraw) && canonDraw.length > 0) {
-          const rest = drawKey.slice(5); // '500_5_2024'
+          const rest = drawKey.slice(5); // e.g. '500_5_2024'
           const fullKey = `draw_1_${rest}`;
           const existing =
             localStorage.getItem(fullKey) ||
@@ -7161,9 +7189,14 @@ if (typeof window !== 'undefined') {
           try {
             if (existing) existingParsed = JSON.parse(existing);
           } catch {}
-          if (!Array.isArray(existingParsed) || existingParsed.length === 0) {
-            localStorage.setItem(fullKey, JSON.stringify(canonDraw));
-            memoryUniverseStore[fullKey] = JSON.stringify(canonDraw);
+          const isDrawCompleted = Array.isArray(existingParsed) && existingParsed.length > 0 && existingParsed.some(r => Array.isArray(r) && r.some(m => m && m.winner));
+          if (!isDrawCompleted) {
+            const str = JSON.stringify(canonDraw);
+            localStorage.setItem(fullKey, str);
+            localStorage.setItem(`universe_1_${drawKey}`, str);
+            localStorage.setItem(drawKey, str);
+            memoryUniverseStore[fullKey] = str;
+            memoryUniverseStore[drawKey] = str;
           }
         }
       });
@@ -7182,45 +7215,51 @@ if (typeof window !== 'undefined') {
 
       // Если в браузере уже есть сетка Олимпиады (пользователь проводит турнир) — НИКОГДА её не затираем!
       const userHasOlympicDraw = Array.isArray(existingOlympicParsed) && existingOlympicParsed.length > 0;
-      if (!userHasOlympicDraw && data.draws?.draw_olympics_2024) {
-        localStorage.setItem(olympicKey, JSON.stringify(data.draws.draw_olympics_2024));
-        memoryUniverseStore[olympicKey] = JSON.stringify(data.draws.draw_olympics_2024);
+      if (!userHasOlympicDraw && canonData?.draws?.draw_olympics_2024) {
+        const str = JSON.stringify(canonData.draws.draw_olympics_2024);
+        localStorage.setItem(olympicKey, str);
+        localStorage.setItem('universe_1_draw_olympics_2024', str);
+        localStorage.setItem('draw_olympics_2024', str);
+        memoryUniverseStore[olympicKey] = str;
+        memoryUniverseStore['draw_olympics_2024'] = str;
       }
 
-      // 3. Восстанавливаем канонический список игроков от 27.07.2024:
-      // Все 300 игроков на своих точных позициях (на основе которых сформирована сетка ОИ), Топ-10 >= 2510 очков
-      localStorage.setItem('universe_1_meta_players_v8', JSON.stringify(data.players));
-      memoryUniverseStore['universe_1_meta_players_v8'] = JSON.stringify(data.players);
+      // 3. Синхронизируем турниры (гарантируем completed: true для 1..16, а Олимпиада 17 остается completed: false):
+      const pastWinnersMap = {
+        '500_5': { name: 'Ussistian Shifter', score: '6-4 7-6(4)' },
+        '500_6': { name: 'Ussistian Shifter', score: '7-6(5) 6-3' },
+        'm_6': { name: 'Gary Riffay', score: '6-3 6-4' },
+        'tbsh_3': { name: 'Max Kyupan', score: '6-4 4-6 7-6(3) 6-3' },
+        '500_7': { name: 'Will Wentra', score: '6-3 7-5' }
+      };
 
-      // 4. Синхронизируем турниры (гарантируем completed: true для 1..16, а Олимпиада 17 остается completed: false):
-      if (Array.isArray(data.tournaments) && data.tournaments.length >= 26) {
-        const existingTourneysRaw = localStorage.getItem('universe_1_meta_tournaments_v8');
-        let existingTourneys = null;
-        try {
-          if (existingTourneysRaw) existingTourneys = JSON.parse(existingTourneysRaw);
-        } catch {}
-        if (Array.isArray(existingTourneys)) {
-          existingTourneys.forEach(t => {
-            const canonT = data.tournaments.find(ct => ct.id === t.id);
-            if (canonT && canonT.completed && !t.completed) {
-              t.completed = true;
-              t.lastWinner = canonT.lastWinner;
-              t.lastRunnerUp = canonT.lastRunnerUp;
-              t.lastBronze = canonT.lastBronze;
-              t.lastScore = canonT.lastScore;
-            }
-          });
-          localStorage.setItem('universe_1_meta_tournaments_v8', JSON.stringify(existingTourneys));
-          memoryUniverseStore['universe_1_meta_tournaments_v8'] = JSON.stringify(existingTourneys);
-        } else {
-          localStorage.setItem('universe_1_meta_tournaments_v8', JSON.stringify(data.tournaments));
-          memoryUniverseStore['universe_1_meta_tournaments_v8'] = JSON.stringify(data.tournaments);
+      const existingTourneysRaw = localStorage.getItem('universe_1_meta_tournaments_v8');
+      let existingTourneys = null;
+      try {
+        if (existingTourneysRaw) existingTourneys = JSON.parse(existingTourneysRaw);
+      } catch {}
+
+      if (Array.isArray(existingTourneys) && existingTourneys.length >= 26) {
+        let modified = false;
+        existingTourneys.forEach(t => {
+          if (pastWinnersMap[t.id] && !t.completed) {
+            t.completed = true;
+            t.lastScore = pastWinnersMap[t.id].score;
+            modified = true;
+          }
+          if (t.id === 'olympics') {
+            t.completed = false;
+          }
+        });
+        if (modified) {
+          const str = JSON.stringify(existingTourneys);
+          localStorage.setItem('universe_1_meta_tournaments_v8', str);
+          memoryUniverseStore['universe_1_meta_tournaments_v8'] = str;
         }
       }
 
       localStorage.removeItem('universe_1_meta_checkpoints_det_v6');
       localStorage.removeItem('meta_checkpoints_det_v6');
-      localStorage.setItem('universe_1_meta_canon_0047fd5_restored_v9', 'true');
     } catch {
       // ignore
     }
