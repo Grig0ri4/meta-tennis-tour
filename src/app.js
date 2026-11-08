@@ -2792,12 +2792,15 @@ function computeATP250BracketForTourneyWeek(tourneyObj, year) {
   const inMainSet = new Set();
   const mainEarnedMap = {};
   if (savedDraw && Array.isArray(savedDraw) && savedDraw.length > 0 && Array.isArray(savedDraw[0])) {
-    savedDraw[0].forEach(m => {
-      if (m?.p1?.id) inMainSet.add(m.p1.id);
-      if (m?.p2?.id) inMainSet.add(m.p2.id);
+    const { earnedMap, participantsList } = calculateTournamentEarnedPoints(tourneyObj, savedDraw);
+    Object.assign(mainEarnedMap, earnedMap || {});
+    (participantsList || []).forEach(p => {
+      if (p?.id) inMainSet.add(p.id);
     });
-    const earned = calculateTournamentEarnedPoints(tourneyObj, savedDraw);
-    Object.assign(mainEarnedMap, earned);
+    savedDraw[0].forEach(m => {
+      if (m?.p1?.id && !m.p1.isBye) inMainSet.add(m.p1.id);
+      if (m?.p2?.id && !m.p2.isBye) inMainSet.add(m.p2.id);
+    });
   } else {
     const sorted = [...players].sort((a, b) => (a.rank || 999) - (b.rank || 999));
     sorted.slice(0, tourneyObj.size || 32).forEach(p => {

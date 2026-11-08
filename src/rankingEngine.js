@@ -553,10 +553,12 @@ export function simulateDeterministicATP250Bracket(pool, scale, keyPrefix, stren
 
   const getOrderRank = (pl) => {
     if (!pl || !pl.id) return 999;
+    const r = Number(pl.rank);
+    if (!Number.isNaN(r) && r > 0) return r;
     if (strengthOrderMap instanceof Map && strengthOrderMap.has(pl.id)) {
       return strengthOrderMap.get(pl.id);
     }
-    return Number(pl.rank) || 150;
+    return 150;
   };
 
   for (let r = 0; r < 5; r++) {
@@ -694,45 +696,53 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
   const tourneyIdx = Number(options.tourneyIndex) || 0;
   const leadTourneyName = BG_250_NAMES[tourneyIdx % BG_250_NAMES.length] || BG_250_NAMES[0] || 'Женева 250';
 
+  const getPlayerRank = (p) => {
+    if (!p || !p.id) return 999;
+    const r = Number(p.rank);
+    if (Number.isFinite(r) && r > 0) return r;
+    if (strengthOrderMap instanceof Map && strengthOrderMap.has(p.id)) {
+      return strengthOrderMap.get(p.id);
+    }
+    return 150;
+  };
+
+  const compareCandidates = (a, b) => {
+    const ra = getPlayerRank(a);
+    const rb = getPlayerRank(b);
+    if (ra !== rb) return ra - rb;
+    const ptsA = Number(a?.points) || 0;
+    const ptsB = Number(b?.points) || 0;
+    if (ptsB !== ptsA) return ptsB - ptsA;
+    return getNumericPlayerId(a?.id) - getNumericPlayerId(b?.id);
+  };
+
   // 1) Формируем состав главного турнира недели ATP 250 (28 участников, первые 4 сеяных получают BYE в 1-м круге):
   // - Топ-4 мирового рейтинга (orderRank <= 4) ВСЕГДА пропускают турниры ATP 250!
-  // - Игроки с #5 по #30 активно участвуют в серии ATP 250 (включая тех, кто не дошел до 1/2 основного турнира окна или не попал в сетку ATP 500)
+  // - Ни один игрок основной сетки (inMainSet) НЕ может играть в параллельном турнире недели!
+  // - Игроки с рангом > 4 заявляются и сеются строго по актуальному мировому рейтингу (live rank)
   const atp250Candidates = (players || [])
     .filter(p => {
       if (!p || !p.id) return false;
+      // Игрок уже заявлен в основную сетку текущей недели — строго исключаем дубликаты!
+      if (inMainSet.has(p.id)) return false;
+
       const nameL = String(p.name || '').toLowerCase();
       if (excludedNamesLower.has(nameL)) return false;
-      const orderRank = strengthOrderMap.get(p.id) || 999;
+
+      const orderRank = getPlayerRank(p);
       // Первые 4 игрока мира ВСЕГДА пропускают ATP 250
       if (orderRank <= 4) return false;
 
-      if (!inMainSet.has(p.id)) {
-        return orderRank <= 95;
-      }
-
-      // Игроки из Топ-5..32 также заявляются на турниры ATP 250 по календарной ротации (если не вышли в полуфинал/финал главного турнира недели)
-      if (orderRank >= 5 && orderRank <= 32) {
-        const mainPts = mainEarnedMap ? (mainEarnedMap[p.id] || 0) : 0;
-        if (mainPts >= 330) return false;
-        const rotRoll = hashDeterministicSeed(`atp250_entry_${year}_${tourney.id}_${p.id}`) % 100;
-        const entryQuotaPct = orderRank <= 16 ? 78 : 55;
-        return rotRoll < entryQuotaPct;
-      }
-      return false;
+      return orderRank <= 95;
     })
-    .sort((a, b) => {
-      const ra = strengthOrderMap.get(a.id) || 999;
-      const rb = strengthOrderMap.get(b.id) || 999;
-      if (ra !== rb) return ra - rb;
-      return getNumericPlayerId(a.id) - getNumericPlayerId(b.id);
-    });
+    .sort(compareCandidates);
 
   // Если кандидатов в Топ-95 меньше 28, добираем следующих по рейтингу вне основной сетки
   if (atp250Candidates.length < 28) {
     const inCandIds = new Set(atp250Candidates.map(x => x.id));
     const backups = (players || [])
-      .filter(p => p && p.id && !inCandIds.has(p.id) && !inMainSet.has(p.id) && (strengthOrderMap.get(p.id) || 999) > 4)
-      .sort((a, b) => (strengthOrderMap.get(a.id) || 999) - (strengthOrderMap.get(b.id) || 999));
+      .filter(p => p && p.id && !inCandIds.has(p.id) && !inMainSet.has(p.id) && getPlayerRank(p) > 4)
+      .sort(compareCandidates);
     while (atp250Candidates.length < 28 && backups.length > 0) {
       atp250Candidates.push(backups.shift());
     }
@@ -765,7 +775,7 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
       if (!p || !p.id || inMainSet.has(p.id) || inAtp250Set.has(p.id)) return false;
       const nameL = String(p.name || '').toLowerCase();
       if (excludedNamesLower.has(nameL)) return false;
-      const orderRank = strengthOrderMap.get(p.id) || 999;
+      const orderRank = getPlayerRank(p);
       if (orderRank <= 15) return false;
       if (orderRank > 200) {
         const playRoll = hashDeterministicSeed(`ch_sched_${year}_${tourney.id}_${p.id}`) % 100;
@@ -774,12 +784,7 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
       }
       return true;
     })
-    .sort((a, b) => {
-      const ra = strengthOrderMap.get(a.id) || 999;
-      const rb = strengthOrderMap.get(b.id) || 999;
-      if (ra !== rb) return ra - rb;
-      return getNumericPlayerId(a.id) - getNumericPlayerId(b.id);
-    });
+    .sort(compareCandidates);
 
   const chScales = tourney.size === 32
     ? [ch175, ch175, ch125, ch100, ch75, ch75]

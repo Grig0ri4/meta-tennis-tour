@@ -1381,16 +1381,22 @@ test('Автоматическая сетка турнира ATP 250 (28 игр�
     'Авто-проход BYE во 2-й круг получают строго сеяные #1, #2, #3 и #4'
   );
 
-  // 3) Игроки Топ-4 мира пропускают ATP 250, а игроки из Топ 5-30 участвуют
+  // 3) Игроки Топ-4 мира пропускают ATP 250, а свободные игроки из Топ 5-30 участвуют вне основного турнира
   const tourney = FULL_CALENDAR_TEMPLATE.find(t => t.id === '500_2');
-  const inMainSet = new Set(players.slice(0, 32).map(p => p.id));
+  const inMainPlayers = [...players.slice(0, 4), ...players.slice(12, 40)];
+  const inMainSet = new Set(inMainPlayers.map(p => p.id));
   const { parallelEarnedMap, leadBracketDetails } = computeWeeklyParallelTourPoints(tourney, players, inMainSet, 2024);
+
+  // Ни один участник основного турнира не должен параллельно участвовать в турнире ATP 250!
+  for (const mainP of inMainPlayers) {
+    assert.equal(parallelEarnedMap[mainP.id], undefined, `Участник основного турнира ${mainP.name} не должен играть в параллельном ATP 250`);
+  }
 
   for (let i = 0; i < 4; i++) {
     assert.equal(parallelEarnedMap[players[i].id], undefined, `Игрок Топ-4 мира #${i + 1} (${players[i].name}) всегда пропускает турниры ATP 250`);
   }
-  const top5to30In250 = players.slice(4, 30).filter(p => parallelEarnedMap[p.id] > 0);
-  assert.ok(top5to30In250.length >= 4, 'Игроки из Топ 5–30 принимают участие в турнирах серии ATP 250');
+  const top5to12In250 = players.slice(4, 12).filter(p => parallelEarnedMap[p.id] > 0);
+  assert.ok(top5to12In250.length >= 4, 'Свободные игроки из Топ 5–30 принимают участие в турнирах серии ATP 250');
   assert.ok(leadBracketDetails && leadBracketDetails.winner && leadBracketDetails.draw.length === 5);
 
   // 4) Проверка редкости «баранок» 6-0 / 0-6 при автоматическом счете
