@@ -842,16 +842,17 @@ const EXTRA_CLEAN_PLAYERS_POOL = [
   { name: 'Jakub mensik-pro', flag: 'CZE', birthDate: '2004-01-30', nickname: 'Чешский экспресс', playStyle: 'Плоские удары на восходящем мяче' }
 ];
 
-function createCleanReplacementPlayerObj(id, spec, rankFallback = 300) {
+function createCleanReplacementPlayerObj(id, spec, rankFallback = 296) {
+  const defaultPts = 155;
   return {
     id: String(id),
     rank: rankFallback,
     name: spec.name,
     flag: spec.flag || 'ESP',
-    points: 0,
-    basePoints: 0,
-    start2023Points: 0,
-    remainingDefending: 0,
+    points: defaultPts,
+    basePoints: defaultPts,
+    start2023Points: defaultPts,
+    remainingDefending: defaultPts,
     defendedSoFar: 0,
     finalsPoints: 0,
     racePoints: 0,
@@ -1016,8 +1017,8 @@ function repairCanonicalPlayersAndDraws() {
       nickname: resolvedNick,
       playStyle: resolvedStyle,
       isCleanReplacement: Boolean(isCleanSlot),
-      basePoints: isCleanSlot ? (source.basePoints ?? 0) : canon.basePoints,
-      start2023Points: isCleanSlot ? (source.start2023Points ?? 0) : canon.start2023Points
+      basePoints: isCleanSlot ? (source.basePoints || 155) : canon.basePoints,
+      start2023Points: isCleanSlot ? (source.start2023Points || 155) : canon.start2023Points
     };
   };
 
@@ -1398,19 +1399,20 @@ function repairOvercountedPoints() {
           }
         });
 
-        // Параллельные еженедельные турниры ATP 250 / Челленджеры для игроков, не попавших в основную сетку (1-й круг = 10 pts)
+        // Параллельные еженедельные турниры ATP 250 / Челленджеры (первая 4-ка мира пропускает, сеяные 1-4 в ATP 250 получают BYE в 1-м круге)
         if (!isFinals && !isOlympics) {
           const { parallelEarnedMap } = computeWeeklyParallelTourPoints(
             t,
             players,
             inMainSet,
             currentTourYear,
-            { tourneyIndex: idx }
+            { tourneyIndex: idx, mainEarnedMap: earnedMap }
           );
           Object.entries(parallelEarnedMap).forEach(([pid, pts]) => {
             if (pts > 0) {
-              recordPoints(pid, t.id, currentTourYear, pts);
               const pObj = players.find(x => String(x.id) === String(pid));
+              const prevMainPts = pObj?.tournamentPoints?.[t.id]?.[currentTourYear] || 0;
+              recordPoints(pid, t.id, currentTourYear, prevMainPts + pts);
               if (pObj) {
                 exactRaceEarned[pObj.id] = (exactRaceEarned[pObj.id] || 0) + pts;
               }
@@ -1428,30 +1430,6 @@ function repairOvercountedPoints() {
   const raceBeforeLastMap = {};
 
   players.forEach(p => {
-    if (p.isCleanReplacement) {
-      p.points = 0;
-      p.basePoints = 0;
-      p.start2023Points = 0;
-      p.racePoints = 0;
-      p.finalsPoints = 0;
-      p.defendedSoFar = 0;
-      p.remainingDefending = 0;
-      p.tournamentPoints = {};
-      p.lastPointsDelta = 0;
-      p.lastRaceDelta = 0;
-      p.lastTourneyEarned = 0;
-      p.lastTourneyDefended = 0;
-      p.lastTourneyName = '';
-      p.seasonStartRank = 300;
-      p.historicalBestRank = 300;
-      p.bestRank = 300;
-      p.rankChange = 0;
-      p.raceRankChange = 0;
-      ptsBeforeLastMap[p.id] = 0;
-      raceBeforeLastMap[p.id] = 0;
-      return;
-    }
-
     const raceEarned = exactRaceEarned[p.id] || 0;
     const finalsEarned = exactFinalsEarned[p.id] || 0;
     p.racePoints = raceEarned;
@@ -2343,9 +2321,17 @@ export function loadSelectedTournament() {
   updateCanonReadOnlyUI();
 
   const isOlympicsTourney = Boolean(activeTourney && (activeTourney.id === 'olympics' || activeTourney.type === 'Олимпиада' || activeTourney.isOlympics));
+  const isFinalsTourney = Boolean(activeTourney && (activeTourney.id === 'finals' || activeTourney.type === 'Итоговый'));
   const btnOlympicTeams = document.getElementById('btnOlympicTeams');
   if (btnOlympicTeams) {
     btnOlympicTeams.style.display = isOlympicsTourney ? 'inline-block' : 'none';
+  }
+  const btnOpenATP250AutoDraw = document.getElementById('btnOpenATP250AutoDraw');
+  if (btnOpenATP250AutoDraw) {
+    btnOpenATP250AutoDraw.style.display = (!isOlympicsTourney && !isFinalsTourney) ? 'inline-block' : 'none';
+  }
+  if (bgBox && bgReport && !bgReport.includes('openWeeklyATP250BracketModal') && !isOlympicsTourney && !isFinalsTourney) {
+    bgBox.innerHTML = `${bgReport} · <button type="button" class="btn-gold" onclick="openWeeklyATP250BracketModal('${activeTourney.id}', ${viewingYear})" style="padding:2px 9px; font-size:11.5px; margin-left:6px;">🏆 Открыть авто-сетку ATP 250</button>`;
   }
 
   if (noticeBox && isOlympicsTourney) {
@@ -2763,6 +2749,188 @@ export function openOlympicTeamsModal() {
   if (!modal || !body) return;
   body.innerHTML = renderOlympicDelegationsContentHtml('modal');
   modal.classList.add('open');
+}
+
+// --- МОДАЛЬНОЕ ОКНО АВТОМАТИЧЕСКОГО ТУРНИРА ATP 250 ---
+let atp250ModalState = {
+  tourneyId: null,
+  year: null,
+  activeRoundIdx: 0,
+  details: null,
+  tourneyObj: null,
+  leadTourneyName: ''
+};
+
+function computeATP250BracketForTourneyWeek(tourneyObj, year) {
+  if (!tourneyObj) return null;
+  const savedDraw = (activeTourney && activeTourney.id === tourneyObj.id && viewingYear === year && currentDraw && currentDraw.length > 0)
+    ? currentDraw
+    : readSavedDraw(tourneyObj.id, year);
+
+  const inMainSet = new Set();
+  const mainEarnedMap = {};
+  if (savedDraw && Array.isArray(savedDraw) && savedDraw.length > 0 && Array.isArray(savedDraw[0])) {
+    savedDraw[0].forEach(m => {
+      if (m?.p1?.id) inMainSet.add(m.p1.id);
+      if (m?.p2?.id) inMainSet.add(m.p2.id);
+    });
+    const earned = calculateTournamentEarnedPoints(tourneyObj, savedDraw);
+    Object.assign(mainEarnedMap, earned);
+  } else {
+    const sorted = [...players].sort((a, b) => (a.rank || 999) - (b.rank || 999));
+    sorted.slice(0, tourneyObj.size || 32).forEach(p => {
+      if (p?.id) inMainSet.add(p.id);
+    });
+  }
+
+  return computeWeeklyParallelTourPoints(tourneyObj, players, inMainSet, year, { mainEarnedMap });
+}
+
+export function renderATP250ModalContent() {
+  const titleEl = document.getElementById('atp250ModalTitle');
+  const summaryEl = document.getElementById('atp250ModalSummaryBar');
+  const tabsEl = document.getElementById('atp250ModalRoundTabs');
+  const matchesEl = document.getElementById('atp250ModalMatchesContainer');
+  if (!tabsEl || !matchesEl) return;
+
+  const { details, tourneyObj, leadTourneyName, year, activeRoundIdx: rIdx } = atp250ModalState;
+  if (!details || !Array.isArray(details.draw) || details.draw.length === 0) {
+    matchesEl.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding: 36px; color: var(--text-dim);">На этой неделе параллельный турнир ATP 250 не проводится.</div>`;
+    return;
+  }
+
+  if (titleEl && tourneyObj) {
+    titleEl.innerHTML = `🏆 ${leadTourneyName} (ATP 250 • ${tourneyObj.surface}) — Авто-сетка (${year})`;
+  }
+
+  const winner = details.winner;
+  const finalist = details.finalist;
+  const sfNames = (details.semifinalists || []).map(p => p.name).join(', ');
+  const roundNames = ['1/16 финала (Топ-4 BYE)', '1/8 финала', '1/4 финала', 'Полуфинал', 'Финал 🏆'];
+
+  if (summaryEl) {
+    summaryEl.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; padding:10px 14px; border-radius:8px; background:rgba(245, 158, 11, 0.1); border:1px solid rgba(245, 158, 11, 0.3); font-size:12.5px;">
+        <div>
+          🏆 <b>Чемпион:</b> <span style="color:var(--gold); font-weight:700;">${winner ? winner.name : '—'}</span> (+250 pts)
+          &nbsp;•&nbsp; 🥈 <b>Финалист:</b> <b>${finalist ? finalist.name : '—'}</b> (+165 pts)
+          &nbsp;•&nbsp; <b>1/2 финала:</b> ${sfNames || '—'} (+100 pts)
+        </div>
+        <div style="color:var(--text-dim); font-size:11.5px;">
+          Параллельно с турниром: <b>${tourneyObj ? tourneyObj.name : ''}</b> [${tourneyObj ? getTourneyDateRange(tourneyObj, year) : ''}]
+        </div>
+      </div>
+    `;
+  }
+
+  tabsEl.innerHTML = details.draw.map((_, idx) => `
+    <button type="button" class="round-tab ${idx === rIdx ? 'active' : ''}" onclick="switchATP250ModalRound(${idx})">
+      ${roundNames[idx] || `Раунд ${idx + 1}`}
+    </button>
+  `).join('');
+
+  const roundMatches = details.draw[rIdx] || [];
+  const refDateStr = `${String(tourneyObj?.endDay || 10).padStart(2, '0')}.${String((tourneyObj?.endMonth || 0) + 1).padStart(2, '0')}.${year}`;
+
+  matchesEl.innerHTML = roundMatches.map((m, idx) => {
+    const p1Live = m.p1 && !m.p1.isBye ? (players.find(x => x.id === m.p1.id) || m.p1) : m.p1;
+    const p2Live = m.p2 && !m.p2.isBye ? (players.find(x => x.id === m.p2.id) || m.p2) : m.p2;
+    const p1Win = m.winner && m.p1 && m.winner.id === m.p1.id;
+    const p2Win = m.winner && m.p2 && m.winner.id === m.p2.id;
+
+    const p1SeedTag = m.p1?.seed ? `<span class="seed-tag">(${m.p1.seed})</span>` : (m.p1 && !m.p1.isBye && p1Live?.rank ? `<span class="entry-tag">[#${p1Live.rank}]</span>` : '');
+    const p2SeedTag = m.p2?.seed ? `<span class="seed-tag">(${m.p2.seed})</span>` : (m.p2 && !m.p2.isBye && p2Live?.rank ? `<span class="entry-tag">[#${p2Live.rank}]</span>` : '');
+
+    const p1Html = m.p1 && !m.p1.isBye
+      ? `<span style="min-width: 48px; display: inline-flex; align-items: center;">${renderFlagBadge(p1Live?.flag || m.p1.flag, { compact: true })}</span>
+         <span class="player-name player-profile-link" onclick="openPlayerProfileModal('${m.p1.id}')">${m.p1.name}${rIdx === 4 && p1Win ? ' 🏆' : ''}</span>
+         <span class="player-age-tag">${calculateAge(p1Live?.birthDate || m.p1.birthDate, refDateStr)}</span>
+         ${p1SeedTag}`
+      : `<span class="player-name" style="color:var(--text-dim); font-style:italic;">BYE (Пропуск 1-го круга для Топ-4 посева)</span>`;
+
+    const p2Html = m.p2 && !m.p2.isBye
+      ? `<span style="min-width: 48px; display: inline-flex; align-items: center;">${renderFlagBadge(p2Live?.flag || m.p2.flag, { compact: true })}</span>
+         <span class="player-name player-profile-link" onclick="openPlayerProfileModal('${m.p2.id}')">${m.p2.name}${rIdx === 4 && p2Win ? ' 🏆' : ''}</span>
+         <span class="player-age-tag">${calculateAge(p2Live?.birthDate || m.p2.birthDate, refDateStr)}</span>
+         ${p2SeedTag}`
+      : `<span class="player-name" style="color:var(--gold); font-style:italic; font-weight:600;">⚡ BYE — Посев [1–4] напрямую в 1/8 финала</span>`;
+
+    const scoreText = m.isBye
+      ? 'Авто-проход (BYE)'
+      : (Array.isArray(m.score) && m.score.length > 0 ? m.score.join(' ') : 'Завершен');
+
+    return `
+      <div class="match-card" style="cursor:default;">
+        <div style="font-size: 11px; color: ${rIdx === 4 ? 'var(--gold)' : 'var(--text-dim)'}; font-weight: ${rIdx === 4 ? '700' : '500'}; margin-bottom: 4px; display: flex; justify-content: space-between;">
+          <span>${rIdx === 4 ? '🏆 Финал ATP 250' : `Матч #${idx + 1}`}</span>
+          <span>${m.isBye ? 'Пропуск 1-го круга' : 'Авто-расчет'}</span>
+        </div>
+        <div class="match-player ${p1Win ? 'winner' : ''}">
+          <div class="player-info">${p1Html}</div>
+        </div>
+        <div class="match-player ${p2Win ? 'winner' : ''}">
+          <div class="player-info">${p2Html}</div>
+        </div>
+        <div class="score-line">${scoreText}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+export function openWeeklyATP250BracketModal(tourneyId = null, year = null) {
+  const modal = document.getElementById('atp250BracketModal');
+  const selectEl = document.getElementById('atp250WeekSelect');
+  if (!modal) return;
+
+  const targetYear = Number(year) || viewingYear || currentTourYear;
+  const yearTourneys = getSeasonTournaments(targetYear, tournaments).filter(
+    t => t && t.id !== 'finals' && t.id !== 'olympics' && t.type !== 'Итоговый' && t.type !== 'Олимпиада' && !t.isOlympics
+  );
+  if (yearTourneys.length === 0) return;
+
+  const chosenTourney = yearTourneys.find(t => t.id === (tourneyId || activeTourney?.id)) || yearTourneys[0];
+
+  if (selectEl) {
+    selectEl.innerHTML = yearTourneys.map((t, idx) => {
+      const selectedAttr = t.id === chosenTourney.id ? 'selected' : '';
+      return `<option value="${t.id}" ${selectedAttr}>Неделя #${idx + 1}: параллельно с «${t.name}» [${getTourneyDateRange(t, targetYear)}]</option>`;
+    }).join('');
+  }
+
+  const res = computeATP250BracketForTourneyWeek(chosenTourney, targetYear);
+  atp250ModalState = {
+    tourneyId: chosenTourney.id,
+    year: targetYear,
+    activeRoundIdx: 0,
+    details: res ? res.leadBracketDetails : null,
+    tourneyObj: chosenTourney,
+    leadTourneyName: res ? res.leadTourneyName : 'ATP 250'
+  };
+
+  renderATP250ModalContent();
+  modal.classList.add('open');
+}
+
+export function changeATP250ModalTourney(tourneyId) {
+  const targetYear = atp250ModalState.year || viewingYear || currentTourYear;
+  const yearTourneys = getSeasonTournaments(targetYear, tournaments);
+  const chosenTourney = yearTourneys.find(t => t.id === tourneyId);
+  if (!chosenTourney) return;
+  const res = computeATP250BracketForTourneyWeek(chosenTourney, targetYear);
+  atp250ModalState = {
+    tourneyId: chosenTourney.id,
+    year: targetYear,
+    activeRoundIdx: 0,
+    details: res ? res.leadBracketDetails : null,
+    tourneyObj: chosenTourney,
+    leadTourneyName: res ? res.leadTourneyName : 'ATP 250'
+  };
+  renderATP250ModalContent();
+}
+
+export function switchATP250ModalRound(rIdx) {
+  atp250ModalState.activeRoundIdx = Number(rIdx) || 0;
+  renderATP250ModalContent();
 }
 
 export function renderRoundTabs() {
@@ -6354,14 +6522,6 @@ function buildRetroactiveMajorCheckpoint(majorTourney, majorIdx, seasonTourneys,
   const completedUpToMajor = new Set(seasonTourneys.slice(0, majorIdx + 1).map(t => t.id));
   const cpPlayers = JSON.parse(JSON.stringify(players || []));
   cpPlayers.forEach(p => {
-    if (p.isCleanReplacement) {
-      p.points = 0;
-      p.racePoints = 0;
-      p.finalsPoints = 0;
-      p.defendedSoFar = 0;
-      p.remainingDefending = 0;
-      return;
-    }
     if (p.tournamentPoints) {
       Object.keys(p.tournamentPoints).forEach(tid => {
         if (!completedUpToMajor.has(tid) && p.tournamentPoints[tid]?.[year] !== undefined) {
@@ -6916,6 +7076,9 @@ if (typeof window !== 'undefined') {
   window.openAuthorUnlockModal = openAuthorUnlockModal;
   window.confirmAuthorUnlock = confirmAuthorUnlock;
   window.toggleGuestReadOnlyPreview = toggleGuestReadOnlyPreview;
+  window.openWeeklyATP250BracketModal = openWeeklyATP250BracketModal;
+  window.changeATP250ModalTourney = changeATP250ModalTourney;
+  window.switchATP250ModalRound = switchATP250ModalRound;
 
   const syncLiveCanonSnapshotToLocalServer = () => {
     try {

@@ -56,9 +56,18 @@ export const HISTORICAL_PEAK_RANK_BY_NAME = Object.fromEntries(
   CANONICAL_2023_START_TOP10.map(item => [item.name.toLowerCase(), item.peakRank])
 );
 
+const CLEAN_REPLACEMENT_BASE_POINTS = {
+  p_50: 165,
+  p_61: 160,
+  p_76: 155,
+  p_79: 150,
+  p_83: 145
+};
+
 const PRESERVED_BASE_POINTS_BY_ID = {
   ...Object.fromEntries(PRESERVED_BASE.map(p => [p.id, p.points])),
-  ...(CALIBRATED_2023_POINTS_141_TO_300 || {})
+  ...(CALIBRATED_2023_POINTS_141_TO_300 || {}),
+  ...CLEAN_REPLACEMENT_BASE_POINTS
 };
 
 function hashDeterministicSeed(str) {
@@ -144,7 +153,7 @@ export function buildCanonical2023StartMap(players) {
       .map(p => ({
         player: p,
         legitBasePts: p.isCleanReplacement
-          ? 0
+          ? (CLEAN_REPLACEMENT_BASE_POINTS[p.id] || 150)
           : (PRESERVED_BASE_POINTS_BY_ID[p.id] ?? p.start2023Points ?? p.basePoints ?? 250)
       }))
       .sort((a, b) => {
@@ -158,10 +167,16 @@ export function buildCanonical2023StartMap(players) {
     let rankCursor = 11;
     remaining.forEach(({ player, legitBasePts }) => {
       const r = rankCursor++;
-      const cappedPts = player.isCleanReplacement ? 0 : Math.min(2810, Math.max(15, legitBasePts));
+      // Плавный реалистичный хвост рейтинга ATP для #240..#300 (чтобы у #290..#300 было ~140..185 очков, без 0 и без 300)
+      let adjustedPts = legitBasePts;
+      if (r >= 240) {
+        const tailTarget = Math.round(235 - ((r - 240) / 60) * 90);
+        adjustedPts = Math.min(legitBasePts, Math.max(135, tailTarget));
+      }
+      const cappedPts = Math.min(2810, Math.max(135, adjustedPts));
       startPointsMap[player.id] = cappedPts;
-      startRankMap[player.id] = player.isCleanReplacement ? 300 : r;
-      peakRankMap[player.id] = player.isCleanReplacement ? 300 : r;
+      startRankMap[player.id] = r;
+      peakRankMap[player.id] = r;
     });
   } else {
     // Произвольная процедурная вселенная
@@ -385,6 +400,232 @@ export function calculateTournamentEarnedPoints(tourney, draw) {
   return { earnedMap, participantsList, medalists };
 }
 
+function generateDeterministicRealisticMatchScore(p1Wins, keyPrefix) {
+  const twoSetPoolP1 = [
+    ['6-4', '6-4'],
+    ['6-4', '6-3'],
+    ['7-5', '6-4'],
+    ['6-3', '6-4'],
+    ['7-6(4)', '6-4'],
+    ['6-4', '7-5'],
+    ['7-6(5)', '6-3'],
+    ['6-3', '7-5'],
+    ['6-2', '6-4'],
+    ['6-4', '7-6(3)'],
+    ['7-5', '7-6(5)'],
+    ['6-1', '6-4']
+  ];
+  const twoSetPoolP2 = [
+    ['4-6', '4-6'],
+    ['4-6', '3-6'],
+    ['5-7', '4-6'],
+    ['3-6', '4-6'],
+    ['6-7(4)', '4-6'],
+    ['4-6', '5-7'],
+    ['6-7(5)', '3-6'],
+    ['3-6', '5-7'],
+    ['2-6', '4-6'],
+    ['4-6', '6-7(3)'],
+    ['5-7', '6-7(5)'],
+    ['1-6', '4-6']
+  ];
+  const threeSetPoolP1 = [
+    ['6-4', '4-6', '6-3'],
+    ['4-6', '6-4', '6-4'],
+    ['7-5', '3-6', '6-4'],
+    ['6-7(5)', '6-4', '6-3'],
+    ['6-3', '5-7', '7-5'],
+    ['4-6', '7-6(4)', '6-3'],
+    ['6-4', '3-6', '7-6(5)'],
+    ['3-6', '6-3', '6-4'],
+    ['7-6(3)', '4-6', '6-4'],
+    ['5-7', '6-4', '6-2']
+  ];
+  const threeSetPoolP2 = [
+    ['4-6', '6-4', '3-6'],
+    ['6-4', '4-6', '4-6'],
+    ['5-7', '6-3', '4-6'],
+    ['7-6(5)', '4-6', '3-6'],
+    ['3-6', '7-5', '5-7'],
+    ['6-4', '6-7(4)', '3-6'],
+    ['4-6', '6-3', '6-7(5)'],
+    ['6-3', '3-6', '4-6'],
+    ['6-7(3)', '6-4', '4-6'],
+    ['7-5', '4-6', '2-6']
+  ];
+
+  const h = hashDeterministicSeed(keyPrefix);
+  const isThreeSets = (h % 100) < 42;
+  if (isThreeSets) {
+    const list = p1Wins ? threeSetPoolP1 : threeSetPoolP2;
+    return list[(h >> 3) % list.length];
+  }
+  const list = p1Wins ? twoSetPoolP1 : twoSetPoolP2;
+  return list[(h >> 3) % list.length];
+}
+
+/**
+ * Автоматически формирует и рассчитывает сетку официального турнира ATP 250 (28 участников в сетке на 32 слота):
+ * - Первые 4 сеяных ([1]..[4]) ВСЕГДА пропускают 1-й раунд (BYE в 1/16 финала) и выходят сразу в 1/8 финала!
+ * - Все матчи всех 5 раундов сразу заполняются реалистичным счетом без спама «баранок» 6-0.
+ */
+export function simulateDeterministicATP250Bracket(pool, scale, keyPrefix, strengthOrderMap = null, tourneyName = 'ATP 250') {
+  const earnedByPlayerId = {};
+  const details = {
+    winner: null,
+    finalist: null,
+    semifinalists: [],
+    draw: []
+  };
+  if (!pool || pool.length === 0) {
+    return { earnedByPlayerId, details };
+  }
+
+  const entrants = pool.slice(0, 28).map((p, idx) => ({
+    ...p,
+    seed: idx < 8 ? (idx + 1) : null
+  }));
+  while (entrants.length < 28) {
+    const fallback = pool[entrants.length % pool.length];
+    entrants.push({ ...fallback, seed: null });
+  }
+
+  // Классическая расстановка 32-слотовой сетки ATP 250 с 4 BYE для первых 4 сеяных:
+  // Слоты матчей 1/16 финала (0..15):
+  // m=0: Seed 1 vs BYE
+  // m=3: Seed 8 vs unseeded
+  // m=4: Seed 4 vs BYE
+  // m=7: Seed 5 vs unseeded
+  // m=8: Seed 6 vs unseeded
+  // m=11: Seed 3 vs BYE
+  // m=12: Seed 7 vs unseeded
+  // m=15: Seed 2 vs BYE
+  const s1 = entrants[0];
+  const s2 = entrants[1];
+  const s3 = entrants[2];
+  const s4 = entrants[3];
+  const s5 = entrants[4];
+  const s6 = entrants[5];
+  const s7 = entrants[6];
+  const s8 = entrants[7];
+  const unseeded = entrants.slice(8);
+  let uCursor = 0;
+  const nextUnseeded = () => unseeded[uCursor++] || entrants[entrants.length - 1];
+
+  const makeByePlayer = (seedNum) => ({
+    id: `bye_atp250_${seedNum}`,
+    name: 'BYE (Пропуск 1-го круга)',
+    flag: 'ATP',
+    rank: '—',
+    isBye: true
+  });
+
+  const r0Matches = new Array(16);
+  for (let mIdx = 0; mIdx < 16; mIdx++) {
+    if (mIdx === 0) {
+      r0Matches[mIdx] = { p1: s1, p2: makeByePlayer(1), winner: s1, score: ['BYE'], isByeMatch: true, isBye: true, narrative: `Сеяный #1 ${s1.name} пропускает 1-й раунд (BYE) и выходит сразу в 1/8 финала.` };
+    } else if (mIdx === 4) {
+      r0Matches[mIdx] = { p1: s4, p2: makeByePlayer(4), winner: s4, score: ['BYE'], isByeMatch: true, isBye: true, narrative: `Сеяный #4 ${s4.name} пропускает 1-й раунд (BYE) и выходит сразу в 1/8 финала.` };
+    } else if (mIdx === 11) {
+      r0Matches[mIdx] = { p1: s3, p2: makeByePlayer(3), winner: s3, score: ['BYE'], isByeMatch: true, isBye: true, narrative: `Сеяный #3 ${s3.name} пропускает 1-й раунд (BYE) и выходит сразу в 1/8 финала.` };
+    } else if (mIdx === 15) {
+      r0Matches[mIdx] = { p1: s2, p2: makeByePlayer(2), winner: s2, score: ['BYE'], isByeMatch: true, isBye: true, narrative: `Сеяный #2 ${s2.name} пропускает 1-й раунд (BYE) и выходит сразу в 1/8 финала.` };
+    } else if (mIdx === 3) {
+      r0Matches[mIdx] = { p1: s8, p2: nextUnseeded(), winner: null, score: [] };
+    } else if (mIdx === 7) {
+      r0Matches[mIdx] = { p1: s5, p2: nextUnseeded(), winner: null, score: [] };
+    } else if (mIdx === 8) {
+      r0Matches[mIdx] = { p1: s6, p2: nextUnseeded(), winner: null, score: [] };
+    } else if (mIdx === 12) {
+      r0Matches[mIdx] = { p1: s7, p2: nextUnseeded(), winner: null, score: [] };
+    } else {
+      r0Matches[mIdx] = { p1: nextUnseeded(), p2: nextUnseeded(), winner: null, score: [] };
+    }
+  }
+
+  const draw = [
+    r0Matches,
+    Array.from({ length: 8 }, () => ({ p1: null, p2: null, winner: null, score: [] })),
+    Array.from({ length: 4 }, () => ({ p1: null, p2: null, winner: null, score: [] })),
+    Array.from({ length: 2 }, () => ({ p1: null, p2: null, winner: null, score: [] })),
+    Array.from({ length: 1 }, () => ({ p1: null, p2: null, winner: null, score: [] }))
+  ];
+
+  const getOrderRank = (pl) => {
+    if (!pl || !pl.id) return 999;
+    if (strengthOrderMap instanceof Map && strengthOrderMap.has(pl.id)) {
+      return strengthOrderMap.get(pl.id);
+    }
+    return Number(pl.rank) || 150;
+  };
+
+  for (let r = 0; r < 5; r++) {
+    const roundMatches = draw[r];
+    for (let mIdx = 0; mIdx < roundMatches.length; mIdx++) {
+      const m = roundMatches[mIdx];
+      if (m.isByeMatch && m.winner) {
+        if (r < 4) {
+          const nextM = draw[r + 1][Math.floor(mIdx / 2)];
+          if (mIdx % 2 === 0) nextM.p1 = m.winner;
+          else nextM.p2 = m.winner;
+        }
+        continue;
+      }
+
+      const a = m.p1;
+      const b = m.p2;
+      if (!b) {
+        if (a) {
+          m.winner = a;
+          m.score = ['W/O'];
+          if (r < 4) {
+            const nextM = draw[r + 1][Math.floor(mIdx / 2)];
+            if (mIdx % 2 === 0) nextM.p1 = a;
+            else nextM.p2 = a;
+          }
+        }
+        continue;
+      }
+
+      const rankA = getOrderRank(a);
+      const rankB = getOrderRank(b);
+      const aIsFav = rankA <= rankB;
+      const rankGap = Math.abs(rankB - rankA);
+      // Фавориты из Топ-30 имеют весомое преимущество на турнирах ATP 250
+      const favWinProb = rankGap > 40 ? 0.80 : (rankGap > 18 ? 0.74 : 0.64);
+      const probA = aIsFav ? favWinProb : (1 - favWinProb);
+      const roll = (hashDeterministicSeed(`${keyPrefix}_r${r}_m${mIdx}_${a.id}_${b.id}`) % 1000) / 1000;
+      const aWins = roll < probA;
+      const w = aWins ? a : b;
+      const l = aWins ? b : a;
+
+      const scoreArr = generateDeterministicRealisticMatchScore(aWins, `${keyPrefix}_sc_r${r}_m${mIdx}_${a.id}_${b.id}`);
+      m.winner = w;
+      m.score = scoreArr;
+      m.narrative = `${w.name} переиграл ${l.name} (${scoreArr.join(' ')}) на турнире «${tourneyName}».`;
+
+      earnedByPlayerId[l.id] = scale[r];
+      if (r === 3) {
+        details.semifinalists.push(l);
+      } else if (r === 4) {
+        details.finalist = l;
+      }
+
+      if (r < 4) {
+        const nextM = draw[r + 1][Math.floor(mIdx / 2)];
+        if (mIdx % 2 === 0) nextM.p1 = w;
+        else nextM.p2 = w;
+      } else {
+        earnedByPlayerId[w.id] = scale[5];
+        details.winner = w;
+      }
+    }
+  }
+
+  details.draw = draw;
+  return { earnedByPlayerId, details };
+}
+
 function simulateDeterministic32Bracket(pool, scale, keyPrefix) {
   const earnedByPlayerId = {};
   const details = {
@@ -443,19 +684,41 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
   const inMainSet = mainDrawParticipantIds instanceof Set
     ? mainDrawParticipantIds
     : new Set(Array.isArray(mainDrawParticipantIds) ? mainDrawParticipantIds : []);
+  const mainEarnedMap = options.mainEarnedMap && typeof options.mainEarnedMap === 'object' ? options.mainEarnedMap : null;
 
   const strengthOrderMap = options.strengthOrderMap instanceof Map
     ? options.strengthOrderMap
     : buildDeterministicStrengthOrderMap(players);
   const excludedNamesLower = options.excludedNamesLower instanceof Set ? options.excludedNamesLower : new Set();
 
-  const eligible = (players || [])
+  const tourneyIdx = Number(options.tourneyIndex) || 0;
+  const leadTourneyName = BG_250_NAMES[tourneyIdx % BG_250_NAMES.length] || BG_250_NAMES[0] || 'Женева 250';
+
+  // 1) Формируем состав главного турнира недели ATP 250 (28 участников, первые 4 сеяных получают BYE в 1-м круге):
+  // - Топ-4 мирового рейтинга (orderRank <= 4) ВСЕГДА пропускают турниры ATP 250!
+  // - Игроки с #5 по #30 активно участвуют в серии ATP 250 (включая тех, кто не дошел до 1/2 основного турнира окна или не попал в сетку ATP 500)
+  const atp250Candidates = (players || [])
     .filter(p => {
-      if (!p || !p.id || p.isCleanReplacement || inMainSet.has(p.id)) return false;
+      if (!p || !p.id) return false;
       const nameL = String(p.name || '').toLowerCase();
       if (excludedNamesLower.has(nameL)) return false;
       const orderRank = strengthOrderMap.get(p.id) || 999;
-      return orderRank > 15;
+      // Первые 4 игрока мира ВСЕГДА пропускают ATP 250
+      if (orderRank <= 4) return false;
+
+      if (!inMainSet.has(p.id)) {
+        return orderRank <= 95;
+      }
+
+      // Игроки из Топ-5..32 также заявляются на турниры ATP 250 по календарной ротации (если не вышли в полуфинал/финал главного турнира недели)
+      if (orderRank >= 5 && orderRank <= 32) {
+        const mainPts = mainEarnedMap ? (mainEarnedMap[p.id] || 0) : 0;
+        if (mainPts >= 330) return false;
+        const rotRoll = hashDeterministicSeed(`atp250_entry_${year}_${tourney.id}_${p.id}`) % 100;
+        const entryQuotaPct = orderRank <= 16 ? 78 : 55;
+        return rotRoll < entryQuotaPct;
+      }
+      return false;
     })
     .sort((a, b) => {
       const ra = strengthOrderMap.get(a.id) || 999;
@@ -464,28 +727,72 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
       return getNumericPlayerId(a.id) - getNumericPlayerId(b.id);
     });
 
-  const { atp250, ch175, ch125, ch100, ch75 } = PARALLEL_TOUR_SCALES;
-  const scales = tourney.size === 32
-    ? [atp250, atp250, atp250, ch175, ch175, ch125, ch100, ch75]
-    : (tourney.size === 64
-      ? [atp250, ch175, ch175, ch125, ch100, ch75, ch75]
-      : [ch125, ch125, ch100, ch75, ch75]);
-
-  let leadBracketDetails = null;
-  for (let b = 0; b * 32 < eligible.length; b++) {
-    const slice = eligible.slice(b * 32, (b + 1) * 32);
-    const sc = scales[Math.min(b, scales.length - 1)];
-    const { earnedByPlayerId, details } = simulateDeterministic32Bracket(slice, sc, `${year}_${tourney.id}_b${b}`);
-    if (b === 0) {
-      leadBracketDetails = { ...details, scaleMax: sc[5] };
+  // Если кандидатов в Топ-95 меньше 28, добираем следующих по рейтингу вне основной сетки
+  if (atp250Candidates.length < 28) {
+    const inCandIds = new Set(atp250Candidates.map(x => x.id));
+    const backups = (players || [])
+      .filter(p => p && p.id && !inCandIds.has(p.id) && !inMainSet.has(p.id) && (strengthOrderMap.get(p.id) || 999) > 4)
+      .sort((a, b) => (strengthOrderMap.get(a.id) || 999) - (strengthOrderMap.get(b.id) || 999));
+    while (atp250Candidates.length < 28 && backups.length > 0) {
+      atp250Candidates.push(backups.shift());
     }
+  }
+
+  const atp250Pool = atp250Candidates.slice(0, 28);
+  const inAtp250Set = new Set(atp250Pool.map(p => p.id));
+
+  const { atp250, ch175, ch125, ch100, ch75 } = PARALLEL_TOUR_SCALES;
+  const { earnedByPlayerId: atp250Earned, details: atp250Details } = simulateDeterministicATP250Bracket(
+    atp250Pool,
+    atp250,
+    `${year}_${tourney.id}_atp250`,
+    strengthOrderMap,
+    leadTourneyName
+  );
+  const leadBracketDetails = {
+    ...atp250Details,
+    scaleMax: 250,
+    tourneyName: leadTourneyName
+  };
+  Object.entries(atp250Earned).forEach(([pid, pts]) => {
+    parallelEarnedMap[pid] = pts;
+  });
+
+  // 2) Серия турниров ATP Challenger (175 / 125 / 100 / 75) для остальных игроков вне основной сетки и вне ATP 250
+  // Игроки нижней части рейтинга (#210..300) играют по реалистичному графику (~42% недель), чтобы у #290..300 было ~135..175 очков (без 0 и без 300)
+  const challengerEligible = (players || [])
+    .filter(p => {
+      if (!p || !p.id || inMainSet.has(p.id) || inAtp250Set.has(p.id)) return false;
+      const nameL = String(p.name || '').toLowerCase();
+      if (excludedNamesLower.has(nameL)) return false;
+      const orderRank = strengthOrderMap.get(p.id) || 999;
+      if (orderRank <= 15) return false;
+      if (orderRank > 200) {
+        const playRoll = hashDeterministicSeed(`ch_sched_${year}_${tourney.id}_${p.id}`) % 100;
+        const playProb = orderRank > 260 ? 45 : 55;
+        return playRoll < playProb;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const ra = strengthOrderMap.get(a.id) || 999;
+      const rb = strengthOrderMap.get(b.id) || 999;
+      if (ra !== rb) return ra - rb;
+      return getNumericPlayerId(a.id) - getNumericPlayerId(b.id);
+    });
+
+  const chScales = tourney.size === 32
+    ? [ch175, ch175, ch125, ch100, ch75, ch75]
+    : [ch175, ch125, ch100, ch75, ch75];
+
+  for (let b = 0; b * 32 < challengerEligible.length; b++) {
+    const slice = challengerEligible.slice(b * 32, (b + 1) * 32);
+    const sc = chScales[Math.min(b, chScales.length - 1)];
+    const { earnedByPlayerId } = simulateDeterministic32Bracket(slice, sc, `${year}_${tourney.id}_ch${b}`);
     Object.entries(earnedByPlayerId).forEach(([pid, pts]) => {
       parallelEarnedMap[pid] = pts;
     });
   }
-
-  const tourneyIdx = Number(options.tourneyIndex) || 0;
-  const leadTourneyName = BG_250_NAMES[tourneyIdx % BG_250_NAMES.length] || BG_250_NAMES[0] || 'Женева 250';
 
   return { parallelEarnedMap, leadBracketDetails, leadTourneyName };
 }
@@ -610,36 +917,39 @@ export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, 
     const { parallelEarnedMap } = computeWeeklyParallelTourPoints(t, players, inMainSet, 2023, {
       strengthOrderMap,
       excludedNamesLower,
-      tourneyIndex: tIdx
+      tourneyIndex: tIdx,
+      mainEarnedMap: earnedMap
     });
     Object.entries(parallelEarnedMap).forEach(([pid, pts]) => {
       const p = players.find(x => String(x.id) === String(pid));
-      if (p) {
+      if (p && !protectedTourneysMap.get(p.id)?.has(t.id)) {
         if (!p.tournamentPoints[t.id]) p.tournamentPoints[t.id] = {};
-        p.tournamentPoints[t.id][2023] = pts;
+        p.tournamentPoints[t.id][2023] = (p.tournamentPoints[t.id][2023] || 0) + pts;
       }
     });
   });
 
-  const t500Ids = tourneys2023.filter(t => t.type === 'ATP 500').map(t => t.id);
+  const { startPointsMap } = buildCanonical2023StartMap(players);
   const allRegIds = tourneys2023.filter(t => t.id !== 'finals').map(t => t.id);
+  // Чередуем турниры второй половины сезона и первой половины, чтобы очки защиты 2023 распределялись равномерно по всему году
+  const secondHalfIds = allRegIds.slice(Math.floor(allRegIds.length / 2)).reverse();
+  const firstHalfIds = allRegIds.slice(0, Math.floor(allRegIds.length / 2));
+  const balancedOrderIds = [];
+  const maxHalfLen = Math.max(secondHalfIds.length, firstHalfIds.length);
+  for (let i = 0; i < maxHalfLen; i++) {
+    if (i < secondHalfIds.length) balancedOrderIds.push(secondHalfIds[i]);
+    if (i < firstHalfIds.length) balancedOrderIds.push(firstHalfIds[i]);
+  }
   const resetLivePoints = options.resetLivePoints !== false;
 
   players.forEach(p => {
-    if (p.isCleanReplacement) {
-      p.start2023Points = 0;
-      p.basePoints = 0;
-      if (resetLivePoints) {
-        p.points = 0;
-        p.remainingDefending = 0;
-      }
-      return;
-    }
     const target =
       fixedTargetsByName.get(String(p.name || '').toLowerCase()) ??
+      startPointsMap[p.id] ??
       PRESERVED_BASE_POINTS_BY_ID[p.id] ??
       p.basePoints ??
-      p.start2023Points;
+      p.start2023Points ??
+      150;
     let sum = 0;
     tourneys2023.forEach(t => { sum += (p.tournamentPoints[t.id]?.[2023] || 0); });
 
@@ -647,10 +957,9 @@ export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, 
       let diff = target - sum;
       // В список пула для балансировки включаем ТОЛЬКО турниры, где у игрока не было реальной сетки
       const protectedSet = protectedTourneysMap.get(p.id) || new Set();
-      const flexibleTids = [...t500Ids, ...allRegIds].filter(tid => !protectedSet.has(tid));
-      const poolIds = flexibleTids.length > 0 ? flexibleTids : allRegIds.filter(tid => !protectedSet.has(tid));
+      const poolIds = balancedOrderIds.filter(tid => !protectedSet.has(tid));
       let safety = 0;
-      while (diff !== 0 && safety < 30 && poolIds.length > 0) {
+      while (diff !== 0 && safety < 40 && poolIds.length > 0) {
         safety++;
         let changed = false;
         for (const tid of poolIds) {
@@ -658,7 +967,7 @@ export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, 
           if (!p.tournamentPoints[tid]) p.tournamentPoints[tid] = {};
           const cur = p.tournamentPoints[tid][2023] || 0;
           if (diff > 0) {
-            const add = Math.min(diff, 250);
+            const add = Math.min(diff, 90);
             p.tournamentPoints[tid][2023] = cur + add;
             diff -= add;
             changed = true;
@@ -782,16 +1091,24 @@ export function runBackgroundATP250Tournaments(players, mainTourneyParticipants,
     const participantIds = new Set(
       (mainTourneyParticipants || []).filter(p => p && p.id).map(p => p.id)
     );
+    const hasRealTourney = Boolean(tourney && tourney.id);
+    const mainEarnedMap = {};
+    if (hasRealTourney) {
+      players.forEach(p => {
+        if (p && p.id) {
+          mainEarnedMap[p.id] = p.tournamentPoints?.[tourney.id]?.[viewingYear] || 0;
+        }
+      });
+    }
 
     const { parallelEarnedMap, leadBracketDetails, leadTourneyName } = computeWeeklyParallelTourPoints(
       effectiveTourney,
       players,
       participantIds,
       viewingYear,
-      { tourneyIndex }
+      { tourneyIndex, mainEarnedMap }
     );
 
-    const hasRealTourney = Boolean(tourney && tourney.id);
     Object.entries(parallelEarnedMap).forEach(([pid, pts]) => {
       const pl = players.find(x => String(x.id) === String(pid));
       if (!pl || pts <= 0) return;
@@ -799,15 +1116,18 @@ export function runBackgroundATP250Tournaments(players, mainTourneyParticipants,
 
       if (hasRealTourney) {
         // Защита за эту неделю уже была списана в applyTournamentPointsToPlayers, поэтому добавляем набранные очки параллельного тура
+        const prevMainPts = pl.tournamentPoints?.[tourney.id]?.[viewingYear] || 0;
         pl.points = Math.max(0, (pl.points || 0) + safeEarned);
         pl.racePoints = Math.max(pl.racePoints || 0, (pl.racePoints || 0) + safeEarned);
         pl.lastPointsDelta = (pl.lastPointsDelta || 0) + safeEarned;
-        pl.lastRaceDelta = safeEarned;
-        pl.lastTourneyEarned = safeEarned;
-        pl.lastTourneyName = `${leadTourneyName} (ATP 250 / Challenger)`;
+        pl.lastRaceDelta = prevMainPts + safeEarned;
+        pl.lastTourneyEarned = prevMainPts + safeEarned;
+        pl.lastTourneyName = prevMainPts > 0
+          ? `${tourney.name} + ${leadTourneyName} (ATP 250)`
+          : `${leadTourneyName} (ATP 250 / Challenger)`;
         if (!pl.tournamentPoints) pl.tournamentPoints = {};
         if (!pl.tournamentPoints[tourney.id]) pl.tournamentPoints[tourney.id] = {};
-        pl.tournamentPoints[tourney.id][viewingYear] = safeEarned;
+        pl.tournamentPoints[tourney.id][viewingYear] = prevMainPts + safeEarned;
       } else {
         const prevPoints = pl.points;
         const defending = getDefendingPoints(pl, `bg250_${leadTourneyName}`, viewingYear);
@@ -848,7 +1168,7 @@ export function runBackgroundATP250Tournaments(players, mainTourneyParticipants,
     const winPts = leadBracketDetails.scaleMax || 250;
     const tierLabel = winPts === 250 ? 'ATP 250' : `Challenger ${winPts}`;
 
-    return `🎾 <b>Параллельный тур недели (${leadTourneyName} · ${tierLabel} + серия Челленджеров):</b> Чемпион: <b>${winner.name}</b> (+${winPts} pts) · Финалист: <b>${finalist.name}</b> · 1/2 финала: ${sfNames || '—'} · 1-й круг всем участникам: <b>+10 pts</b>`;
+    return `🎾 <b>Параллельный тур недели (${leadTourneyName} · ${tierLabel} + серия Челленджеров):</b> Чемпион: <b>${winner.name}</b> (+${winPts} pts) · Финалист: <b>${finalist.name}</b> · 1/2 финала: ${sfNames || '—'} · Топ-4 сеяных [1]–[4] с BYE в 1/16 · <button type="button" class="btn-gold" onclick="openWeeklyATP250BracketModal('${tourney.id}', ${viewingYear})" style="padding:2px 9px; font-size:11.5px; margin-left:6px;">🏆 Открыть авто-сетку ATP 250</button>`;
   } catch (err) {
     console.warn("Background 250 error avoided:", err);
     return "";

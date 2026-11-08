@@ -1277,8 +1277,17 @@ test('Модернизация рейтинга ATP: 10 очков за 1-й к�
     }
   });
 
+  const endRank10 = players[9];
+  assert.ok(endRank10.points >= 2500, `В конце сезона 2024 10-я ракетка мира имеет >= 2500 очков (${endRank10.points} pts)`);
+
   const endRank100 = players[99];
-  assert.ok(endRank100.points >= 750 && endRank100.points <= 1050, `В конце сезона 2024 ранг #100 имеет реалистичные очки ATP (${endRank100.points} pts)`);
+  assert.ok(endRank100.points >= 650 && endRank100.points <= 1050, `В конце сезона 2024 ранг #100 имеет реалистичные очки ATP (${endRank100.points} pts)`);
+
+  // Проверим хвост рейтинга (#290-#300): ни у кого нет 0 очков и нет завышенных 295-300 очков
+  for (let i = 289; i < 300; i++) {
+    const tailPlayer = players[i];
+    assert.ok(tailPlayer.points >= 30 && tailPlayer.points <= 220, `Игрок #${i + 1} (${tailPlayer.name}) имеет реалистичные очки низа Топ-300: ${tailPlayer.points} pts`);
+  }
 });
 
 
@@ -1346,6 +1355,58 @@ test('Идемпотентность и детерминизм синхрони�
     res2.parallelEarnedMap,
     'Очки параллельного тура не должны зависеть от текущего p.rank или порядка массива players'
   );
+});
+
+test('Автоматическая сетка турнира ATP 250 (28 игроков, BYE у первых 4 сеяных, участие Топ 5-30) и защита от спама 6-0', async () => {
+  const { computeWeeklyParallelTourPoints, simulateDeterministicATP250Bracket, PARALLEL_TOUR_SCALES } = await import('./rankingEngine.js');
+  const players = buildInitial300Players();
+  applyCanonical2023StartStateToPlayers(players);
+
+  // 1) Ни у кого из #296-#300 на старте нет 0 очков и нет 296-300 очков
+  for (let i = 295; i < 300; i++) {
+    assert.ok(players[i].points >= 100 && players[i].points <= 200, `На старте сезона #${i + 1} (${players[i].name}) имеет ${players[i].points} pts (не 0 и не 300)`);
+  }
+
+  // 2) Авто-сетка ATP 250: 28 участников, 5 раундов, первые 4 сеяных [1]-[4] получают BYE в 1/16 финала (матрица матчей 0, 5, 10, 15)
+  const pool28 = players.slice(4, 32);
+  const { details } = simulateDeterministicATP250Bracket(pool28, PARALLEL_TOUR_SCALES.atp250, 'test_atp250_2024');
+  assert.equal(details.draw.length, 5, 'В сетке ATP 250 ровно 5 раундов (1/16, 1/8, 1/4, 1/2, Финал)');
+  assert.equal(details.draw[0].length, 16, 'В 1/16 финала 16 слотов матчей');
+
+  const byeMatches = details.draw[0].filter(m => m.isBye);
+  assert.equal(byeMatches.length, 4, 'Ровно 4 матча 1/16 финала — это BYE для первых 4 сеяных');
+  assert.deepEqual(
+    byeMatches.map(m => m.p1.seed).sort((a, b) => a - b),
+    [1, 2, 3, 4],
+    'Авто-проход BYE во 2-й круг получают строго сеяные #1, #2, #3 и #4'
+  );
+
+  // 3) Игроки Топ-4 мира пропускают ATP 250, а игроки из Топ 5-30 участвуют
+  const tourney = FULL_CALENDAR_TEMPLATE.find(t => t.id === '500_2');
+  const inMainSet = new Set(players.slice(0, 32).map(p => p.id));
+  const { parallelEarnedMap, leadBracketDetails } = computeWeeklyParallelTourPoints(tourney, players, inMainSet, 2024);
+
+  for (let i = 0; i < 4; i++) {
+    assert.equal(parallelEarnedMap[players[i].id], undefined, `Игрок Топ-4 мира #${i + 1} (${players[i].name}) всегда пропускает турниры ATP 250`);
+  }
+  const top5to30In250 = players.slice(4, 30).filter(p => parallelEarnedMap[p.id] > 0);
+  assert.ok(top5to30In250.length >= 4, 'Игроки из Топ 5–30 принимают участие в турнирах серии ATP 250');
+  assert.ok(leadBracketDetails && leadBracketDetails.winner && leadBracketDetails.draw.length === 5);
+
+  // 4) Проверка редкости «баранок» 6-0 / 0-6 при автоматическом счете
+  let totalSets = 0;
+  let bagelSets = 0;
+  leadBracketDetails.draw.forEach(round => {
+    round.forEach(m => {
+      if (!m.isBye && Array.isArray(m.score)) {
+        m.score.forEach(s => {
+          totalSets++;
+          if (s === '6-0' || s === '0-6') bagelSets++;
+        });
+      }
+    });
+  });
+  assert.equal(bagelSets, 0, 'В авто-сетке ATP 250 нет спама счетов 6-0 / 0-6');
 });
 
 

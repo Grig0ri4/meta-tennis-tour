@@ -103,6 +103,7 @@
                 </div>
                 <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
                     <button type="button" class="btn-gold" id="btnOlympicTeams" onclick="openOlympicTeamsModal()" style="display: none;">🌍 Сборные и квоты ОИ</button>
+                    <button type="button" class="btn-gold" id="btnOpenATP250AutoDraw" onclick="openWeeklyATP250BracketModal()">🏆 Турнир ATP 250 (Авто-сетка)</button>
                     <button type="button" class="btn-edit" onclick="openPointsInfoModal()">Очки ATP</button>
                     <button type="button" class="btn-edit" id="btnEditCurrentTourney" onclick="openEditCurrentTourney()">Ред. турнир</button>
                     <button type="button" class="btn-green" id="btnMakeDraw" onclick="generateRealisticDraw()">🎲 Жеребьевка</button>
@@ -708,6 +709,27 @@
                 <button type="button" onclick="closeModal('olympicTeamsModal')" style="padding: 5px 12px; font-size: 12.5px;">Закрыть ✕</button>
             </div>
             <div id="olympicTeamsModalBody"></div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА: АВТОМАТИЧЕСКАЯ СЕТКА ТУРНИРА ATP 250 -->
+    <div class="modal" id="atp250BracketModal" role="dialog" aria-modal="true" aria-labelledby="atp250ModalTitle">
+        <div class="modal-content" style="width: 1120px; max-width: 97vw; max-height: 92vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
+                <div>
+                    <h3 id="atp250ModalTitle" style="color: var(--gold); font-size: 18px; margin-bottom: 4px;">🏆 Турнир ATP 250 — Автоматическая сетка</h3>
+                    <div id="atp250ModalSubtitle" style="font-size: 12.5px; color: var(--text-dim);">
+                        28 участников (Топ 5–30 + #33–#95) • Игроки Топ-4 мира пропускают серию ATP 250 • Первые 4 сеяных [1]–[4] пропускают 1-й раунд (BYE в 1/16 финала)
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <select id="atp250WeekSelect" onchange="changeATP250ModalTourney(this.value)" style="font-size: 12px; padding: 5px 10px; min-width: 240px;"></select>
+                    <button type="button" onclick="closeModal('atp250BracketModal')" style="padding: 5px 12px; font-size: 12.5px;">Закрыть ✕</button>
+                </div>
+            </div>
+            <div id="atp250ModalSummaryBar" style="margin-bottom: 12px;"></div>
+            <div class="round-nav" id="atp250ModalRoundTabs" style="margin-bottom: 14px;"></div>
+            <div class="matches-grid" id="atp250ModalMatchesContainer"></div>
         </div>
     </div>
 

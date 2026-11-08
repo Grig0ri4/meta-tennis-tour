@@ -30,17 +30,18 @@ export function formatTennisScore(scoreArray) {
   return arr.map(setStr => setStr.replace(/\((\d+)\)/g, '<sup>$1</sup>')).join('  ');
 }
 
-export function generateRealisticTennisSet(p1Wins, isDecidingSetTB = false, rankDiff = 0) {
+export function generateRealisticTennisSet(p1Wins, isDecidingSetTB = false, rankDiff = 0, allowBagel = false) {
   const roll = Math.random();
   let score = "";
 
   if (p1Wins) {
-    if (roll < 0.08 || (rankDiff > 45 && roll < 0.16)) score = "6-0";
-    else if (roll < 0.20 || (rankDiff > 35 && roll < 0.30)) score = "6-1";
-    else if (roll < 0.34) score = "6-2";
-    else if (roll < 0.48) score = "6-3";
-    else if (roll < 0.68) score = "6-4";
-    else if (roll < 0.82) score = "7-5";
+    // «Баранка» 6-0 в мужском ATP-туре — очень редкое событие (~0.8% при огромной разнице в классе и не в решающем сете)
+    if (allowBagel && !isDecidingSetTB && rankDiff > 55 && roll < 0.008) score = "6-0";
+    else if (roll < 0.03 || (rankDiff > 45 && roll < 0.06)) score = "6-1";
+    else if (roll < 0.14) score = "6-2";
+    else if (roll < 0.41) score = "6-3";
+    else if (roll < 0.72) score = "6-4";
+    else if (roll < 0.85) score = "7-5";
     else {
       const loserPoints = isDecidingSetTB
         ? (Math.random() < 0.5 ? 8 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 2))
@@ -48,12 +49,12 @@ export function generateRealisticTennisSet(p1Wins, isDecidingSetTB = false, rank
       score = `7-6(${loserPoints})`;
     }
   } else {
-    if (roll < 0.08 || (rankDiff < -45 && roll < 0.16)) score = "0-6";
-    else if (roll < 0.20 || (rankDiff < -35 && roll < 0.30)) score = "1-6";
-    else if (roll < 0.34) score = "2-6";
-    else if (roll < 0.48) score = "3-6";
-    else if (roll < 0.68) score = "4-6";
-    else if (roll < 0.82) score = "5-7";
+    if (allowBagel && !isDecidingSetTB && rankDiff < -55 && roll < 0.008) score = "0-6";
+    else if (roll < 0.03 || (rankDiff < -45 && roll < 0.06)) score = "1-6";
+    else if (roll < 0.14) score = "2-6";
+    else if (roll < 0.41) score = "3-6";
+    else if (roll < 0.72) score = "4-6";
+    else if (roll < 0.85) score = "5-7";
     else {
       const loserPoints = isDecidingSetTB
         ? (Math.random() < 0.5 ? 8 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 2))
@@ -88,15 +89,17 @@ export function sanitizeTemplateScore(sets, p1WinsMatch, bestOf = 3) {
     ['6-4', '7-6(5)'],
     ['4-6', '7-6(5)', '6-3'],
     ['7-5', '3-6', '6-4'],
-    ['6-0', '6-4'],
-    ['7-6(4)', '6-4']
+    ['7-5', '6-4'],
+    ['7-6(4)', '6-4'],
+    ['6-4', '6-4']
   ];
   const alternativesP2 = [
     ['4-6', '6-7(5)'],
     ['6-4', '6-7(5)', '3-6'],
     ['5-7', '6-3', '4-6'],
-    ['0-6', '4-6'],
-    ['6-7(4)', '4-6']
+    ['5-7', '4-6'],
+    ['6-7(4)', '4-6'],
+    ['4-6', '4-6']
   ];
 
   const pool = p1WinsMatch ? alternativesP1 : alternativesP2;
@@ -513,12 +516,12 @@ export function computeSimMatchScores(m, bestOf = 3, forcedWinnerNumber = 0, sur
       const setWinners = loserTakesFirst
         ? [!p1WinsMatch, p1WinsMatch, p1WinsMatch]
         : [p1WinsMatch, !p1WinsMatch, p1WinsMatch];
-      scores = setWinners.map((w, idx) => generateRealisticTennisSet(w, idx === 2, rankDiff));
+      scores = setWinners.map((w, idx) => generateRealisticTennisSet(w, idx === 2, rankDiff, false));
     } else {
-      scores = [
-        generateRealisticTennisSet(p1WinsMatch, false, rankDiff),
-        generateRealisticTennisSet(p1WinsMatch, false, rankDiff)
-      ];
+      const firstSet = generateRealisticTennisSet(p1WinsMatch, false, rankDiff, true);
+      const alreadyBagel = firstSet === '6-0' || firstSet === '0-6';
+      const secondSet = generateRealisticTennisSet(p1WinsMatch, false, rankDiff, !alreadyBagel);
+      scores = [firstSet, secondSet];
     }
   } else {
     // best-of-5
@@ -534,11 +537,15 @@ export function computeSimMatchScores(m, bestOf = 3, forcedWinnerNumber = 0, sur
       [setOrder[i], setOrder[j]] = [setOrder[j], setOrder[i]];
     }
     setOrder.push(p1WinsMatch);
+    let bagelUsed = false;
     scores = setOrder.map((w, idx) => {
       if (w) p1W++;
       else p2W++;
       const isFifthTB = idx === 4 && p1W + p2W === 5;
-      return generateRealisticTennisSet(w, isFifthTB, rankDiff);
+      const canBagel = !bagelUsed && w === p1WinsMatch && !isThriller;
+      const s = generateRealisticTennisSet(w, isFifthTB, rankDiff, canBagel);
+      if (s === '6-0' || s === '0-6') bagelUsed = true;
+      return s;
     });
   }
 
