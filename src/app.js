@@ -298,20 +298,35 @@ function pruneLegacyDuplicateStorageKeys(aggressive = false) {
   if (typeof localStorage === 'undefined') return;
   try {
     const keysToRemove = [];
+    const checkpointsToCompact = [];
+    const obsoleteExactKeys = new Set([
+      'meta_players', 'meta_players_200', 'meta_players_v3', 'meta_players_v4', 'meta_players_v5', 'meta_players_v6',
+      'meta_tournaments_v3', 'meta_tournaments_v6', 'meta_tournaments_v7',
+      'meta_seasons_history_v6', 'meta_tour_date_v4', 'meta_tour_date_v5', 'meta_tour_date_v6',
+      'meta_tour_year_v4', 'meta_tour_year_v5', 'meta_tour_year_v6',
+      'meta_active_tourney_v4', 'meta_active_tourney_v5', 'meta_active_tourney_v6',
+      'draw_m_1', 'draw_m_1_2026'
+    ]);
+
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k) continue;
-      // Освобождаем 3.5+ МБ квоты localStorage от раздутых чекпоинтов с полными сетками и временных слепков
-      if (k.includes('meta_checkpoints_v2') || k.includes('meta_pre_sim_snapshot_v1')) {
+      if (obsoleteExactKeys.has(k) || k.includes('meta_pre_sim_snapshot_v1')) {
+        keysToRemove.push(k);
+        continue;
+      }
+      // Если чекпоинты раздулись из-за дублирования полных сеток draws — сжимаем их на месте, НЕ удаляя сами чекпоинты!
+      if (k.includes('meta_checkpoints_v2')) {
         const val = localStorage.getItem(k);
-        if (aggressive || (val && val.length > 180000)) {
-          keysToRemove.push(k);
-          continue;
+        if (val && val.length > 450000) {
+          checkpointsToCompact.push(k);
         }
+        continue;
       }
       // Удаляем старые не-префиксированные дубликаты, если уже есть префиксированный ключ universe_1_*
       if (
         !k.startsWith('universe_') &&
+        !k.startsWith('draw_') &&
         k !== UNIVERSES_LIST_KEY &&
         k !== ACTIVE_UNIVERSE_KEY &&
         k !== 'groq_api_key' &&
@@ -324,6 +339,25 @@ function pruneLegacyDuplicateStorageKeys(aggressive = false) {
       }
     }
     keysToRemove.forEach(k => localStorage.removeItem(k));
+    checkpointsToCompact.forEach(k => {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(k) || '[]');
+        if (Array.isArray(parsed)) {
+          const compacted = parsed.map(cp => {
+            if (!cp || typeof cp !== 'object') return cp;
+            const copy = { ...cp };
+            if (!Array.isArray(copy.completedTourneyIds) && Array.isArray(copy.tournaments)) {
+              copy.completedTourneyIds = copy.tournaments.filter(t => t && t.completed).map(t => t.id);
+            }
+            delete copy.draws;
+            return copy;
+          });
+          localStorage.setItem(k, JSON.stringify(compacted));
+        }
+      } catch {
+        // ignore
+      }
+    });
   } catch {
     // ignore
   }
@@ -6044,12 +6078,23 @@ export function applyStateSnapshot(stateObj) {
   if (!allTourneys.some(t => t.id === 'olympics')) {
     allTourneys.push(OLYMPIC_TOURNAMENT_TEMPLATE);
   }
-  // Очищаем все сетки будущих/сыгранных турниров начиная с 2024 года
+  const hasExplicitDrawsMap =
+    (stateObj.draws && typeof stateObj.draws === 'object' && Object.keys(stateObj.draws).length > 0) ||
+    (stateObj.drawsSnapshot && typeof stateObj.drawsSnapshot === 'object' && Object.keys(stateObj.drawsSnapshot).length > 0);
+  const completedSetAtSnapshot = new Set(
+    Array.isArray(stateObj.completedTourneyIds)
+      ? stateObj.completedTourneyIds
+      : (stateObj.tournaments || []).filter(t => t && t.completed).map(t => t.id)
+  );
+
+  // Очищаем сетки будущих/незавершенных на момент чекпоинта турниров
   for (let yr = 2024; yr <= maxYr; yr++) {
     allTourneys.forEach(t => {
-      universeStorage.removeItem(`draw_${t.id}_${yr}`);
-      universeStorage.removeItem(`withdrawals_${t.id}_${yr}`);
-      universeStorage.removeItem(`bg250_${t.id}_${yr}`);
+      if (hasExplicitDrawsMap || yr > currentTourYear || !completedSetAtSnapshot.has(t.id)) {
+        universeStorage.removeItem(`draw_${t.id}_${yr}`);
+        universeStorage.removeItem(`withdrawals_${t.id}_${yr}`);
+        universeStorage.removeItem(`bg250_${t.id}_${yr}`);
+      }
     });
   }
 
@@ -6173,9 +6218,7 @@ export function saveSeasonCheckpoint(cpId, customName, options = {}) {
     const clonedTournaments = JSON.parse(JSON.stringify(options.tournaments || tournaments || []));
     const clonedSeasonsHistory = JSON.parse(JSON.stringify(options.seasonsHistory || seasonsHistory || {}));
     const clonedRetiredLegends = JSON.parse(JSON.stringify(options.retiredLegends || retiredLegends || []));
-    const clonedDraws = options.draws !== undefined
-      ? JSON.parse(JSON.stringify(options.draws))
-      : getAllCurrentDrawsMap(fixedYear);
+    const completedTourneyIds = clonedTournaments.filter(t => t && t.completed).map(t => t.id);
 
     const labelText = customName || `Чекпоинт · ${formatDateDisplay(fixedDateStr)}`;
     const checkpointData = {
@@ -6188,11 +6231,11 @@ export function saveSeasonCheckpoint(cpId, customName, options = {}) {
       worldNo1: clonedPlayers[0] ? `${clonedPlayers[0].flag} ${clonedPlayers[0].name} (${(clonedPlayers[0].points || 0).toLocaleString()} pts)` : '—',
       createdAt: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
       lockedStartCheckpoint: Boolean(options.lockedStartCheckpoint),
+      completedTourneyIds,
       players: clonedPlayers,
       tournaments: clonedTournaments,
       seasonsHistory: clonedSeasonsHistory,
-      retiredLegends: clonedRetiredLegends,
-      draws: clonedDraws
+      retiredLegends: clonedRetiredLegends
     };
 
     if (existingIdx >= 0) {
@@ -6215,13 +6258,133 @@ export function saveSeasonCheckpoint(cpId, customName, options = {}) {
   }
 }
 
+function buildRetroactiveMajorCheckpoint(majorTourney, majorIdx, seasonTourneys, year = 2024) {
+  const cpTourneys = seasonTourneys.map((t, idx) => {
+    if (idx <= majorIdx) {
+      return JSON.parse(JSON.stringify(t));
+    }
+    return {
+      ...JSON.parse(JSON.stringify(t)),
+      completed: false,
+      lastWinner: null,
+      lastRunnerUp: null,
+      lastBronze: null,
+      lastScore: null
+    };
+  });
+
+  let cpDateStr = `${year}-11-25`;
+  let cpActiveTourneyId = majorTourney.id;
+  if (majorIdx < seasonTourneys.length - 1) {
+    const nextT = seasonTourneys[majorIdx + 1];
+    const nextStartMonth = String(nextT.startMonth + 1).padStart(2, '0');
+    const nextStartDay = String(nextT.startDay).padStart(2, '0');
+    cpDateStr = `${year}-${nextStartMonth}-${nextStartDay}`;
+    cpActiveTourneyId = nextT.id;
+  }
+
+  const completedUpToMajor = new Set(seasonTourneys.slice(0, majorIdx + 1).map(t => t.id));
+  const cpPlayers = JSON.parse(JSON.stringify(players || []));
+  cpPlayers.forEach(p => {
+    if (p.isCleanReplacement) {
+      p.points = 0;
+      p.racePoints = 0;
+      p.finalsPoints = 0;
+      p.defendedSoFar = 0;
+      p.remainingDefending = 0;
+      return;
+    }
+    if (p.tournamentPoints) {
+      Object.keys(p.tournamentPoints).forEach(tid => {
+        if (!completedUpToMajor.has(tid) && p.tournamentPoints[tid]?.[year] !== undefined) {
+          delete p.tournamentPoints[tid][year];
+        }
+      });
+    }
+    let raceEarned = 0;
+    let finalsEarned = 0;
+    let defendedSoFar = 0;
+    let remainingDefending = 0;
+    seasonTourneys.forEach((t, idx) => {
+      const def = getDefendingPoints(p, t.id, year);
+      if (idx <= majorIdx) {
+        defendedSoFar += def;
+        const earned = Math.max(0, p.tournamentPoints?.[t.id]?.[year] || 0);
+        if (t.id === 'finals' || t.type === 'Итоговый') {
+          finalsEarned += earned;
+        } else {
+          raceEarned += earned;
+        }
+      } else {
+        remainingDefending += def;
+      }
+    });
+    p.racePoints = raceEarned;
+    p.finalsPoints = finalsEarned;
+    p.defendedSoFar = defendedSoFar;
+    p.remainingDefending = remainingDefending;
+    p.points = Math.max(0, remainingDefending + raceEarned + finalsEarned);
+  });
+  sortAndRankPlayers(cpPlayers, false);
+
+  const cpHist = JSON.parse(JSON.stringify(seasonsHistory || {}));
+  if (cpHist[year]) {
+    if (Array.isArray(cpHist[year].tournamentsData)) {
+      cpHist[year].tournamentsData = cpHist[year].tournamentsData.filter(td => completedUpToMajor.has(td.id));
+    }
+    if (cpHist[year].slamSnapshots && typeof cpHist[year].slamSnapshots === 'object') {
+      Object.keys(cpHist[year].slamSnapshots).forEach(sid => {
+        if (!completedUpToMajor.has(sid)) delete cpHist[year].slamSnapshots[sid];
+      });
+    }
+    if (cpPlayers[0]) {
+      cpHist[year].worldNumberOne = { ...cpPlayers[0] };
+    }
+  }
+
+  const champName = majorTourney.lastWinner?.name || 'Чемпион';
+  const label = `После ${majorTourney.name} (${year}) · Чемпион: ${champName}`;
+  return {
+    id: `cp_${majorTourney.id}_${year}`,
+    name: label,
+    label,
+    dateStr: cpDateStr,
+    year,
+    activeTourneyId: cpActiveTourneyId,
+    worldNo1: cpPlayers[0] ? `${cpPlayers[0].flag} ${cpPlayers[0].name} (${(cpPlayers[0].points || 0).toLocaleString()} pts)` : '—',
+    createdAt: formatDateDisplay(cpDateStr).slice(0, 6),
+    lockedStartCheckpoint: false,
+    completedTourneyIds: Array.from(completedSetForList(cpTourneys)),
+    players: cpPlayers,
+    tournaments: cpTourneys,
+    seasonsHistory: cpHist,
+    retiredLegends: JSON.parse(JSON.stringify(retiredLegends || []))
+  };
+}
+
+function completedSetForList(tourneysArr) {
+  return new Set((tourneysArr || []).filter(t => t && t.completed).map(t => t.id));
+}
+
 function ensureInitialSeasonCheckpoint() {
-  const list = [...getSavedCheckpointsList()];
+  let list = [...getSavedCheckpointsList()].map(cp => {
+    if (cp && cp.draws) {
+      const copy = { ...cp };
+      if (!Array.isArray(copy.completedTourneyIds) && Array.isArray(copy.tournaments)) {
+        copy.completedTourneyIds = copy.tournaments.filter(t => t && t.completed).map(t => t.id);
+      }
+      delete copy.draws;
+      return copy;
+    }
+    return cp;
+  });
+
   const startId = `cp_start_${currentTourYear}`;
   const expectedStartDate = `${currentTourYear}-01-02`;
   const existingIdx = list.findIndex(c => c.id === startId);
+  let changed = false;
 
-  // Если стартового чекпоинта еще нет ИЛИ он был мутирован с неправильной датой (не 02.01) — создаем эталонный слепок 02.01!
+  // 1) Если стартового чекпоинта еще нет ИЛИ он был мутирован с неправильной датой (не 02.01) — создаем эталонный слепок 02.01!
   if (
     existingIdx === -1 ||
     list[existingIdx].dateStr !== expectedStartDate ||
@@ -6229,11 +6392,38 @@ function ensureInitialSeasonCheckpoint() {
     !Array.isArray(list[existingIdx].tournaments)
   ) {
     const cleanStartCp = buildCleanSeasonStartCheckpoint(currentTourYear);
+    delete cleanStartCp.draws;
+    cleanStartCp.completedTourneyIds = [];
     if (existingIdx >= 0) {
       list[existingIdx] = cleanStartCp;
     } else {
       list.push(cleanStartCp);
     }
+    changed = true;
+  }
+
+  // 2) Автоматически восстанавливаем недостающие чекпоинты после каждого уже проведённого ТБШ и Итогового турнира текущего сезона!
+  const seasonTourneys = getSeasonTournaments(currentTourYear, tournaments);
+  seasonTourneys.forEach((t, idx) => {
+    if (!t || !t.completed) return;
+    if (t.type !== 'ТБШ' && t.id !== 'finals') return;
+    const cpId = `cp_${t.id}_${currentTourYear}`;
+    if (!list.some(c => c.id === cpId)) {
+      const rebuiltCp = buildRetroactiveMajorCheckpoint(t, idx, seasonTourneys, currentTourYear);
+      list.unshift(rebuiltCp);
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    // Сортируем чекпоинты от самых новых к старым, а стартовый чекпоинт 02.01 всегда фиксируем в конце списка
+    const startItem = list.find(x => x.id === startId);
+    const others = list
+      .filter(x => x.id !== startId)
+      .sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')))
+      .slice(0, 7);
+    if (startItem) others.push(startItem);
+    list = others;
     memoryCheckpointsByUniverse[activeUniverseId] = list;
     universeStorage.setItem(CHECKPOINTS_STORAGE_KEY, JSON.stringify(list));
   }
@@ -6622,12 +6812,63 @@ if (typeof window !== 'undefined') {
   window.confirmAuthorUnlock = confirmAuthorUnlock;
   window.toggleGuestReadOnlyPreview = toggleGuestReadOnlyPreview;
 
+  const syncLiveCanonSnapshotToLocalServer = () => {
+    try {
+      if (typeof window === 'undefined' || !window.location) return;
+      const host = String(window.location.hostname || '').toLowerCase();
+      if (host !== 'localhost' && host !== '127.0.0.1') return;
+      if (activeUniverseId !== '1') return;
+      const drawsBackup = {};
+      const withdrawalsBackup = {};
+      const bg250Backup = {};
+      for (let y = 2023; y <= currentTourYear + 1; y++) {
+        const yearTourneys = getSeasonTournaments(y, tournaments);
+        yearTourneys.forEach(t => {
+          const d = readSavedDraw(t.id, y);
+          if (d && d.length > 0) drawsBackup[`draw_${t.id}_${y}`] = d;
+          const w = universeStorage.getItem(`withdrawals_${t.id}_${y}`);
+          if (w) {
+            try { withdrawalsBackup[`withdrawals_${t.id}_${y}`] = JSON.parse(w); } catch { /* ignore */ }
+          }
+          const bg = universeStorage.getItem(`bg250_${t.id}_${y}`);
+          if (bg) bg250Backup[`bg250_${t.id}_${y}`] = bg;
+        });
+      }
+      const payload = {
+        metaTennisTourSaveVersion: 8,
+        exportedAt: new Date().toISOString(),
+        universe: {
+          id: '1',
+          name: 'Вселенная Автора (Канон)',
+          currentTourYear,
+          currentTourDateStr,
+          activeTourneyId: activeTourney ? activeTourney.id : activeTourneyId
+        },
+        players,
+        tournaments,
+        seasonsHistory,
+        retiredLegends,
+        draws: drawsBackup,
+        withdrawals: withdrawalsBackup,
+        bg250: bg250Backup
+      };
+      fetch('/api/canon-snapshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(() => {});
+    } catch {
+      // ignore
+    }
+  };
+
   const bootstrapApp = async () => {
-    pruneLegacyDuplicateStorageKeys(true);
+    pruneLegacyDuplicateStorageKeys(false);
     await fetchOverridesFromLocalServer();
     await loadPublishedCanonSnapshot();
     initData();
     initUI();
+    syncLiveCanonSnapshotToLocalServer();
   };
 
   if (document.readyState === 'loading') {

@@ -55,6 +55,30 @@ async function startServer() {
     res.json({ ok: true, overrides: current });
   });
 
+  app.post("/api/client-diag", (req, res) => {
+    try {
+      const diagPath = path.join(__dirname, "data", "client_diag.json");
+      fs.writeFileSync(diagPath, JSON.stringify(req.body || {}, null, 2), "utf8");
+    } catch (e) {
+      console.warn("diag write err:", e);
+    }
+    res.json({ ok: true });
+  });
+
+  app.post("/api/canon-snapshot", (req, res) => {
+    try {
+      const body = req.body;
+      if (body && Array.isArray(body.players) && body.players.length > 0) {
+        const canonPath = path.join(__dirname, "public", "canon.json");
+        fs.writeFileSync(canonPath, JSON.stringify(body), "utf8");
+      }
+      res.json({ ok: true });
+    } catch (e) {
+      console.warn("canon-snapshot err:", e);
+      res.status(500).json({ ok: false });
+    }
+  });
+
   app.post("/api/simulate-match", async (req, res) => {
     const {
       p1,
