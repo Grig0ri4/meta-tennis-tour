@@ -418,10 +418,13 @@ const PROCEDURAL_LAST_NAMES = [
   "Navarro", "Ferretti", "Solberg", "Lombardo", "Mercier", "Kowalczyk", "Barbosa", "Berglund", "Vianello", "Chevalier"
 ];
 
-const PROCEDURAL_FLAGS = [
+export const PROCEDURAL_FLAGS = [
   "ESP", "ITA", "FRA", "USA", "SRB", "GER", "RUS", "NOR", "ARG", "GBR",
   "AUS", "SUI", "CAN", "JPN", "CRO", "SWE", "DEN", "NED", "BRA", "CHI",
-  "CZE", "POL", "AUT", "BEL", "GRE", "GEO", "SLO", "KAZ", "BUL", "POR"
+  "CZE", "POL", "AUT", "BEL", "GRE", "GEO", "SLO", "KAZ", "BUL", "POR",
+  "UKR", "CHN", "KOR", "TPE", "RSA", "MEX", "COL", "PER", "URU", "FIN",
+  "IRL", "ISL", "HUN", "ROU", "SVK", "LTU", "LAT", "EST", "BIH", "MNE",
+  "MAR", "TUN", "EGY", "IND", "THA", "NZL", "JAM", "MON", "LUX", "ARM"
 ];
 
 /**

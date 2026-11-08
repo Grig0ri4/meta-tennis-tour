@@ -5,7 +5,7 @@
  * двухрежимный симулятор матчей (локальный + Groq API Llama 3.3 70B / 3.1 8B), рейтинги, Зал Славы и смена поколений.
  */
 
-import { PRESERVED_BASE, CLEAN_UNIQUE_POOL, buildInitial300Players, generateRandom300Players } from '../data/players.js';
+import { PRESERVED_BASE, CLEAN_UNIQUE_POOL, PROCEDURAL_FLAGS, buildInitial300Players, generateRandom300Players } from '../data/players.js';
 import {
   FULL_CALENDAR_TEMPLATE,
   OLYMPIC_TOURNAMENT_TEMPLATE,
@@ -21,7 +21,8 @@ import {
 } from '../data/tournaments.js';
 import {
   calculateGroupStandings,
-  createTournamentDraw
+  createTournamentDraw,
+  selectOlympicParticipantsWithQuota
 } from './drawEngine.js';
 import {
   formatTennisScore,
@@ -1168,6 +1169,12 @@ export function initData() {
     if (!p.tournamentPoints) p.tournamentPoints = {};
     if (p.rankChange === undefined) p.rankChange = 0;
     if (p.racePoints === undefined) p.racePoints = 0;
+    const normFlag = normalizeCountryCode(p.flag);
+    if (!normFlag || normFlag === '?') {
+      p.flag = PROCEDURAL_FLAGS[idx % PROCEDURAL_FLAGS.length];
+    } else {
+      p.flag = normFlag;
+    }
     const histPeak = HISTORICAL_PEAK_RANK_BY_NAME[String(p.name || '').toLowerCase()];
     if (histPeak !== undefined) {
       if (!p.bestRank || p.bestRank > histPeak) {
@@ -1629,9 +1636,23 @@ export function confirmCreateNewUniverse() {
   };
 
   // Если выбран режим копирования классического тура — берем эталонную базу 300 игроков канона с чистой гонкой (0 pts) на 02.01
-  const clonedPlayers = rosterMode === 'copy'
+  const existingOverrides = loadCustomPlayerOverrides();
+  const clonedPlayers = (rosterMode === 'copy'
     ? buildInitial300Players()
-    : generateRandom300Players(startYear);
+    : generateRandom300Players(startYear)
+  ).map((p, idx) => {
+    const ov = rosterMode === 'copy'
+      ? (existingOverrides[`id:${p.id}`] || existingOverrides[`name:${String(p.name || '').trim().toLowerCase()}`] || null)
+      : null;
+    const rawFlag = (ov?.flag && ov.flag !== '?') ? ov.flag : p.flag;
+    const normFlag = normalizeCountryCode(rawFlag);
+    return {
+      ...p,
+      flag: (!normFlag || normFlag === '?')
+        ? PROCEDURAL_FLAGS[Math.floor(Math.random() * PROCEDURAL_FLAGS.length)]
+        : normFlag
+    };
+  });
 
   universesList.push(newUniv);
   activeUniverseId = newId;
@@ -2219,6 +2240,32 @@ export function loadSelectedTournament() {
 
   updateCanonReadOnlyUI();
 
+  const isOlympicsTourney = Boolean(activeTourney && (activeTourney.id === 'olympics' || activeTourney.type === 'Олимпиада' || activeTourney.isOlympics));
+  const btnOlympicTeams = document.getElementById('btnOlympicTeams');
+  if (btnOlympicTeams) {
+    btnOlympicTeams.style.display = isOlympicsTourney ? 'inline-block' : 'none';
+  }
+
+  if (noticeBox && isOlympicsTourney) {
+    const olySummary = buildOlympicDelegationsData();
+    noticeBox.style.display = 'block';
+    const excludedText = withdrawals.length > 0
+      ? `<div style="margin-top: 4px; font-size: 12px; color: var(--text-dim);">Не прошли по лимиту &gt;4 от страны: ${withdrawals.join(', ')}</div>`
+      : '';
+    noticeBox.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <div>
+          🏅 <b>Олимпийский отбор МОК / ITF:</b> заявлено <b>${olySummary.countries.length} стран</b> (${olySummary.totalPlayers} участников · квота до 4 игроков от страны, разведение по разным четвертям Q1–Q4).
+          ${excludedText}
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button type="button" class="btn-gold btn-compact" onclick="changeRound('teams')">🌍 Вкладка сборных (${olySummary.countries.length} стран)</button>
+          <button type="button" class="btn-edit btn-compact" onclick="openOlympicTeamsModal()">📋 Открыть в окне</button>
+        </div>
+      </div>
+    `;
+  }
+
   const btnMakeDraw = document.getElementById('btnMakeDraw');
   const btnSimRound = document.getElementById('btnSimRound');
   const btnSimAll = document.getElementById('btnSimAllTourney');
@@ -2298,14 +2345,27 @@ export function generateRealisticDraw() {
     universeStorage.setItem(`withdrawals_${activeTourney.id}_${viewingYear}`, JSON.stringify(withdrawals));
     if (noticeBox) {
       noticeBox.style.display = 'block';
-      const label = activeTourney.id === 'olympics'
-        ? '🏅 <b>Национальная квота ОИ (макс. 4 игрока от страны) — не прошли по квоте:</b>'
-        : '⚠️ <b>Пропускают турнир (Отдых / Травма / График):</b>';
-      noticeBox.innerHTML = `${label} ${withdrawals.join(', ')}`;
+      if (activeTourney.id === 'olympics') {
+        const olySummary = buildOlympicDelegationsData();
+        noticeBox.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <div>
+              🏅 <b>Олимпийский отбор МОК / ITF:</b> заявлено <b>${olySummary.countries.length} стран</b> (${olySummary.totalPlayers} участников · квота до 4 игроков от страны, разведение по разным четвертям Q1–Q4).
+              <div style="margin-top: 4px; font-size: 12px; color: var(--text-dim);">Не прошли по лимиту &gt;4 от страны: ${withdrawals.join(', ')}</div>
+            </div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button type="button" class="btn-gold btn-compact" onclick="changeRound('teams')">🌍 Вкладка сборных (${olySummary.countries.length} стран)</button>
+              <button type="button" class="btn-edit btn-compact" onclick="openOlympicTeamsModal()">📋 Открыть в окне</button>
+            </div>
+          </div>
+        `;
+      } else {
+        noticeBox.innerHTML = `⚠️ <b>Пропускают турнир (Отдых / Травма / График):</b> ${withdrawals.join(', ')}`;
+      }
     }
   } else {
     universeStorage.removeItem(`withdrawals_${activeTourney.id}_${viewingYear}`);
-    if (noticeBox) noticeBox.style.display = 'none';
+    if (noticeBox && activeTourney.id !== 'olympics') noticeBox.style.display = 'none';
   }
 
   activeTourney.completed = false;
@@ -2326,16 +2386,302 @@ export function resetCurrentDraw() {
   universeStorage.removeItem(`draw_${activeTourney.id}_${viewingYear}`);
   universeStorage.removeItem(`withdrawals_${activeTourney.id}_${viewingYear}`);
   const noticeBox = document.getElementById('withdrawalsNotice');
-  if (noticeBox) noticeBox.style.display = 'none';
+  if (noticeBox && activeTourney?.id !== 'olympics') noticeBox.style.display = 'none';
   renderRoundTabs();
   renderMatches();
+}
+
+// --- СБОРНЫЕ И СОСТАВЫ СТРАН НА ОЛИМПИЙСКИЕ ИГРЫ ---
+let olympicTeamsFilterMode = 'all'; // 'all' | '4' | '23' | '1'
+let olympicTeamsSearchQuery = '';
+
+export function buildOlympicDelegationsData() {
+  const isOlympics = Boolean(activeTourney && (activeTourney.id === 'olympics' || activeTourney.type === 'Олимпиада' || activeTourney.isOlympics));
+  const hasDraw = isOlympics && Array.isArray(currentDraw) && currentDraw.length > 0 && Array.isArray(currentDraw[0]) && currentDraw[0].length === 32;
+
+  const sortedByRank = [...players].sort((a, b) => (a.rank || 999) - (b.rank || 999));
+  const excludedByCountry = {};
+  const tempCounts = {};
+  let tempAdmitted = 0;
+  for (let i = 0; i < sortedByRank.length; i++) {
+    if (tempAdmitted >= 64) break;
+    const pl = sortedByRank[i];
+    const c = normalizeCountryCode(pl.flag);
+    if (!c || c === '?') continue;
+    const cnt = tempCounts[c] || 0;
+    if (cnt < 4) {
+      tempCounts[c] = cnt + 1;
+      tempAdmitted++;
+    } else if (i < 100) {
+      if (!excludedByCountry[c]) excludedByCountry[c] = [];
+      excludedByCountry[c].push({
+        id: pl.id,
+        name: pl.name,
+        rank: pl.rank,
+        points: pl.points || 0
+      });
+    }
+  }
+
+  const participants = [];
+  if (hasDraw) {
+    currentDraw[0].forEach((m, mIdx) => {
+      const qNum = Math.floor(mIdx / 8) + 1;
+      const matchNum = mIdx + 1;
+      for (const side of [m?.p1, m?.p2]) {
+        if (!side) continue;
+        const liveP = players.find(x => x.id === side.id) || side;
+        const normFlag = normalizeCountryCode(liveP.flag || side.flag);
+        participants.push({
+          id: liveP.id || side.id,
+          name: liveP.name || side.name,
+          flag: normFlag,
+          rank: liveP.rank || side.rank || 999,
+          points: liveP.points ?? 0,
+          birthDate: liveP.birthDate || side.birthDate,
+          seedNum: side.seedNum || null,
+          quarterNum: qNum,
+          matchNum
+        });
+      }
+    });
+  } else {
+    const { qualified } = selectOlympicParticipantsWithQuota(players, 4, 64);
+    qualified.forEach((p, idx) => {
+      participants.push({
+        id: p.id,
+        name: p.name,
+        flag: normalizeCountryCode(p.flag),
+        rank: p.rank || (idx + 1),
+        points: p.points ?? 0,
+        birthDate: p.birthDate,
+        seedNum: idx < 16 ? (idx + 1) : null,
+        quarterNum: null,
+        matchNum: null
+      });
+    });
+  }
+
+  const byCountryMap = new Map();
+  participants.forEach(p => {
+    const code = p.flag || '?';
+    if (!byCountryMap.has(code)) {
+      const meta = getCountryMeta(code);
+      byCountryMap.set(code, {
+        code,
+        nameRu: meta.ru || code,
+        nameEn: meta.en || code,
+        players: [],
+        excluded: excludedByCountry[code] || []
+      });
+    }
+    byCountryMap.get(code).players.push(p);
+  });
+
+  const countries = Array.from(byCountryMap.values()).map(group => {
+    group.players.sort((a, b) => (a.rank || 999) - (b.rank || 999));
+    group.bestRank = group.players[0]?.rank || 999;
+    group.seedsCount = group.players.filter(x => x.seedNum).length;
+    return group;
+  });
+
+  countries.sort((a, b) => {
+    if (b.players.length !== a.players.length) return b.players.length - a.players.length;
+    return a.bestRank - b.bestRank;
+  });
+
+  const count4 = countries.filter(c => c.players.length === 4).length;
+  const count23 = countries.filter(c => c.players.length === 2 || c.players.length === 3).length;
+  const count1 = countries.filter(c => c.players.length === 1).length;
+  const totalExcluded = Object.values(excludedByCountry).reduce((acc, arr) => acc + arr.length, 0);
+
+  return {
+    hasDraw,
+    totalPlayers: participants.length,
+    countries,
+    count4,
+    count23,
+    count1,
+    totalExcluded
+  };
+}
+
+export function renderOlympicDelegationsContentHtml(contextId = 'tab') {
+  const data = buildOlympicDelegationsData();
+  const q = String(olympicTeamsSearchQuery || '').trim().toLowerCase();
+
+  const filteredCountries = data.countries.filter(c => {
+    if (olympicTeamsFilterMode === '4' && c.players.length !== 4) return false;
+    if (olympicTeamsFilterMode === '23' && !(c.players.length === 2 || c.players.length === 3)) return false;
+    if (olympicTeamsFilterMode === '1' && c.players.length !== 1) return false;
+    if (!q) return true;
+    const matchCountry =
+      c.code.toLowerCase().includes(q) ||
+      c.nameRu.toLowerCase().includes(q) ||
+      c.nameEn.toLowerCase().includes(q);
+    const matchPlayer = c.players.some(p => String(p.name || '').toLowerCase().includes(q));
+    return matchCountry || matchPlayer;
+  });
+
+  const cardsHtml = filteredCountries.map((c, idx) => {
+    const quotaColor = c.players.length === 4
+      ? 'background: rgba(16, 185, 129, 0.16); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);'
+      : (c.players.length >= 2
+        ? 'background: rgba(56, 189, 248, 0.14); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35);'
+        : 'background: rgba(148, 163, 184, 0.12); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.25);');
+
+    const rowsHtml = c.players.map((p, pIdx) => {
+      const seedHtml = p.seedNum
+        ? `<span class="seed-tag" style="margin-left: 4px;">Посев (${p.seedNum})</span>`
+        : `<span class="entry-tag" style="margin-left: 4px;">[OLY]</span>`;
+      const quarterHtml = p.quarterNum
+        ? `<span style="font-size: 11px; padding: 2px 7px; border-radius: 5px; background: rgba(245, 158, 11, 0.14); color: var(--gold); border: 1px solid rgba(245, 158, 11, 0.3); font-weight: 700;">Q${p.quarterNum} · М#${p.matchNum}</span>`
+        : `<span style="font-size: 11px; color: var(--text-dim);">Отбор по рейтингу</span>`;
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(255,255,255,0.05);">
+          <div style="display: flex; align-items: center; gap: 7px; min-width: 0;">
+            <span style="font-size: 11.5px; color: var(--text-dim); font-weight: 700; width: 16px;">${pIdx + 1}.</span>
+            <span style="font-size: 11.5px; font-weight: 800; color: var(--accent); min-width: 34px;">#${p.rank}</span>
+            <span class="player-profile-link" onclick="openPlayerProfileModal('${p.id}')" style="font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.name}</span>
+            ${seedHtml}
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+            <span style="font-size: 11.5px; color: var(--text-dim);">${(p.points || 0).toLocaleString('ru-RU')} pts</span>
+            ${quarterHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const excludedFooterHtml = c.excluded.length > 0
+      ? `<div style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.08); font-size: 11.5px; color: #fca5a5;">
+           🚫 <b>Отсечены квотой (&gt;4 от страны):</b> ${c.excluded.map(e => `${e.name} (#${e.rank})`).join(', ')}
+         </div>`
+      : '';
+
+    return `
+      <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.07);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 12px; color: var(--text-dim); font-weight: 700;">#${idx + 1}</span>
+              ${renderFlagBadge(c.code)}
+              <div>
+                <div style="font-weight: 800; font-size: 14px; color: var(--text-main);">${c.nameRu}</div>
+                <div style="font-size: 11px; color: var(--text-dim);">Лидер сборной: #${c.bestRank} ATP${c.seedsCount > 0 ? ` · Сеяных: ${c.seedsCount}` : ''}</div>
+              </div>
+            </div>
+            <span style="font-size: 11.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; ${quotaColor}">
+              ${c.players.length} / 4 уч.
+            </span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            ${rowsHtml}
+          </div>
+        </div>
+        ${excludedFooterHtml}
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div style="grid-column: 1 / -1;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 10px; margin-bottom: 14px;">
+        <div style="background: rgba(245, 158, 11, 0.09); border: 1px solid rgba(245, 158, 11, 0.32); border-radius: 8px; padding: 10px 14px;">
+          <div style="font-size: 11.5px; color: var(--text-dim);">Заявлено стран на ОИ</div>
+          <div style="font-size: 22px; font-weight: 900; color: var(--gold);">${data.countries.length} стран</div>
+        </div>
+        <div style="background: rgba(16, 185, 129, 0.09); border: 1px solid rgba(16, 185, 129, 0.32); border-radius: 8px; padding: 10px 14px;">
+          <div style="font-size: 11.5px; color: var(--text-dim);">Участников сетки ОИ</div>
+          <div style="font-size: 22px; font-weight: 900; color: var(--primary);">${data.totalPlayers} / 64 игроков</div>
+        </div>
+        <div style="background: rgba(56, 189, 248, 0.09); border: 1px solid rgba(56, 189, 248, 0.32); border-radius: 8px; padding: 10px 14px;">
+          <div style="font-size: 11.5px; color: var(--text-dim);">Максимальная квота (4/4)</div>
+          <div style="font-size: 22px; font-weight: 900; color: var(--accent);">${data.count4} сборных</div>
+        </div>
+        <div style="background: rgba(168, 85, 247, 0.09); border: 1px solid rgba(168, 85, 247, 0.32); border-radius: 8px; padding: 10px 14px;">
+          <div style="font-size: 11.5px; color: var(--text-dim);">Разведение по четвертям</div>
+          <div style="font-size: 14px; font-weight: 800; color: #e9d5ff; margin-top: 4px;">Q1 · Q2 · Q3 · Q4 (строго ≤ 1 от страны)</div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; background: var(--card-bg); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);">
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button type="button" class="round-tab ${olympicTeamsFilterMode === 'all' ? 'active' : ''}" onclick="setOlympicTeamsFilter('all')">Все страны (${data.countries.length})</button>
+          <button type="button" class="round-tab ${olympicTeamsFilterMode === '4' ? 'active' : ''}" onclick="setOlympicTeamsFilter('4')">Полная квота 4/4 (${data.count4})</button>
+          <button type="button" class="round-tab ${olympicTeamsFilterMode === '23' ? 'active' : ''}" onclick="setOlympicTeamsFilter('23')">2–3 участника (${data.count23})</button>
+          <button type="button" class="round-tab ${olympicTeamsFilterMode === '1' ? 'active' : ''}" onclick="setOlympicTeamsFilter('1')">1 участник (${data.count1})</button>
+        </div>
+        <div class="search-input-wrap" style="min-width: 260px;">
+          <span class="search-input-icon" aria-hidden="true">🔍</span>
+          <input type="text" id="olympicTeamsSearchInput_${contextId}" value="${olympicTeamsSearchQuery.replace(/"/g, '&quot;')}" placeholder="Страна или игрок (Италия, USA, Wentra)..." oninput="handleOlympicTeamsSearch(this.value, '${contextId}')" style="width: 280px;">
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px;">
+        ${cardsHtml || `<div style="grid-column: 1/-1; text-align: center; padding: 30px; color: var(--text-dim);">По вашему запросу сборных не найдено.</div>`}
+      </div>
+    </div>
+  `;
+}
+
+export function setOlympicTeamsFilter(mode) {
+  olympicTeamsFilterMode = mode || 'all';
+  if (activeRoundIdx === 'teams') {
+    renderMatches();
+  }
+  const modalBody = document.getElementById('olympicTeamsModalBody');
+  const modal = document.getElementById('olympicTeamsModal');
+  if (modal && modal.classList.contains('open') && modalBody) {
+    modalBody.innerHTML = renderOlympicDelegationsContentHtml('modal');
+  }
+}
+
+export function handleOlympicTeamsSearch(val, sourceContext = 'tab') {
+  olympicTeamsSearchQuery = String(val || '');
+  if (activeRoundIdx === 'teams') {
+    renderMatches();
+  }
+  const modalBody = document.getElementById('olympicTeamsModalBody');
+  const modal = document.getElementById('olympicTeamsModal');
+  if (modal && modal.classList.contains('open') && modalBody) {
+    modalBody.innerHTML = renderOlympicDelegationsContentHtml('modal');
+  }
+  const inputEl = document.getElementById(`olympicTeamsSearchInput_${sourceContext}`);
+  if (inputEl) {
+    inputEl.focus();
+    const len = inputEl.value.length;
+    try { inputEl.setSelectionRange(len, len); } catch { /* ignore */ }
+  }
+}
+
+export function openOlympicTeamsModal() {
+  const modal = document.getElementById('olympicTeamsModal');
+  const body = document.getElementById('olympicTeamsModalBody');
+  if (!modal || !body) return;
+  body.innerHTML = renderOlympicDelegationsContentHtml('modal');
+  modal.classList.add('open');
 }
 
 export function renderRoundTabs() {
   const container = document.getElementById('roundTabs');
   if (!container) return;
+  const isOlympics = Boolean(activeTourney && (activeTourney.id === 'olympics' || activeTourney.type === 'Олимпиада' || activeTourney.isOlympics));
+
   if (!currentDraw || currentDraw.length === 0) {
-    container.innerHTML = '';
+    if (isOlympics) {
+      const olyData = buildOlympicDelegationsData();
+      container.innerHTML = `
+        <button type="button" role="tab" aria-selected="${activeRoundIdx === 0}" class="round-tab ${activeRoundIdx === 0 ? 'active' : ''}" onclick="changeRound(0)">
+          🎲 Сетка турнира
+        </button>
+        <button type="button" role="tab" aria-selected="${activeRoundIdx === 'teams'}" class="round-tab ${activeRoundIdx === 'teams' ? 'active' : ''}" onclick="changeRound('teams')" style="border-color: rgba(245, 158, 11, 0.45); color: var(--gold);">
+          🌍 Сборные и участники ОИ (${olyData.countries.length} стран · ${olyData.totalPlayers} уч.)
+        </button>
+      `;
+    } else {
+      container.innerHTML = '';
+    }
     return;
   }
 
@@ -2346,11 +2692,23 @@ export function renderRoundTabs() {
   else if (currentDraw.length === 6) names = rNames64;
   else names = rNames32;
 
-  container.innerHTML = currentDraw.map((r, idx) => `
+  const roundButtonsHtml = currentDraw.map((r, idx) => `
     <button type="button" role="tab" aria-selected="${idx === activeRoundIdx}" class="round-tab ${idx === activeRoundIdx ? 'active' : ''}" onclick="changeRound(${idx})">
       ${names[idx] || `Раунд ${idx + 1}`}
     </button>
   `).join('');
+
+  if (isOlympics) {
+    const olyData = buildOlympicDelegationsData();
+    const teamsBtnHtml = `
+      <button type="button" role="tab" aria-selected="${activeRoundIdx === 'teams'}" class="round-tab ${activeRoundIdx === 'teams' ? 'active' : ''}" onclick="changeRound('teams')" style="border-color: rgba(245, 158, 11, 0.45); color: ${activeRoundIdx === 'teams' ? '#fff' : 'var(--gold)'};">
+        🌍 Сборные и квоты ОИ (${olyData.countries.length} стран · ${olyData.totalPlayers} уч.)
+      </button>
+    `;
+    container.innerHTML = roundButtonsHtml + teamsBtnHtml;
+  } else {
+    container.innerHTML = roundButtonsHtml;
+  }
 }
 
 export function changeRound(idx) {
@@ -2378,9 +2736,15 @@ export function renderMatches() {
   if (!container || !tablesContainer) return;
   container.innerHTML = '';
 
+  const isOlympics = Boolean(activeTourney && (activeTourney.id === 'olympics' || activeTourney.type === 'Олимпиада' || activeTourney.isOlympics));
+  if (isOlympics && activeRoundIdx === 'teams') {
+    tablesContainer.style.display = 'none';
+    container.innerHTML = renderOlympicDelegationsContentHtml('tab');
+    return;
+  }
+
   if (!currentDraw || currentDraw.length === 0) {
     tablesContainer.style.display = 'none';
-    const isOlympics = activeTourney && activeTourney.id === 'olympics';
     const isFutureLocked = isFutureLockedTournament(activeTourney, viewingYear);
     const startDay = String(activeTourney?.startDay || 2).padStart(2, '0');
     const startMonth = String((activeTourney?.startMonth || 0) + 1).padStart(2, '0');
@@ -2398,7 +2762,10 @@ export function renderMatches() {
               ? 'Нажмите <b>«🎲 Жеребьевка»</b>, чтобы провести олимпийский отбор (64 игрока, максимум 4 представителя от одной страны, Матч за 3-е место и Финал).'
               : 'Нажмите <b>«🎲 Жеребьевка»</b>, чтобы сформировать турнирную сетку с учетом посева и рейтинга.')}
         </div>
-        <button type="button" class="btn-green" ${isFutureLocked ? 'disabled' : ''} onclick="generateRealisticDraw()">${isFutureLocked ? `🔒 Ожидается ${startDay}.${startMonth}` : '🎲 Провести жеребьевку'}</button>
+        <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+          <button type="button" class="btn-green" ${isFutureLocked ? 'disabled' : ''} onclick="generateRealisticDraw()">${isFutureLocked ? `🔒 Ожидается ${startDay}.${startMonth}` : '🎲 Провести жеребьевку'}</button>
+          ${isOlympics ? `<button type="button" class="btn-gold" onclick="changeRound('teams')">🌍 Посмотреть заявленные страны и составы ОИ</button>` : ''}
+        </div>
       </div>
     `;
     return;
@@ -6189,6 +6556,10 @@ if (typeof window !== 'undefined') {
   window.finishTournamentAndAwardPoints = finishTournamentAndAwardPoints;
   window.resetCurrentDraw = resetCurrentDraw;
   window.changeRound = changeRound;
+  window.openOlympicTeamsModal = openOlympicTeamsModal;
+  window.setOlympicTeamsFilter = setOlympicTeamsFilter;
+  window.handleOlympicTeamsSearch = handleOlympicTeamsSearch;
+  window.buildOlympicDelegationsData = buildOlympicDelegationsData;
   window.openScoreModal = openScoreModal;
   window.setMatchCommentaryMode = setMatchCommentaryMode;
   window.appendSetScore = appendSetScore;

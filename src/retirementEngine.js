@@ -43,7 +43,8 @@ export const NEWGEN_LAST_NAMES = [
 export const TENNIS_NATIONS = [
   "ESP", "USA", "FRA", "ITA", "GER", "AUS", "JPN", "ARG", "SRB", "GBR",
   "SUI", "NOR", "SWE", "DEN", "NED", "CAN", "CRO", "CZE", "POL", "BRA",
-  "CHI", "AUT", "BEL", "RUS", "KAZ", "BUL", "POR", "FIN", "HUN", "SLO"
+  "CHI", "AUT", "BEL", "RUS", "KAZ", "BUL", "POR", "FIN", "HUN", "SLO",
+  "GRE", "GEO", "UKR", "CHN", "KOR", "TPE", "RSA", "MEX", "COL", "ROU"
 ];
 
 export const NEWGEN_NICKNAMES = [

@@ -1,24 +1,1211 @@
 {
-  "id:p_9": { "name": "Omar Netigios", "flag": "AUS", "birthDate": "2002-03-14" },
-  "name:omar netigios": { "name": "Omar Netigios", "flag": "AUS", "birthDate": "2002-03-14" },
-  "id:p_20": { "name": "Tiago Logik", "flag": "GBR", "birthDate": "2001-01-18" },
-  "name:tiago logik": { "name": "Tiago Logik", "flag": "GBR", "birthDate": "2001-01-18" },
-  "id:p_10": { "name": "Markon Leoxan", "flag": "IRL", "birthDate": "1993-11-14" },
-  "name:markon leoxan": { "name": "Markon Leoxan", "flag": "IRL", "birthDate": "1993-11-14" },
-  "id:p_25": { "name": "Norbert Zembaloft", "flag": "CYM", "birthDate": "1997-08-11" },
-  "name:norbert zembaloft": { "name": "Norbert Zembaloft", "flag": "CYM", "birthDate": "1997-08-11" },
-  "id:p_24": { "name": "Spam Kyutol Robertson", "flag": "HUN", "birthDate": "1996-05-02" },
-  "name:spam kyutol robertson": { "name": "Spam Kyutol Robertson", "flag": "HUN", "birthDate": "1996-05-02" },
-  "id:p_28": { "name": "Francolin Memso Gul", "flag": "GBR", "birthDate": "1996-09-03" },
-  "name:francolin memso gul": { "name": "Francolin Memso Gul", "flag": "GBR", "birthDate": "1996-09-03" },
-  "id:p_29": { "name": "Vorb Blaostie", "flag": "FIN", "birthDate": "1996-10-20" },
-  "name:vorb blaostie": { "name": "Vorb Blaostie", "flag": "FIN", "birthDate": "1996-10-20" },
-  "id:p_96": { "name": "Julian Papai-tons", "flag": "GRE", "birthDate": "1996-08-15" },
-  "name:julian papai-tons": { "name": "Julian Papai-tons", "flag": "GRE", "birthDate": "1996-08-15" },
-  "id:p_69": { "name": "Hindy Yamaika", "flag": "NZL", "birthDate": "1997-01-26" },
-  "name:hindy yamaika": { "name": "Hindy Yamaika", "flag": "NZL", "birthDate": "1997-01-26" },
-  "id:p_65": { "name": "Jho Flattin", "flag": "IRL", "birthDate": "1995-09-18" },
-  "name:jho flattin": { "name": "Jho Flattin", "flag": "IRL", "birthDate": "1995-09-18" },
-  "id:p_42": { "name": "Rebekka Yentif", "flag": "FIN", "birthDate": "2001-11-13" },
-  "name:rebekka yentif": { "name": "Rebekka Yentif", "flag": "FIN", "birthDate": "2001-11-13" }
+  "id:p_9": {
+    "name": "Omar Netigios",
+    "flag": "AUS",
+    "birthDate": "2002-03-14",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:omar netigios": {
+    "name": "Omar Netigios",
+    "flag": "AUS",
+    "birthDate": "2002-03-14",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_20": {
+    "name": "Tiago Logik",
+    "flag": "GBR",
+    "birthDate": "2001-01-18",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:tiago logik": {
+    "name": "Tiago Logik",
+    "flag": "GBR",
+    "birthDate": "2001-01-18",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_10": {
+    "name": "Markon Leoxan",
+    "flag": "IRL",
+    "birthDate": "1993-11-14",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:markon leoxan": {
+    "name": "Markon Leoxan",
+    "flag": "IRL",
+    "birthDate": "1993-11-14",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_25": {
+    "name": "Norbert Zembaloft",
+    "flag": "INA",
+    "birthDate": "1997-08-11",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:norbert zembaloft": {
+    "name": "Norbert Zembaloft",
+    "flag": "INA",
+    "birthDate": "1997-08-11",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_24": {
+    "name": "Spam Kyutol Robertson",
+    "flag": "HUN",
+    "birthDate": "1996-05-02",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:spam kyutol robertson": {
+    "name": "Spam Kyutol Robertson",
+    "flag": "HUN",
+    "birthDate": "1996-05-02",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_28": {
+    "name": "Francolin Memso Gul",
+    "flag": "GBR",
+    "birthDate": "1996-09-03",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:francolin memso gul": {
+    "name": "Francolin Memso Gul",
+    "flag": "GBR",
+    "birthDate": "1996-09-03",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_29": {
+    "name": "Vorb Blaostie",
+    "flag": "FIN",
+    "birthDate": "1996-10-20",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:vorb blaostie": {
+    "name": "Vorb Blaostie",
+    "flag": "FIN",
+    "birthDate": "1996-10-20",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_96": {
+    "name": "Julian Papai-tons",
+    "flag": "GRE",
+    "birthDate": "1996-08-15",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:julian papai-tons": {
+    "name": "Julian Papai-tons",
+    "flag": "GRE",
+    "birthDate": "1996-08-15",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_69": {
+    "name": "Hindy Yamaika",
+    "flag": "NZL",
+    "birthDate": "1997-01-26",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:hindy yamaika": {
+    "name": "Hindy Yamaika",
+    "flag": "NZL",
+    "birthDate": "1997-01-26",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_65": {
+    "name": "Jho Flattin",
+    "flag": "IRL",
+    "birthDate": "1995-09-18",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:jho flattin": {
+    "name": "Jho Flattin",
+    "flag": "IRL",
+    "birthDate": "1995-09-18",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_42": {
+    "name": "Rebekka Yentif",
+    "flag": "FIN",
+    "birthDate": "2001-11-13",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:rebekka yentif": {
+    "name": "Rebekka Yentif",
+    "flag": "FIN",
+    "birthDate": "2001-11-13",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_1": {
+    "name": "Istep Fofol",
+    "flag": "SVK",
+    "birthDate": "1988-04-20",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:istep fofol": {
+    "name": "Istep Fofol",
+    "flag": "SVK",
+    "birthDate": "1988-04-20",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_6": {
+    "name": "Gary Riffay",
+    "flag": "SLO",
+    "birthDate": "2000-05-30",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:gary riffay": {
+    "name": "Gary Riffay",
+    "flag": "SLO",
+    "birthDate": "2000-05-30",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_113": {
+    "name": "Glino Pozzman",
+    "flag": "PAN",
+    "birthDate": "1991-10-30",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:glino pozzman": {
+    "name": "Glino Pozzman",
+    "flag": "PAN",
+    "birthDate": "1991-10-30",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_84": {
+    "name": "Zassen Ziroe",
+    "flag": "URU",
+    "birthDate": "2001-02-10",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:zassen ziroe": {
+    "name": "Zassen Ziroe",
+    "flag": "URU",
+    "birthDate": "2001-02-10",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_97": {
+    "name": "Mya Hohia",
+    "flag": "CHN",
+    "birthDate": "1984-11-13",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:mya hohia": {
+    "name": "Mya Hohia",
+    "flag": "CHN",
+    "birthDate": "1984-11-13",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_99": {
+    "name": "Grek Robertson",
+    "flag": "GBR",
+    "birthDate": "1994-12-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:grek robertson": {
+    "name": "Grek Robertson",
+    "flag": "GBR",
+    "birthDate": "1994-12-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_73": {
+    "name": "Boris Brykrot",
+    "flag": "USA",
+    "birthDate": "1989-11-25",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:boris brykrot": {
+    "name": "Boris Brykrot",
+    "flag": "USA",
+    "birthDate": "1989-11-25",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_72": {
+    "name": "Erllif Dlerkic",
+    "flag": "SRB",
+    "birthDate": "1994-07-12",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:erllif dlerkic": {
+    "name": "Erllif Dlerkic",
+    "flag": "SRB",
+    "birthDate": "1994-07-12",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_15": {
+    "name": "Oliver Stelalir",
+    "flag": "USA",
+    "birthDate": "1997-03-29",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:oliver stelalir": {
+    "name": "Oliver Stelalir",
+    "flag": "USA",
+    "birthDate": "1997-03-29",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_116": {
+    "name": "Kompod Kryzhov",
+    "flag": "USA",
+    "birthDate": "1999-02-25",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:kompod kryzhov": {
+    "name": "Kompod Kryzhov",
+    "flag": "USA",
+    "birthDate": "1999-02-25",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_106": {
+    "name": "Zonda Zewy",
+    "flag": "URU",
+    "birthDate": "2000-02-10",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:zonda zewy": {
+    "name": "Zonda Zewy",
+    "flag": "URU",
+    "birthDate": "2000-02-10",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_95": {
+    "name": "Nikola Tortalo",
+    "flag": "GBR",
+    "birthDate": "1999-07-25",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:nikola tortalo": {
+    "name": "Nikola Tortalo",
+    "flag": "GBR",
+    "birthDate": "1999-07-25",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_79": {
+    "name": "Xu Xas Xano",
+    "flag": "TPE",
+    "birthDate": "2000-02-10",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:xu xas xano": {
+    "name": "Xu Xas Xano",
+    "flag": "TPE",
+    "birthDate": "2000-02-10",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_77": {
+    "name": "Sam Spore",
+    "flag": "USA",
+    "birthDate": "1992-01-20",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:sam spore": {
+    "name": "Sam Spore",
+    "flag": "USA",
+    "birthDate": "1992-01-20",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_12": {
+    "name": "Pen Klak",
+    "flag": "ESP",
+    "birthDate": "1998-09-09",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:pen klak": {
+    "name": "Pen Klak",
+    "flag": "ESP",
+    "birthDate": "1998-09-09",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_5": {
+    "name": "Shaun Salkar",
+    "flag": "IRL",
+    "birthDate": "1992-07-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:shaun salkar": {
+    "name": "Shaun Salkar",
+    "flag": "IRL",
+    "birthDate": "1992-07-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_43": {
+    "name": "Ryugo Gaston",
+    "flag": "FRA",
+    "birthDate": "1993-03-15",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:ryugo gaston": {
+    "name": "Ryugo Gaston",
+    "flag": "FRA",
+    "birthDate": "1993-03-15",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_128": {
+    "name": "Carallo Baraballo",
+    "flag": "ITA",
+    "birthDate": "2003-06-11",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:carallo baraballo": {
+    "name": "Carallo Baraballo",
+    "flag": "ITA",
+    "birthDate": "2003-06-11",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_64": {
+    "name": "Alex Bolt",
+    "flag": "BUL",
+    "birthDate": "1999-11-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:alex bolt": {
+    "name": "Alex Bolt",
+    "flag": "BUL",
+    "birthDate": "1999-11-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_8": {
+    "name": "Fite Memsy Staprin",
+    "flag": "NZL",
+    "birthDate": "1998-01-05",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:fite memsy staprin": {
+    "name": "Fite Memsy Staprin",
+    "flag": "NZL",
+    "birthDate": "1998-01-05",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_93": {
+    "name": "Mihaeras Pia-Tako",
+    "flag": "ESP",
+    "birthDate": "1991-02-04",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:mihaeras pia-tako": {
+    "name": "Mihaeras Pia-Tako",
+    "flag": "ESP",
+    "birthDate": "1991-02-04",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_91": {
+    "name": "Pleko Yunt",
+    "flag": "SWE",
+    "birthDate": "1989-07-10",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:pleko yunt": {
+    "name": "Pleko Yunt",
+    "flag": "SWE",
+    "birthDate": "1989-07-10",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_70": {
+    "name": "Astofada Ruud",
+    "flag": "NOR",
+    "birthDate": "2000-04-09"
+  },
+  "id:p_122": {
+    "name": "Gabriel Chashka",
+    "flag": "ROU",
+    "birthDate": "1994-12-24",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:gabriel chashka": {
+    "name": "Gabriel Chashka",
+    "flag": "ROU",
+    "birthDate": "1994-12-24",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_137": {
+    "name": "Rokkie Rassac",
+    "flag": "SUI",
+    "birthDate": "1989-03-26",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:rokkie rassac": {
+    "name": "Rokkie Rassac",
+    "flag": "SUI",
+    "birthDate": "1989-03-26",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_67": {
+    "name": "Fetty Yolton",
+    "flag": "KAZ",
+    "birthDate": "2001-08-12",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:fetty yolton": {
+    "name": "Fetty Yolton",
+    "flag": "KAZ",
+    "birthDate": "2001-08-12",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_138": {
+    "name": "Kyle Madasanskiy",
+    "flag": "POL",
+    "birthDate": "2002-01-29",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:kyle madasanskiy": {
+    "name": "Kyle Madasanskiy",
+    "flag": "POL",
+    "birthDate": "2002-01-29",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_49": {
+    "name": "Saron Pool",
+    "flag": "CYP",
+    "birthDate": "1992-11-09",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:saron pool": {
+    "name": "Saron Pool",
+    "flag": "CYP",
+    "birthDate": "1992-11-09",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_129": {
+    "name": "Larry Kowald",
+    "flag": "URU",
+    "birthDate": "1998-06-15",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:larry kowald": {
+    "name": "Larry Kowald",
+    "flag": "URU",
+    "birthDate": "1998-06-15",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_60": {
+    "name": "Nikola Sokos",
+    "flag": "GRE",
+    "birthDate": "1988-09-20",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:nikola sokos": {
+    "name": "Nikola Sokos",
+    "flag": "GRE",
+    "birthDate": "1988-09-20",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_78": {
+    "name": "Kasstin Aramaz",
+    "flag": "NED",
+    "birthDate": "2002-08-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:kasstin aramaz": {
+    "name": "Kasstin Aramaz",
+    "flag": "NED",
+    "birthDate": "2002-08-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_81": {
+    "name": "Lerka Spinseh",
+    "flag": "POL",
+    "birthDate": "1986-03-05",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:lerka spinseh": {
+    "name": "Lerka Spinseh",
+    "flag": "POL",
+    "birthDate": "1986-03-05",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_62": {
+    "name": "Steve Albot",
+    "flag": "ROU",
+    "birthDate": "1994-02-19",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:steve albot": {
+    "name": "Steve Albot",
+    "flag": "ROU",
+    "birthDate": "1994-02-19",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_92": {
+    "name": "Vadim Yumbov",
+    "flag": "BUL",
+    "birthDate": "1991-03-04",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:vadim yumbov": {
+    "name": "Vadim Yumbov",
+    "flag": "BUL",
+    "birthDate": "1991-03-04",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_109": {
+    "name": "Fill Dozzov",
+    "flag": "BUL",
+    "birthDate": "2003-11-25",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:fill dozzov": {
+    "name": "Fill Dozzov",
+    "flag": "BUL",
+    "birthDate": "2003-11-25",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_135": {
+    "name": "Fharaonzi Gas-Tremshio",
+    "flag": "PAN",
+    "birthDate": "1999-12-25",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:fharaonzi gas-tremshio": {
+    "name": "Fharaonzi Gas-Tremshio",
+    "flag": "PAN",
+    "birthDate": "1999-12-25",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_112": {
+    "name": "Albert Nacho",
+    "flag": "FRA",
+    "birthDate": "1988-09-28",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:albert nacho": {
+    "name": "Albert Nacho",
+    "flag": "FRA",
+    "birthDate": "1988-09-28",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_66": {
+    "name": "Ylen Nofredrie",
+    "flag": "ESP",
+    "birthDate": "1986-11-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:ylen nofredrie": {
+    "name": "Ylen Nofredrie",
+    "flag": "ESP",
+    "birthDate": "1986-11-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_130": {
+    "name": "Donatello Dodlon",
+    "flag": "CAN",
+    "birthDate": "2000-03-31",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:donatello dodlon": {
+    "name": "Donatello Dodlon",
+    "flag": "CAN",
+    "birthDate": "2000-03-31",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_55": {
+    "name": "Tonnie Rogga Reggy",
+    "flag": "CYP",
+    "birthDate": "1999-03-04",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:tonnie rogga reggy": {
+    "name": "Tonnie Rogga Reggy",
+    "flag": "CYP",
+    "birthDate": "1999-03-04",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_47": {
+    "name": "Rikko Drakosko",
+    "flag": "MLT",
+    "birthDate": "2000-11-07",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:rikko drakosko": {
+    "name": "Rikko Drakosko",
+    "flag": "MLT",
+    "birthDate": "2000-11-07",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_13": {
+    "name": "Pusto Gerl",
+    "flag": "GBR",
+    "birthDate": "1995-06-12",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:pusto gerl": {
+    "name": "Pusto Gerl",
+    "flag": "GBR",
+    "birthDate": "1995-06-12",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_68": {
+    "name": "Patrick Putorka",
+    "flag": "USA",
+    "birthDate": "1992-09-30",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:patrick putorka": {
+    "name": "Patrick Putorka",
+    "flag": "USA",
+    "birthDate": "1992-09-30",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_80": {
+    "name": "Oscar Christian",
+    "flag": "USA",
+    "birthDate": "2000-10-04",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:oscar christian": {
+    "name": "Oscar Christian",
+    "flag": "USA",
+    "birthDate": "2000-10-04",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_105": {
+    "name": "Temkos Timmy",
+    "flag": "USA",
+    "birthDate": "2002-08-06",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:temkos timmy": {
+    "name": "Temkos Timmy",
+    "flag": "USA",
+    "birthDate": "2002-08-06",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_100": {
+    "name": "Jack Kremlino",
+    "flag": "USA",
+    "birthDate": "1996-08-16",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:jack kremlino": {
+    "name": "Jack Kremlino",
+    "flag": "USA",
+    "birthDate": "1996-08-16",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_51": {
+    "name": "Erllif Stretich",
+    "flag": "SRB",
+    "birthDate": "1994-08-30",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:erllif stretich": {
+    "name": "Erllif Stretich",
+    "flag": "SRB",
+    "birthDate": "1994-08-30",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_134": {
+    "name": "Bemianin Hoiyka",
+    "flag": "NZL",
+    "birthDate": "2001-04-01",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:bemianin hoiyka": {
+    "name": "Bemianin Hoiyka",
+    "flag": "NZL",
+    "birthDate": "2001-04-01",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_16": {
+    "name": "Putter Price",
+    "flag": "POL",
+    "birthDate": "1999-07-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:putter price": {
+    "name": "Putter Price",
+    "flag": "POL",
+    "birthDate": "1999-07-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_18": {
+    "name": "Bob Torsanir",
+    "flag": "GER",
+    "birthDate": "1999-07-25",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:bob torsanir": {
+    "name": "Bob Torsanir",
+    "flag": "GER",
+    "birthDate": "1999-07-25",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_131": {
+    "name": "Shon Hugok",
+    "flag": "ALG",
+    "birthDate": "2000-08-26",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:shon hugok": {
+    "name": "Shon Hugok",
+    "flag": "ALG",
+    "birthDate": "2000-08-26",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_133": {
+    "name": "Stepan Goggi",
+    "flag": "EGY",
+    "birthDate": "1990-05-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:stepan goggi": {
+    "name": "Stepan Goggi",
+    "flag": "EGY",
+    "birthDate": "1990-05-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_90": {
+    "name": "Donti Klawa",
+    "flag": "ESP",
+    "birthDate": "1984-10-19",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:donti klawa": {
+    "name": "Donti Klawa",
+    "flag": "ESP",
+    "birthDate": "1984-10-19",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_75": {
+    "name": "Tommie Temprey",
+    "flag": "HUN",
+    "birthDate": "1990-04-22",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:tommie temprey": {
+    "name": "Tommie Temprey",
+    "flag": "HUN",
+    "birthDate": "1990-04-22",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_114": {
+    "name": "Dustin Spilberg",
+    "flag": "BOL",
+    "birthDate": "1994-01-29",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:dustin spilberg": {
+    "name": "Dustin Spilberg",
+    "flag": "BOL",
+    "birthDate": "1994-01-29",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_132": {
+    "name": "Felix Dhjagernaut",
+    "flag": "SRB",
+    "birthDate": "1995-07-17",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:felix dhjagernaut": {
+    "name": "Felix Dhjagernaut",
+    "flag": "SRB",
+    "birthDate": "1995-07-17",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_27": {
+    "name": "Albert Tarakallo",
+    "flag": "FRA",
+    "birthDate": "1994-12-16",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:albert tarakallo": {
+    "name": "Albert Tarakallo",
+    "flag": "FRA",
+    "birthDate": "1994-12-16",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_136": {
+    "name": "Pen Jack",
+    "flag": "MEX",
+    "birthDate": "1996-05-10",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:pen jack": {
+    "name": "Pen Jack",
+    "flag": "MEX",
+    "birthDate": "1996-05-10",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_54": {
+    "name": "Dobeston Tintareo",
+    "flag": "MEX",
+    "birthDate": "1996-10-16",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:dobeston tintareo": {
+    "name": "Dobeston Tintareo",
+    "flag": "MEX",
+    "birthDate": "1996-10-16",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_117": {
+    "name": "Viada Praty",
+    "flag": "KOS",
+    "birthDate": "1998-10-21",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:viada praty": {
+    "name": "Viada Praty",
+    "flag": "KOS",
+    "birthDate": "1998-10-21",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_17": {
+    "name": "Lukas Chelsovinty",
+    "flag": "AUS",
+    "birthDate": "2000-02-24",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:lukas chelsovinty": {
+    "name": "Lukas Chelsovinty",
+    "flag": "AUS",
+    "birthDate": "2000-02-24",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_31": {
+    "name": "Mitep Kraos Mesh",
+    "flag": "CAN",
+    "birthDate": "1993-08-13",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:mitep kraos mesh": {
+    "name": "Mitep Kraos Mesh",
+    "flag": "CAN",
+    "birthDate": "1993-08-13",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_82": {
+    "name": "Olias Forgnine",
+    "flag": "AUT",
+    "birthDate": "2001-05-11",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:olias forgnine": {
+    "name": "Olias Forgnine",
+    "flag": "AUT",
+    "birthDate": "2001-05-11",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_32": {
+    "name": "Tonnie Hunter",
+    "flag": "BEL",
+    "birthDate": "1999-08-13",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:tonnie hunter": {
+    "name": "Tonnie Hunter",
+    "flag": "BEL",
+    "birthDate": "1999-08-13",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_94": {
+    "name": "Teddy Fedesenen",
+    "flag": "GBR",
+    "birthDate": "1997-04-13",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:teddy fedesenen": {
+    "name": "Teddy Fedesenen",
+    "flag": "GBR",
+    "birthDate": "1997-04-13",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_57": {
+    "name": "Dustin Nilly",
+    "flag": "JAM",
+    "birthDate": "1990-08-04",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:dustin nilly": {
+    "name": "Dustin Nilly",
+    "flag": "JAM",
+    "birthDate": "1990-08-04",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_85": {
+    "name": "Felix Stepashko",
+    "flag": "CAN",
+    "birthDate": "1999-01-29",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:felix stepashko": {
+    "name": "Felix Stepashko",
+    "flag": "CAN",
+    "birthDate": "1999-01-29",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_58": {
+    "name": "Ilias Romos-silie",
+    "flag": "AUS",
+    "birthDate": "1999-11-29",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:ilias romos-silie": {
+    "name": "Ilias Romos-silie",
+    "flag": "AUS",
+    "birthDate": "1999-11-29",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_19": {
+    "name": "Venn Hentay",
+    "flag": "ARG",
+    "birthDate": "2000-12-09",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:venn hentay": {
+    "name": "Venn Hentay",
+    "flag": "ARG",
+    "birthDate": "2000-12-09",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_56": {
+    "name": "Tanassi Swap",
+    "flag": "SLO",
+    "birthDate": "1997-06-02",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:tanassi swap": {
+    "name": "Tanassi Swap",
+    "flag": "SLO",
+    "birthDate": "1997-06-02",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_209": {
+    "name": "Soren Dahl",
+    "flag": "NGR",
+    "birthDate": "1998-04-29",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:soren dahl": {
+    "name": "Soren Dahl",
+    "flag": "NGR",
+    "birthDate": "1998-04-29",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_14": {
+    "name": "Mercon Leri Toblik",
+    "flag": "ITA",
+    "birthDate": "1990-03-15",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:mercon leri toblik": {
+    "name": "Mercon Leri Toblik",
+    "flag": "ITA",
+    "birthDate": "1990-03-15",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_39": {
+    "name": "chille Ham Tochesty",
+    "flag": "ESP",
+    "birthDate": "1983-03-11",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:chille ham tochesty": {
+    "name": "chille Ham Tochesty",
+    "flag": "ESP",
+    "birthDate": "1983-03-11",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_88": {
+    "name": "Innat Dagimov",
+    "flag": "TJK",
+    "birthDate": "2002-07-06",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:innat dagimov": {
+    "name": "Innat Dagimov",
+    "flag": "TJK",
+    "birthDate": "2002-07-06",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_280": {
+    "name": "Federico Valdes",
+    "flag": "URU",
+    "birthDate": "1996-07-09",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:federico valdes": {
+    "name": "Federico Valdes",
+    "flag": "URU",
+    "birthDate": "1996-07-09",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_191": {
+    "name": "Elias Sjoborg",
+    "flag": "GRE",
+    "birthDate": "2004-10-30",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:elias sjoborg": {
+    "name": "Elias Sjoborg",
+    "flag": "GRE",
+    "birthDate": "2004-10-30",
+    "nickname": "",
+    "playStyle": ""
+  }
 }

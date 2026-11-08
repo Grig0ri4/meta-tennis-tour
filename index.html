@@ -102,6 +102,7 @@
                     </select>
                 </div>
                 <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                    <button type="button" class="btn-gold" id="btnOlympicTeams" onclick="openOlympicTeamsModal()" style="display: none;">🌍 Сборные и квоты ОИ</button>
                     <button type="button" class="btn-edit" onclick="openPointsInfoModal()">Очки ATP</button>
                     <button type="button" class="btn-edit" id="btnEditCurrentTourney" onclick="openEditCurrentTourney()">Ред. турнир</button>
                     <button type="button" class="btn-green" id="btnMakeDraw" onclick="generateRealisticDraw()">🎲 Жеребьевка</button>
@@ -691,6 +692,22 @@
                 <button type="button" class="btn-edit" onclick="closeModal('authorUnlockModal')">Отмена</button>
                 <button type="button" class="btn-green" onclick="confirmAuthorUnlock()">🔓 Разблокировать Канон</button>
             </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА ЗАЯВЛЕННЫХ СТРАН И СОСТАВОВ СБОРНЫХ НА ОЛИМПИЙСКИЕ ИГРЫ -->
+    <div class="modal" id="olympicTeamsModal" role="dialog" aria-modal="true" aria-labelledby="olympicTeamsModalTitle">
+        <div class="modal-content" style="width: 980px; max-width: 96vw;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
+                <div>
+                    <h3 id="olympicTeamsModalTitle" style="color: var(--gold); font-size: 18px; margin-bottom: 3px;">🌍 Олимпийский теннисный турнир — Заявленные страны и составы сборных</h3>
+                    <div id="olympicTeamsModalSubtitle" style="font-size: 12.5px; color: var(--text-dim);">
+                        Национальная квота МОК / ITF: до 4 лучших игроков от одной страны по мировому рейтингу, разведённых по разным четвертям сетки (Q1–Q4).
+                    </div>
+                </div>
+                <button type="button" onclick="closeModal('olympicTeamsModal')" style="padding: 5px 12px; font-size: 12.5px;">Закрыть ✕</button>
+            </div>
+            <div id="olympicTeamsModalBody"></div>
         </div>
     </div>
 
