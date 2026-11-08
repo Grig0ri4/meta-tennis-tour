@@ -1348,13 +1348,14 @@ function recordPoints(playerId, tourneyId, year, pts) {
   }
 }
 
-function backfill2023HistoryFromDraws() {
+function backfill2023HistoryFromDraws(resetLivePoints = false) {
   const tourneys2023 = getSeasonTournaments(2023, tournaments);
   populateAndCalibrate2023TournamentPoints(
     players,
     tourneys2023,
     (tId) => readSavedDraw(tId, 2023),
-    HISTORICAL_2023_FINALS
+    HISTORICAL_2023_FINALS,
+    { resetLivePoints }
   );
 }
 
@@ -1423,6 +1424,8 @@ function repairOvercountedPoints() {
   const { startRankMap, peakRankMap } = buildCanonical2023StartMap(players);
   const completedTourneys = seasonTourneys.filter(t => t.completed);
   const lastCompletedTourney = completedTourneys.length > 0 ? completedTourneys[completedTourneys.length - 1] : null;
+  const ptsBeforeLastMap = {};
+  const raceBeforeLastMap = {};
 
   players.forEach(p => {
     if (p.isCleanReplacement) {
@@ -1442,6 +1445,10 @@ function repairOvercountedPoints() {
       p.seasonStartRank = 300;
       p.historicalBestRank = 300;
       p.bestRank = 300;
+      p.rankChange = 0;
+      p.raceRankChange = 0;
+      ptsBeforeLastMap[p.id] = 0;
+      raceBeforeLastMap[p.id] = 0;
       return;
     }
 
@@ -1472,12 +1479,17 @@ function repairOvercountedPoints() {
       const earnedLast = Math.max(0, p.tournamentPoints?.[lastCompletedTourney.id]?.[currentTourYear] || 0);
       const defLast = Math.max(0, getDefendingPoints(p, lastCompletedTourney.id, currentTourYear));
       const ptsBeforeLast = Math.max(0, p.points - earnedLast + defLast);
+      const raceEarnedLast = lastCompletedTourney.id === 'finals' ? 0 : earnedLast;
+      ptsBeforeLastMap[p.id] = ptsBeforeLast;
+      raceBeforeLastMap[p.id] = Math.max(0, raceEarned - raceEarnedLast);
       p.lastPointsDelta = p.points - ptsBeforeLast;
-      p.lastRaceDelta = lastCompletedTourney.id === 'finals' ? 0 : earnedLast;
+      p.lastRaceDelta = raceEarnedLast;
       p.lastTourneyEarned = earnedLast;
       p.lastTourneyDefended = defLast;
       p.lastTourneyName = lastCompletedTourney.name || '';
     } else {
+      ptsBeforeLastMap[p.id] = p.points;
+      raceBeforeLastMap[p.id] = 0;
       p.lastPointsDelta = 0;
       p.lastRaceDelta = 0;
       p.lastTourneyEarned = 0;
@@ -1501,12 +1513,68 @@ function repairOvercountedPoints() {
     }
   });
 
-  sortAndRankPlayers(players, true);
+  // Детерминированно вычисляем ранги до последнего завершенного турнира, чтобы rankChange и raceRankChange никогда не сбивались
+  const getNumId = (id) => Number(String(id || '').replace(/\D+/g, '')) || 999999;
+  const prevRankSorted = [...players].sort((a, b) => {
+    if (Boolean(a.isCleanReplacement) !== Boolean(b.isCleanReplacement)) return a.isCleanReplacement ? 1 : -1;
+    const diff = (ptsBeforeLastMap[b.id] || 0) - (ptsBeforeLastMap[a.id] || 0);
+    if (diff !== 0) return diff;
+    const rDiff = (raceBeforeLastMap[b.id] || 0) - (raceBeforeLastMap[a.id] || 0);
+    if (rDiff !== 0) return rDiff;
+    const bDiff = (b.start2023Points || b.basePoints || 0) - (a.start2023Points || a.basePoints || 0);
+    if (bDiff !== 0) return bDiff;
+    return getNumId(a.id) - getNumId(b.id);
+  });
+  const rankBeforeLastMap = {};
+  prevRankSorted.forEach((p, idx) => { rankBeforeLastMap[p.id] = idx + 1; });
+
+  sortAndRankPlayers(players, false);
+
+  if (lastCompletedTourney) {
+    players.forEach(p => {
+      p.rankChange = p.isCleanReplacement ? 0 : ((rankBeforeLastMap[p.id] || p.rank) - p.rank);
+    });
+    if (completedTourneys.length > 1) {
+      const prevRaceSorted = [...players].sort((a, b) => {
+        if (Boolean(a.isCleanReplacement) !== Boolean(b.isCleanReplacement)) return a.isCleanReplacement ? 1 : -1;
+        const diff = (raceBeforeLastMap[b.id] || 0) - (raceBeforeLastMap[a.id] || 0);
+        if (diff !== 0) return diff;
+        return (rankBeforeLastMap[a.id] || 300) - (rankBeforeLastMap[b.id] || 300);
+      });
+      const prevRaceRankMap = {};
+      prevRaceSorted.forEach((p, idx) => { prevRaceRankMap[p.id] = idx + 1; });
+
+      const currRaceSorted = [...players].sort((a, b) => {
+        if (Boolean(a.isCleanReplacement) !== Boolean(b.isCleanReplacement)) return a.isCleanReplacement ? 1 : -1;
+        const diff = (b.racePoints || 0) - (a.racePoints || 0);
+        if (diff !== 0) return diff;
+        return (a.rank || 300) - (b.rank || 300);
+      });
+      currRaceSorted.forEach((p, idx) => {
+        const newRaceRank = idx + 1;
+        p.raceRankChange = p.isCleanReplacement ? 0 : ((prevRaceRankMap[p.id] || newRaceRank) - newRaceRank);
+      });
+    } else {
+      players.forEach(p => { p.raceRankChange = 0; });
+    }
+  } else {
+    players.forEach(p => {
+      p.rankChange = 0;
+      p.raceRankChange = 0;
+    });
+  }
+
   universeStorage.setItem('meta_players_v8', JSON.stringify(players));
 }
 
 export function manualRepairPoints() {
   if (guardCanonReadOnly()) return;
+  const currentUnivMeta = universesList.find(u => u.id === activeUniverseId);
+  const isCustomRandomUniverse = Boolean(currentUnivMeta?.rosterMode === 'random');
+  if (!isCustomRandomUniverse) {
+    repairCanonicalPlayersAndDraws();
+    backfill2023HistoryFromDraws(false);
+  }
   repairOvercountedPoints();
   initUI();
   renderPlayersTable();
@@ -6382,10 +6450,12 @@ function ensureInitialSeasonCheckpoint() {
   const startId = `cp_start_${currentTourYear}`;
   const expectedStartDate = `${currentTourYear}-01-02`;
   const existingIdx = list.findIndex(c => c.id === startId);
+  const needsDetMigration = !universeStorage.getItem('meta_checkpoints_det_v3');
   let changed = false;
 
   // 1) Если стартового чекпоинта еще нет ИЛИ он был мутирован с неправильной датой (не 02.01) — создаем эталонный слепок 02.01!
   if (
+    needsDetMigration ||
     existingIdx === -1 ||
     list[existingIdx].dateStr !== expectedStartDate ||
     !Array.isArray(list[existingIdx].players) ||
@@ -6408,12 +6478,31 @@ function ensureInitialSeasonCheckpoint() {
     if (!t || !t.completed) return;
     if (t.type !== 'ТБШ' && t.id !== 'finals') return;
     const cpId = `cp_${t.id}_${currentTourYear}`;
-    if (!list.some(c => c.id === cpId)) {
+    const foundMajorIdx = list.findIndex(c => c.id === cpId);
+    if (foundMajorIdx === -1 || needsDetMigration) {
       const rebuiltCp = buildRetroactiveMajorCheckpoint(t, idx, seasonTourneys, currentTourYear);
-      list.unshift(rebuiltCp);
+      if (foundMajorIdx >= 0) {
+        list[foundMajorIdx] = rebuiltCp;
+      } else {
+        list.unshift(rebuiltCp);
+      }
       changed = true;
     }
   });
+
+  if (needsDetMigration) {
+    const currCompletedKey = seasonTourneys.filter(t => t && t.completed).map(t => t.id).join(',');
+    list.forEach(cp => {
+      if (!cp || cp.id === startId || cp.id.startsWith('cp_tbsh_') || cp.id.startsWith('cp_finals_')) return;
+      const cpCompletedKey = (cp.tournaments || []).filter(t => t && t.completed).map(t => t.id).join(',');
+      if (cp.dateStr === currentTourDateStr && cpCompletedKey === currCompletedKey) {
+        cp.players = JSON.parse(JSON.stringify(players));
+        cp.worldNo1 = players[0] ? `${players[0].flag} ${players[0].name} (${(players[0].points || 0).toLocaleString()} pts)` : cp.worldNo1;
+      }
+    });
+    universeStorage.setItem('meta_checkpoints_det_v3', 'true');
+    changed = true;
+  }
 
   if (changed) {
     // Сортируем чекпоинты от самых новых к старым, а стартовый чекпоинт 02.01 всегда фиксируем в конце списка
@@ -6501,6 +6590,22 @@ export function restoreSeasonCheckpoint(cpId) {
     currentTourDateStr: found.dateStr || snapshotToApply.currentTourDateStr || '2024-01-02',
     activeTourneyId: found.activeTourneyId || snapshotToApply.activeTourneyId || 'm_1'
   });
+
+  // Гарантируем 100% детерминированную синхронизацию очков сразу после отката к любому чекпоинту
+  // (чтобы перезагрузка страницы F5 и кнопка «Синхронизировать очки» никогда не меняли места игроков)
+  const currentUnivMeta = universesList.find(u => u.id === activeUniverseId);
+  const isCustomRandomUniverse = Boolean(currentUnivMeta?.rosterMode === 'random');
+  if (!isCustomRandomUniverse) {
+    repairCanonicalPlayersAndDraws();
+    backfill2023HistoryFromDraws(false);
+    repairOvercountedPoints();
+    found.players = JSON.parse(JSON.stringify(players));
+    if (players[0]) {
+      found.worldNo1 = `${players[0].flag} ${players[0].name} (${(players[0].points || 0).toLocaleString()} pts)`;
+    }
+    memoryCheckpointsByUniverse[activeUniverseId] = list;
+    universeStorage.setItem(CHECKPOINTS_STORAGE_KEY, JSON.stringify(list));
+  }
 
   // Если откатились к старту сезона, удаляем более поздние авто-чекпоинты этого сезона, которые были после этой даты
   if (found.id === `cp_start_${currentTourYear}`) {

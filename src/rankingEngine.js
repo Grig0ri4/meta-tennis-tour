@@ -71,6 +71,41 @@ function hashDeterministicSeed(str) {
   return Math.abs(h);
 }
 
+function getNumericPlayerId(id) {
+  const num = Number(String(id || '').replace(/\D+/g, ''));
+  return Number.isFinite(num) && num > 0 ? num : 999999;
+}
+
+function comparePlayersDeterministicTiebreak(a, b) {
+  if (Boolean(a?.isCleanReplacement) !== Boolean(b?.isCleanReplacement)) {
+    return a?.isCleanReplacement ? 1 : -1;
+  }
+  const baseA = Number(a?.start2023Points ?? a?.basePoints ?? PRESERVED_BASE_POINTS_BY_ID[a?.id] ?? 0);
+  const baseB = Number(b?.start2023Points ?? b?.basePoints ?? PRESERVED_BASE_POINTS_BY_ID[b?.id] ?? 0);
+  if (baseB !== baseA) return baseB - baseA;
+  const idDiff = getNumericPlayerId(a?.id) - getNumericPlayerId(b?.id);
+  if (idDiff !== 0) return idDiff;
+  return String(a?.id || '').localeCompare(String(b?.id || ''));
+}
+
+/**
+ * Строит неизменяемый детерминированный порядок силы игроков (1..300),
+ * который НЕ зависит от текущего мутабельного p.rank или порядка элементов в массиве players.
+ */
+export function buildDeterministicStrengthOrderMap(players) {
+  const { startRankMap } = buildCanonical2023StartMap(players || []);
+  const sorted = [...(players || [])].sort((a, b) => {
+    if (Boolean(a?.isCleanReplacement) !== Boolean(b?.isCleanReplacement)) {
+      return a?.isCleanReplacement ? 1 : -1;
+    }
+    const rA = startRankMap[a?.id] ?? 999;
+    const rB = startRankMap[b?.id] ?? 999;
+    if (rA !== rB) return rA - rB;
+    return comparePlayersDeterministicTiebreak(a, b);
+  });
+  return new Map(sorted.map((p, idx) => [p.id, idx + 1]));
+}
+
 export function getCanonicalHistoricalPeakRank(playerName, fallbackRank = 300) {
   const key = String(playerName || '').trim().toLowerCase();
   if (HISTORICAL_PEAK_RANK_BY_NAME[key] !== undefined) {
@@ -108,24 +143,37 @@ export function buildCanonical2023StartMap(players) {
       .filter(p => !usedIds.has(p.id))
       .map(p => ({
         player: p,
-        legitBasePts: p.start2023Points || PRESERVED_BASE_POINTS_BY_ID[p.id] || p.basePoints || p.points || 250
+        legitBasePts: p.isCleanReplacement
+          ? 0
+          : (PRESERVED_BASE_POINTS_BY_ID[p.id] ?? p.start2023Points ?? p.basePoints ?? 250)
       }))
-      .sort((a, b) => b.legitBasePts - a.legitBasePts);
+      .sort((a, b) => {
+        if (Boolean(a.player.isCleanReplacement) !== Boolean(b.player.isCleanReplacement)) {
+          return a.player.isCleanReplacement ? 1 : -1;
+        }
+        if (b.legitBasePts !== a.legitBasePts) return b.legitBasePts - a.legitBasePts;
+        return getNumericPlayerId(a.player.id) - getNumericPlayerId(b.player.id);
+      });
 
     let rankCursor = 11;
     remaining.forEach(({ player, legitBasePts }) => {
       const r = rankCursor++;
-      const cappedPts = Math.min(2810, Math.max(15, legitBasePts));
+      const cappedPts = player.isCleanReplacement ? 0 : Math.min(2810, Math.max(15, legitBasePts));
       startPointsMap[player.id] = cappedPts;
-      startRankMap[player.id] = r;
-      peakRankMap[player.id] = r;
+      startRankMap[player.id] = player.isCleanReplacement ? 300 : r;
+      peakRankMap[player.id] = player.isCleanReplacement ? 300 : r;
     });
   } else {
     // Произвольная процедурная вселенная
-    const sorted = [...players].sort((a, b) => (b.basePoints || b.points || 0) - (a.basePoints || a.points || 0));
+    const sorted = [...players].sort((a, b) => {
+      const ptsA = a.basePoints ?? a.start2023Points ?? 250;
+      const ptsB = b.basePoints ?? b.start2023Points ?? 250;
+      if (ptsB !== ptsA) return ptsB - ptsA;
+      return getNumericPlayerId(a.id) - getNumericPlayerId(b.id);
+    });
     sorted.forEach((p, idx) => {
       const r = idx + 1;
-      const pts = p.basePoints || p.start2023Points || p.points || 250;
+      const pts = p.basePoints ?? p.start2023Points ?? 250;
       startPointsMap[p.id] = pts;
       startRankMap[p.id] = r;
       peakRankMap[p.id] = p.historicalBestRank || r;
@@ -216,7 +264,9 @@ export function sortAndRankPlayers(players, updateRankChange = false) {
 
   players.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
-    return (b.racePoints || 0) - (a.racePoints || 0);
+    const raceDiff = (b.racePoints || 0) - (a.racePoints || 0);
+    if (raceDiff !== 0) return raceDiff;
+    return comparePlayersDeterministicTiebreak(a, b);
   });
 
   players.forEach((p, idx) => {
@@ -394,21 +444,24 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
     ? mainDrawParticipantIds
     : new Set(Array.isArray(mainDrawParticipantIds) ? mainDrawParticipantIds : []);
 
-  const strengthOrderMap = options.strengthOrderMap instanceof Map ? options.strengthOrderMap : null;
+  const strengthOrderMap = options.strengthOrderMap instanceof Map
+    ? options.strengthOrderMap
+    : buildDeterministicStrengthOrderMap(players);
   const excludedNamesLower = options.excludedNamesLower instanceof Set ? options.excludedNamesLower : new Set();
 
   const eligible = (players || [])
     .filter(p => {
-      if (!p || !p.id || inMainSet.has(p.id)) return false;
+      if (!p || !p.id || p.isCleanReplacement || inMainSet.has(p.id)) return false;
       const nameL = String(p.name || '').toLowerCase();
       if (excludedNamesLower.has(nameL)) return false;
-      const orderRank = strengthOrderMap ? (strengthOrderMap.get(p.id) || 999) : (Number(p.rank) || 999);
+      const orderRank = strengthOrderMap.get(p.id) || 999;
       return orderRank > 15;
     })
     .sort((a, b) => {
-      const ra = strengthOrderMap ? (strengthOrderMap.get(a.id) || 999) : (Number(a.rank) || 999);
-      const rb = strengthOrderMap ? (strengthOrderMap.get(b.id) || 999) : (Number(b.rank) || 999);
-      return ra - rb;
+      const ra = strengthOrderMap.get(a.id) || 999;
+      const rb = strengthOrderMap.get(b.id) || 999;
+      if (ra !== rb) return ra - rb;
+      return getNumericPlayerId(a.id) - getNumericPlayerId(b.id);
     });
 
   const { atp250, ch175, ch125, ch100, ch75 } = PARALLEL_TOUR_SCALES;
@@ -444,7 +497,7 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
  * 3) У КАЖДОГО из 300 игроков сумма очков за 26 турниров 2023 года СТРОГО равнялась его стартовым очкам на 02.01.2024
  *    (0 виртуальных очков, 0 отрицательного долга защиты!).
  */
-export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, getDraw2023 = null, finalsSpecMap = {}) {
+export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, getDraw2023 = null, finalsSpecMap = {}, options = {}) {
   if (!players || players.length === 0 || !tourneys2023 || tourneys2023.length === 0) return;
 
   // Очищаем старые записи 2023 года
@@ -473,8 +526,11 @@ export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, 
     }
   });
 
-  const initialIdx = new Map(players.map((p, i) => [p.id, Number(String(p.id).replace(/\D+/g, '')) || (i + 1)]));
+  const initialIdx = new Map(players.map((p, i) => [p.id, getNumericPlayerId(p.id) || (i + 1)]));
   const strengthSorted = [...players].sort((a, b) => {
+    if (Boolean(a.isCleanReplacement) !== Boolean(b.isCleanReplacement)) {
+      return a.isCleanReplacement ? 1 : -1;
+    }
     const diff = (real14Map[b.id] || 0) - (real14Map[a.id] || 0);
     if (diff !== 0) return diff;
     return (initialIdx.get(a.id) || 999) - (initialIdx.get(b.id) || 999);
@@ -521,11 +577,12 @@ export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, 
       if (wP) pool32.push(wP);
       if (ruP && (!wP || ruP.id !== wP.id)) pool32.push(ruP);
       const rest = players
-        .filter(p => (!wP || p.id !== wP.id) && (!ruP || p.id !== ruP.id))
+        .filter(p => !p.isCleanReplacement && (!wP || p.id !== wP.id) && (!ruP || p.id !== ruP.id))
         .sort((a, b) => {
           const ha = (strengthOrderMap.get(a.id) || 999) + (hashDeterministicSeed(`500entry_${t.id}_${a.id}`) % 35);
           const hb = (strengthOrderMap.get(b.id) || 999) + (hashDeterministicSeed(`500entry_${t.id}_${b.id}`) % 35);
-          return ha - hb;
+          if (ha !== hb) return ha - hb;
+          return (strengthOrderMap.get(a.id) || 999) - (strengthOrderMap.get(b.id) || 999);
         });
       while (pool32.length < 32 && rest.length > 0) {
         pool32.push(rest.shift());
@@ -566,8 +623,18 @@ export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, 
 
   const t500Ids = tourneys2023.filter(t => t.type === 'ATP 500').map(t => t.id);
   const allRegIds = tourneys2023.filter(t => t.id !== 'finals').map(t => t.id);
+  const resetLivePoints = options.resetLivePoints !== false;
 
   players.forEach(p => {
+    if (p.isCleanReplacement) {
+      p.start2023Points = 0;
+      p.basePoints = 0;
+      if (resetLivePoints) {
+        p.points = 0;
+        p.remainingDefending = 0;
+      }
+      return;
+    }
     const target =
       fixedTargetsByName.get(String(p.name || '').toLowerCase()) ??
       PRESERVED_BASE_POINTS_BY_ID[p.id] ??
@@ -614,8 +681,10 @@ export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, 
     // Истинные стартовые очки на 02.01.2024 СТРОГО равны сумме всех турниров 2023 года (0 виртуальных очков!)
     p.start2023Points = finalSum2023;
     p.basePoints = finalSum2023;
-    p.points = finalSum2023;
-    p.remainingDefending = finalSum2023;
+    if (resetLivePoints) {
+      p.points = finalSum2023;
+      p.remainingDefending = finalSum2023;
+    }
   });
 }
 

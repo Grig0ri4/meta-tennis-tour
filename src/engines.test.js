@@ -1323,3 +1323,29 @@ test('Графические флаги стран и нормализация �
   assert.ok(unknownBadge.includes('country-flag-unknown'), 'Для ? рендерится бейдж неизвестной страны');
 });
 
+test('Идемпотентность и детерминизм синхронизации очков (computeWeeklyParallelTourPoints и sortAndRankPlayers не меняют места игроков)', async () => {
+  const { computeWeeklyParallelTourPoints } = await import('./rankingEngine.js');
+  const playersA = buildInitial300Players();
+  applyCanonical2023StartStateToPlayers(playersA);
+
+  const tourney = FULL_CALENDAR_TEMPLATE.find(t => t.id === '500_7');
+  const inMainSet = new Set(playersA.slice(0, 32).map(p => p.id));
+
+  const res1 = computeWeeklyParallelTourPoints(tourney, playersA, inMainSet, 2024, { tourneyIndex: 15 });
+
+  // Перемешиваем массив игроков в обратном порядке и меняем им мутабельные p.rank и p.points
+  const playersB = [...playersA].reverse().map((p, idx) => ({
+    ...p,
+    rank: 300 - idx,
+    points: (idx + 1) * 17
+  }));
+  const res2 = computeWeeklyParallelTourPoints(tourney, playersB, inMainSet, 2024, { tourneyIndex: 15 });
+
+  assert.deepEqual(
+    res1.parallelEarnedMap,
+    res2.parallelEarnedMap,
+    'Очки параллельного тура не должны зависеть от текущего p.rank или порядка массива players'
+  );
+});
+
+
