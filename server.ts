@@ -68,9 +68,18 @@ async function startServer() {
   app.post("/api/canon-snapshot", (req, res) => {
     try {
       const body = req.body;
-      if (body && Array.isArray(body.players) && body.players.length > 0) {
-        const canonPath = path.join(__dirname, "public", "canon.json");
-        fs.writeFileSync(canonPath, JSON.stringify(body), "utf8");
+      if (body && Array.isArray(body.players) && body.players.length === 300) {
+        // Защита от повреждения или перезаписи канона устаревшим кэшем браузера:
+        // На 27.07.2024 #2 — строго Ussistian Shifter, Топ-10 >= 2500 очков, а у #300 не 0 очков
+        const isStaleCorruptedPayload =
+          body.players[1]?.name !== "Ussistian Shifter" ||
+          (body.players[9]?.points || 0) < 2500 ||
+          (body.players[299]?.points || 0) === 0;
+
+        if (!isStaleCorruptedPayload) {
+          const canonPath = path.join(__dirname, "public", "canon.json");
+          fs.writeFileSync(canonPath, JSON.stringify(body), "utf8");
+        }
       }
       res.json({ ok: true });
     } catch (e) {

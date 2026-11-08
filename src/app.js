@@ -946,7 +946,7 @@ function repairCanonicalPlayersAndDraws() {
         delete customOverrides[`id:${pair.replaceId}`];
         overridesModified = true;
       }
-      if (pRepIdx >= 0 && (repIsStillOldDup || !pRep.isCleanReplacement)) {
+      if (pRepIdx >= 0 && repIsStillOldDup) {
         const existingCleanOv = customOverrides[`id:${pair.replaceId}`];
         const cleanObj = createCleanReplacementPlayerObj(pair.replaceId, pair.cleanPlayer, 296);
         if (existingCleanOv && String(existingCleanOv.name || '').trim().toLowerCase() !== pair.oldDupName) {
@@ -955,6 +955,8 @@ function repairCanonicalPlayersAndDraws() {
           if (existingCleanOv.birthDate) cleanObj.birthDate = existingCleanOv.birthDate;
         }
         players[pRepIdx] = cleanObj;
+      } else if (pRepIdx >= 0 && pRep) {
+        pRep.isCleanReplacement = true;
       }
     });
   }
@@ -1370,12 +1372,14 @@ function repairOvercountedPoints() {
 
   const seasonTourneys = getSeasonTournaments(currentTourYear, tournaments);
   seasonTourneys.forEach((t, idx) => {
-    players.forEach(p => {
-      if (p.tournamentPoints && p.tournamentPoints[t.id]) {
-        delete p.tournamentPoints[t.id][currentTourYear];
-      }
-    });
-    if (!t.completed) return;
+    if (!t.completed) {
+      players.forEach(p => {
+        if (p.tournamentPoints && p.tournamentPoints[t.id]) {
+          delete p.tournamentPoints[t.id][currentTourYear];
+        }
+      });
+      return;
+    }
 
     const isFinals = t.id === 'finals' || t.type === 'Итоговый';
     const isOlympics = t.id === 'olympics' || t.type === 'Олимпиада';
@@ -1387,37 +1391,67 @@ function repairOvercountedPoints() {
         const { earnedMap, participantsList } = calculateTournamentEarnedPoints(t, drawCurr);
         const inMainSet = new Set((participantsList || []).filter(p => p && p.id).map(p => p.id));
 
-        Object.entries(earnedMap).forEach(([pid, pts]) => {
-          recordPoints(pid, t.id, currentTourYear, pts);
-          const pObj = players.find(x => String(x.id) === String(pid));
-          if (pObj) {
-            if (isFinals) {
-              exactFinalsEarned[pObj.id] = (exactFinalsEarned[pObj.id] || 0) + pts;
-            } else {
-              exactRaceEarned[pObj.id] = (exactRaceEarned[pObj.id] || 0) + pts;
-            }
-          }
-        });
+        // Если для этого завершенного турнира уже сохранены очки параллельного тура — НЕ перезатираем их, чтобы позиции игроков никогда не смещались!
+        const hasSavedParallel = !isFinals && !isOlympics && players.filter(
+          p => p && !inMainSet.has(p.id) && (p.tournamentPoints?.[t.id]?.[currentTourYear] || 0) > 0
+        ).length >= 20;
 
-        // Параллельные еженедельные турниры ATP 250 / Челленджеры (первая 4-ка мира пропускает, сеяные 1-4 в ATP 250 получают BYE в 1-м круге)
-        if (!isFinals && !isOlympics) {
-          const { parallelEarnedMap } = computeWeeklyParallelTourPoints(
-            t,
-            players,
-            inMainSet,
-            currentTourYear,
-            { tourneyIndex: idx, mainEarnedMap: earnedMap }
-          );
-          Object.entries(parallelEarnedMap).forEach(([pid, pts]) => {
+        if (hasSavedParallel) {
+          players.forEach(pObj => {
+            if (!pObj || !pObj.id) return;
+            let pts = 0;
+            if (inMainSet.has(pObj.id)) {
+              pts = earnedMap[pObj.id] || 0;
+              recordPoints(pObj.id, t.id, currentTourYear, pts);
+            } else {
+              pts = pObj.tournamentPoints?.[t.id]?.[currentTourYear] || 0;
+            }
             if (pts > 0) {
-              const pObj = players.find(x => String(x.id) === String(pid));
-              const prevMainPts = pObj?.tournamentPoints?.[t.id]?.[currentTourYear] || 0;
-              recordPoints(pid, t.id, currentTourYear, prevMainPts + pts);
-              if (pObj) {
+              if (isFinals) {
+                exactFinalsEarned[pObj.id] = (exactFinalsEarned[pObj.id] || 0) + pts;
+              } else {
                 exactRaceEarned[pObj.id] = (exactRaceEarned[pObj.id] || 0) + pts;
               }
             }
           });
+        } else {
+          players.forEach(p => {
+            if (p.tournamentPoints && p.tournamentPoints[t.id]) {
+              delete p.tournamentPoints[t.id][currentTourYear];
+            }
+          });
+
+          Object.entries(earnedMap).forEach(([pid, pts]) => {
+            recordPoints(pid, t.id, currentTourYear, pts);
+            const pObj = players.find(x => String(x.id) === String(pid));
+            if (pObj) {
+              if (isFinals) {
+                exactFinalsEarned[pObj.id] = (exactFinalsEarned[pObj.id] || 0) + pts;
+              } else {
+                exactRaceEarned[pObj.id] = (exactRaceEarned[pObj.id] || 0) + pts;
+              }
+            }
+          });
+
+          if (!isFinals && !isOlympics) {
+            const { parallelEarnedMap } = computeWeeklyParallelTourPoints(
+              t,
+              players,
+              inMainSet,
+              currentTourYear,
+              { tourneyIndex: idx, mainEarnedMap: earnedMap }
+            );
+            Object.entries(parallelEarnedMap).forEach(([pid, pts]) => {
+              if (pts > 0) {
+                const pObj = players.find(x => String(x.id) === String(pid));
+                const prevMainPts = pObj?.tournamentPoints?.[t.id]?.[currentTourYear] || 0;
+                recordPoints(pid, t.id, currentTourYear, prevMainPts + pts);
+                if (pObj) {
+                  exactRaceEarned[pObj.id] = (exactRaceEarned[pObj.id] || 0) + pts;
+                }
+              }
+            });
+          }
         }
       }
     }
@@ -6610,7 +6644,7 @@ function ensureInitialSeasonCheckpoint() {
   const startId = `cp_start_${currentTourYear}`;
   const expectedStartDate = `${currentTourYear}-01-02`;
   const existingIdx = list.findIndex(c => c.id === startId);
-  const needsDetMigration = !universeStorage.getItem('meta_checkpoints_det_v3');
+  const needsDetMigration = !universeStorage.getItem('meta_checkpoints_det_v6');
   let changed = false;
 
   // 1) Если стартового чекпоинта еще нет ИЛИ он был мутирован с неправильной датой (не 02.01) — создаем эталонный слепок 02.01!
@@ -6660,7 +6694,7 @@ function ensureInitialSeasonCheckpoint() {
         cp.worldNo1 = players[0] ? `${players[0].flag} ${players[0].name} (${(players[0].points || 0).toLocaleString()} pts)` : cp.worldNo1;
       }
     });
-    universeStorage.setItem('meta_checkpoints_det_v3', 'true');
+    universeStorage.setItem('meta_checkpoints_det_v6', 'true');
     changed = true;
   }
 
@@ -7130,9 +7164,30 @@ if (typeof window !== 'undefined') {
     }
   };
 
+  const restoreAuthorCanonPositionsOnce = async () => {
+    try {
+      if (typeof window === 'undefined' || !window.location || typeof localStorage === 'undefined') return;
+      const host = String(window.location.hostname || '').toLowerCase();
+      if (host !== 'localhost' && host !== '127.0.0.1') return;
+      if (localStorage.getItem('universe_1_meta_canon_0047fd5_restored_v7') === 'true') return;
+      const res = await fetch(CANON_SNAPSHOT_URL, { cache: 'no-cache' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && Array.isArray(data.players) && data.players.length === 300) {
+        localStorage.setItem('universe_1_meta_players_v8', JSON.stringify(data.players));
+        localStorage.removeItem('universe_1_meta_checkpoints_det_v6');
+        localStorage.removeItem('meta_checkpoints_det_v6');
+        localStorage.setItem('universe_1_meta_canon_0047fd5_restored_v7', 'true');
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const bootstrapApp = async () => {
     pruneLegacyDuplicateStorageKeys(false);
     await fetchOverridesFromLocalServer();
+    await restoreAuthorCanonPositionsOnce();
     await loadPublishedCanonSnapshot();
     initData();
     initUI();

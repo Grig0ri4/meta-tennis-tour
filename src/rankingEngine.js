@@ -807,6 +807,16 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
 export function populateAndCalibrate2023TournamentPoints(players, tourneys2023, getDraw2023 = null, finalsSpecMap = {}, options = {}) {
   if (!players || players.length === 0 || !tourneys2023 || tourneys2023.length === 0) return;
 
+  // Если у игроков уже заполнены и откалиброваны очки турниров 2023 года — НЕ перезатираем их, чтобы не смещать позиции игроков!
+  if (!options.forceRecalibrate) {
+    const populatedCount = players.filter(p =>
+      p && p.tournamentPoints && tourneys2023.some(t => (p.tournamentPoints[t.id]?.[2023] || 0) > 0)
+    ).length;
+    if (populatedCount >= 290) {
+      return;
+    }
+  }
+
   // Очищаем старые записи 2023 года
   players.forEach(p => {
     if (!p.tournamentPoints) p.tournamentPoints = {};
