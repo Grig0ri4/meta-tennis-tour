@@ -681,6 +681,109 @@ function propagatePlayerIdentityUpdate(updatedPlayer, oldNameLower = '') {
   if (historyChanged) saveHistory();
 }
 
+const DUPLICATE_CLEAN_REPLACEMENTS = [
+  {
+    oldDupName: 'mihaeras pia-tako',
+    keepId: 'p_93',
+    replaceId: 'p_50',
+    cleanPlayer: {
+      id: 'p_50',
+      name: 'Mateo Valiente',
+      flag: 'ESP',
+      birthDate: '2003-04-18',
+      nickname: 'Матадор корта',
+      playStyle: 'Агрессивный бейслайнер с тяжелым топ-спином'
+    }
+  },
+  {
+    oldDupName: 'pleko yunt',
+    keepId: 'p_91',
+    replaceId: 'p_61',
+    cleanPlayer: {
+      id: 'p_61',
+      name: 'Lukas Vondracek',
+      flag: 'CZE',
+      birthDate: '2002-09-11',
+      nickname: 'Пражский метроном',
+      playStyle: 'Универсал с плоским бэкхендом по линии'
+    }
+  },
+  {
+    oldDupName: 'teddy fedesenen',
+    keepId: 'p_94',
+    replaceId: 'p_76',
+    cleanPlayer: {
+      id: 'p_76',
+      name: 'Thiago Monteiro-Silva',
+      flag: 'POR',
+      birthDate: '2003-07-22',
+      nickname: 'Лиссабонский вихрь',
+      playStyle: 'Цепкий грунтовый контрпанчер'
+    }
+  },
+  {
+    oldDupName: 'zonda zewy',
+    keepId: 'p_106',
+    replaceId: 'p_79',
+    cleanPlayer: {
+      id: 'p_79',
+      name: 'Filip Kovacevic',
+      flag: 'CRO',
+      birthDate: '2002-11-05',
+      nickname: 'Балканский гром',
+      playStyle: 'Мощная первая подача и выход к сетке'
+    }
+  },
+  {
+    oldDupName: 'nikola tortalo',
+    keepId: 'p_95',
+    replaceId: 'p_83',
+    cleanPlayer: {
+      id: 'p_83',
+      name: 'Kamil Kowalski',
+      flag: 'POL',
+      birthDate: '2003-02-14',
+      nickname: 'Железная стена',
+      playStyle: 'Скоростная оборона и острый прием'
+    }
+  }
+];
+
+const EXTRA_CLEAN_PLAYERS_POOL = [
+  { name: 'Alejandro Morales-Ruiz', flag: 'ESP', birthDate: '2003-05-19', nickname: 'Испанский вихрь', playStyle: 'Грунтовый универсал с крученым форхендом' },
+  { name: 'Tomasz Zielinski', flag: 'POL', birthDate: '2002-08-24', nickname: 'Варшавский молот', playStyle: 'Мощная подача и атака в два удара' },
+  { name: 'Matteo Ricci-Curbastro', flag: 'ITA', birthDate: '2003-11-12', nickname: 'Маэстро дроп-шотов', playStyle: 'Тактический теннис с рваным ритмом' },
+  { name: 'Nicolas Echeverria', flag: 'ARG', birthDate: '2002-03-07', nickname: 'Гладиатор Буэнос-Айреса', playStyle: 'Бетонная оборона на задней линии' },
+  { name: 'Jakub mensik-pro', flag: 'CZE', birthDate: '2004-01-30', nickname: 'Чешский экспресс', playStyle: 'Плоские удары на восходящем мяче' }
+];
+
+function createCleanReplacementPlayerObj(id, spec, rankFallback = 300) {
+  return {
+    id: String(id),
+    rank: rankFallback,
+    name: spec.name,
+    flag: spec.flag || 'ESP',
+    points: 0,
+    basePoints: 0,
+    start2023Points: 0,
+    remainingDefending: 0,
+    defendedSoFar: 0,
+    finalsPoints: 0,
+    racePoints: 0,
+    birthDate: spec.birthDate || '2003-04-18',
+    nickname: spec.nickname || '',
+    playStyle: spec.playStyle || '',
+    isCleanReplacement: true,
+    tournamentPoints: {},
+    rankChange: 0,
+    bestRank: rankFallback,
+    historicalBestRank: rankFallback,
+    seasonStartRank: rankFallback,
+    seasonsPlayed: 1,
+    medals: { gold: 0, silver: 0, bronze: 0 }
+  };
+}
+
 function repairCanonicalPlayersAndDraws() {
   const canonicalRoster = buildInitial300Players();
   const canonByName = new Map();
@@ -693,36 +796,106 @@ function repairCanonicalPlayersAndDraws() {
   const customOverrides = loadCustomPlayerOverrides();
   let overridesModified = false;
 
-  // 1) Восстанавливаем строгое каноническое соответствие, СОХРАНЯЯ все отредактированные пользователем страны (flag), имена и даты рождения
+  // 0) Дедупликация 5 исторических дублей (p_50/p_93, p_61/p_91, p_76/p_94, p_79/p_106, p_83/p_95):
+  // Первый по рейтингу сохраняет свои очки и выставленный пользователем флаг (из любой из двух копий),
+  // а второй по рейтингу заменяется на нового чистого игрока (0 очков, без удаления пользовательских флагов!).
+  const cleanReplacementIds = new Set(DUPLICATE_CLEAN_REPLACEMENTS.map(d => d.replaceId));
+  if (Array.isArray(players) && players.length > 0) {
+    DUPLICATE_CLEAN_REPLACEMENTS.forEach(pair => {
+      const pKeepIdx = players.findIndex(x => x && String(x.id) === pair.keepId);
+      const pRepIdx = players.findIndex(x => x && String(x.id) === pair.replaceId);
+      const pKeep = pKeepIdx >= 0 ? players[pKeepIdx] : null;
+      const pRep = pRepIdx >= 0 ? players[pRepIdx] : null;
+
+      // Ищем флаг, который пользователь мог поставить либо первому, либо второму дублю
+      const ovByName = customOverrides[`name:${pair.oldDupName}`];
+      const ovKeep = customOverrides[`id:${pair.keepId}`];
+      const ovRep = customOverrides[`id:${pair.replaceId}`];
+      const repIsStillOldDup = pRep && String(pRep.name || '').trim().toLowerCase() === pair.oldDupName;
+      const ovRepIsOldDup = ovRep && String(ovRep.name || '').trim().toLowerCase() === pair.oldDupName;
+
+      const candidateFlags = [
+        ovKeep?.flag,
+        ovByName?.flag,
+        ovRepIsOldDup ? ovRep?.flag : null,
+        pKeep?.flag,
+        repIsStillOldDup ? pRep?.flag : null
+      ];
+      const bestUserFlag = candidateFlags.find(f => f && f !== '?') || pKeep?.flag || '?';
+
+      // Выбираем лучшие (первый по рейтингу) очки и статистику из пары дублей для основного игрока (keepId)
+      if (pKeep && pRep && repIsStillOldDup) {
+        const keepScore = (pKeep.points || 0) * 1000 + (pKeep.racePoints || 0);
+        const repScore = (pRep.points || 0) * 1000 + (pRep.racePoints || 0);
+        if (repScore > keepScore) {
+          pKeep.points = pRep.points;
+          pKeep.racePoints = pRep.racePoints;
+          pKeep.basePoints = pRep.basePoints || pKeep.basePoints;
+          pKeep.start2023Points = pRep.start2023Points || pKeep.start2023Points;
+          pKeep.remainingDefending = pRep.remainingDefending ?? pKeep.remainingDefending;
+          pKeep.defendedSoFar = pRep.defendedSoFar ?? pKeep.defendedSoFar;
+          if (pRep.tournamentPoints && Object.keys(pRep.tournamentPoints).length > 0) {
+            pKeep.tournamentPoints = JSON.parse(JSON.stringify(pRep.tournamentPoints));
+          }
+          pKeep.bestRank = Math.min(pKeep.bestRank || 300, pRep.bestRank || 300);
+        }
+      }
+
+      if (pKeep && bestUserFlag && bestUserFlag !== '?') {
+        pKeep.flag = bestUserFlag;
+        const entry = {
+          name: pKeep.name,
+          flag: bestUserFlag,
+          birthDate: pKeep.birthDate,
+          nickname: pKeep.nickname || '',
+          playStyle: pKeep.playStyle || ''
+        };
+        customOverrides[`id:${pair.keepId}`] = entry;
+        customOverrides[`name:${pair.oldDupName}`] = entry;
+        overridesModified = true;
+      }
+
+      // Если слот второго дубля (replaceId) еще носит старое дублирующееся имя — заменяем его на нового чистого игрока
+      if (ovRepIsOldDup) {
+        delete customOverrides[`id:${pair.replaceId}`];
+        overridesModified = true;
+      }
+      if (pRepIdx >= 0 && (repIsStillOldDup || !pRep.isCleanReplacement)) {
+        const existingCleanOv = customOverrides[`id:${pair.replaceId}`];
+        const cleanObj = createCleanReplacementPlayerObj(pair.replaceId, pair.cleanPlayer, 296);
+        if (existingCleanOv && String(existingCleanOv.name || '').trim().toLowerCase() !== pair.oldDupName) {
+          if (existingCleanOv.flag && existingCleanOv.flag !== '?') cleanObj.flag = existingCleanOv.flag;
+          if (existingCleanOv.name) cleanObj.name = existingCleanOv.name;
+          if (existingCleanOv.birthDate) cleanObj.birthDate = existingCleanOv.birthDate;
+        }
+        players[pRepIdx] = cleanObj;
+      }
+    });
+  }
+
+  // 1) Восстанавливаем строгое каноническое соответствие по ID, СОХРАНЯЯ все отредактированные пользователем страны (flag), имена и даты рождения
   const newgensAndCustom = (players || []).filter(p => p && (p.isNewgen || p.isProcedural));
+  const byIdMap = new Map();
   const byNameBest = new Map();
-  const unmappedById = new Map();
 
   (players || []).forEach(p => {
     if (!p || p.isNewgen || p.isProcedural) return;
+    if (p.id) {
+      byIdMap.set(String(p.id), p);
+    }
     const normName = String(p.name || '').trim().toLowerCase();
-    if (canonByName.has(normName)) {
-      const existing = byNameBest.get(normName);
-      if (!existing) {
-        byNameBest.set(normName, p);
-      } else {
-        const scoreExisting = (existing.racePoints || 0) * 10 + Object.keys(existing.tournamentPoints || {}).length * 100 + (existing.points || 0);
-        const scoreCand = (p.racePoints || 0) * 10 + Object.keys(p.tournamentPoints || {}).length * 100 + (p.points || 0);
-        if (scoreCand > scoreExisting) {
-          unmappedById.set(String(existing.id), existing);
-          byNameBest.set(normName, p);
-        } else {
-          unmappedById.set(String(p.id), p);
-        }
-      }
-    } else if (p.id) {
-      unmappedById.set(String(p.id), p);
+    const existing = byNameBest.get(normName);
+    if (!existing || (p.points || 0) > (existing.points || 0)) {
+      byNameBest.set(normName, p);
     }
   });
 
   const resolvePlayerFields = (source, canon) => {
-    const normName = String(canon.name || '').trim().toLowerCase();
+    const isCleanSlot = cleanReplacementIds.has(String(canon.id)) && source && source.isCleanReplacement;
+    const normName = String((source && source.name) || canon.name || '').trim().toLowerCase();
+    const canonNormName = String(canon.name || '').trim().toLowerCase();
     const ov = {
+      ...(customOverrides[`name:${canonNormName}`] || {}),
       ...(customOverrides[`name:${normName}`] || {}),
       ...(customOverrides[`id:${canon.id}`] || {})
     };
@@ -745,7 +918,7 @@ function repairCanonicalPlayersAndDraws() {
         playStyle: resolvedStyle
       };
       customOverrides[`id:${canon.id}`] = entry;
-      customOverrides[`name:${normName}`] = entry;
+      customOverrides[`name:${ String(resolvedName).trim().toLowerCase() }`] = entry;
       overridesModified = true;
     }
 
@@ -757,8 +930,9 @@ function repairCanonicalPlayersAndDraws() {
       birthDate: resolvedBirth,
       nickname: resolvedNick,
       playStyle: resolvedStyle,
-      basePoints: canon.basePoints,
-      start2023Points: canon.start2023Points
+      isCleanReplacement: Boolean(isCleanSlot),
+      basePoints: isCleanSlot ? (source.basePoints ?? 0) : canon.basePoints,
+      start2023Points: isCleanSlot ? (source.start2023Points ?? 0) : canon.start2023Points
     };
   };
 
@@ -768,7 +942,7 @@ function repairCanonicalPlayersAndDraws() {
   if (currentTourYear <= 2024 && newgensAndCustom.length === 0) {
     canonicalRoster.forEach(canon => {
       const normName = String(canon.name || '').trim().toLowerCase();
-      const source = byNameBest.get(normName) || unmappedById.get(String(canon.id)) || canon;
+      const source = byIdMap.get(String(canon.id)) || byNameBest.get(normName) || canon;
       repairedPlayers.push(resolvePlayerFields(source, canon));
       usedIds.add(String(canon.id));
     });
@@ -780,10 +954,9 @@ function repairCanonicalPlayersAndDraws() {
         usedIds.add(String(p.id));
         return;
       }
-      const normName = String(p.name || '').trim().toLowerCase();
-      const canon = canonByName.get(normName) || canonById.get(String(p.id));
+      const canon = canonById.get(String(p.id)) || canonByName.get(String(p.name || '').trim().toLowerCase());
       if (canon && !usedIds.has(String(canon.id))) {
-        const bestSource = byNameBest.get(String(canon.name).trim().toLowerCase()) || p;
+        const bestSource = byIdMap.get(String(canon.id)) || p;
         repairedPlayers.push(resolvePlayerFields(bestSource, canon));
         usedIds.add(String(canon.id));
       } else if (!usedIds.has(String(p.id))) {
@@ -791,6 +964,46 @@ function repairCanonicalPlayersAndDraws() {
         usedIds.add(String(p.id));
       }
     });
+  }
+
+  // Дополнительный общий проход: если в списке остались любые однофамильцы-тезки,
+  // оставляем первого по рейтингу (сохраняя его флаг), а второго по рейтингу заменяем на нового чистого игрока.
+  const byFullNameGroups = new Map();
+  repairedPlayers.forEach((p, idx) => {
+    const key = String(p.name || '').trim().toLowerCase();
+    if (!byFullNameGroups.has(key)) byFullNameGroups.set(key, []);
+    byFullNameGroups.get(key).push({ p, idx });
+  });
+  const allUsedNames = new Set(repairedPlayers.map(p => String(p.name || '').trim().toLowerCase()));
+  let extraPoolCursor = 0;
+  for (const [, group] of byFullNameGroups.entries()) {
+    if (group.length <= 1) continue;
+    group.sort((a, b) => {
+      const diff = (b.p.points || 0) - (a.p.points || 0);
+      if (diff !== 0) return diff;
+      return (b.p.racePoints || 0) - (a.p.racePoints || 0);
+    });
+    const primary = group[0].p;
+    const anyValidFlag = group.map(g => g.p.flag).find(f => f && f !== '?');
+    if ((!primary.flag || primary.flag === '?') && anyValidFlag) {
+      primary.flag = anyValidFlag;
+    }
+    for (let i = 1; i < group.length; i++) {
+      const dupTarget = group[i];
+      let spec = null;
+      while (extraPoolCursor < EXTRA_CLEAN_PLAYERS_POOL.length) {
+        const cand = EXTRA_CLEAN_PLAYERS_POOL[extraPoolCursor++];
+        if (!allUsedNames.has(cand.name.toLowerCase())) {
+          spec = cand;
+          break;
+        }
+      }
+      if (!spec) {
+        spec = { name: `Lucas Valiente`, flag: 'ESP', birthDate: '2003-06-15', nickname: '', playStyle: '' };
+      }
+      allUsedNames.add(spec.name.toLowerCase());
+      repairedPlayers[dupTarget.idx] = createCleanReplacementPlayerObj(dupTarget.p.id, spec, 300);
+    }
   }
 
   players = repairedPlayers;

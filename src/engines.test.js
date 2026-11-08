@@ -341,6 +341,14 @@ test('Раздел 2: База 300 игроков сохраняет первы�
   assert.equal(players[2].name, 'Max Kyupan');
   assert.equal(players[139].name, 'Lars Nielsen');
 
+  const allNames300 = new Set();
+  for (let i = 0; i < 300; i++) {
+    const p = players[i];
+    assert.equal(/\d/.test(p.name), false, `Имя ${p.name} не должно содержать цифр`);
+    assert.equal(allNames300.has(p.name.toLowerCase()), false, `Имя ${p.name} (${p.id}) должно быть уникальным среди всех 300 игроков`);
+    allNames300.add(p.name.toLowerCase());
+  }
+
   const names141to300 = new Set();
   for (let i = 140; i < 300; i++) {
     const p = players[i];
