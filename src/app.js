@@ -2348,6 +2348,10 @@ export function loadSelectedTournament() {
   if (btnOlympicTeams) {
     btnOlympicTeams.style.display = isOlympicsTourney ? 'inline-block' : 'none';
   }
+  const btnFinalsDefending = document.getElementById('btnFinalsDefending');
+  if (btnFinalsDefending) {
+    btnFinalsDefending.style.display = isFinalsTourney ? 'inline-block' : 'none';
+  }
   const btnOpenATP250AutoDraw = document.getElementById('btnOpenATP250AutoDraw');
   if (btnOpenATP250AutoDraw) {
     btnOpenATP250AutoDraw.style.display = (!isOlympicsTourney && !isFinalsTourney) ? 'inline-block' : 'none';
@@ -2372,6 +2376,16 @@ export function loadSelectedTournament() {
           <button type="button" class="btn-gold btn-compact" onclick="changeRound('teams')">🌍 Вкладка сборных (${olySummary.countries.length} стран)</button>
           <button type="button" class="btn-edit btn-compact" onclick="openOlympicTeamsModal()">📋 Открыть в окне</button>
         </div>
+      </div>
+    `;
+  } else if (noticeBox && isFinalsTourney) {
+    noticeBox.style.display = 'block';
+    noticeBox.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <div>
+          🛡️ <b>World Tour Finals 2024:</b> Завершилась чемпионская гонка сезона 2024! В турнире участвуют <b>Топ-8 Чемпионской гонки</b>. Все 8 участников 2023 года защищают свои очки (включая не прошедших квалификацию Puddy Mexalino [#10] и Fite Memsy Staprin [#30]).
+        </div>
+        <button type="button" class="btn-gold btn-compact" onclick="openFinalsDefendingModal()" style="font-weight: 600;">🛡️ Защита очков Итогового</button>
       </div>
     `;
   }
@@ -2770,6 +2784,136 @@ export function openOlympicTeamsModal() {
   const body = document.getElementById('olympicTeamsModalBody');
   if (!modal || !body) return;
   body.innerHTML = renderOlympicDelegationsContentHtml('modal');
+  modal.classList.add('open');
+}
+
+export function openFinalsDefendingModal() {
+  const modal = document.getElementById('finalsDefendingModal');
+  const body = document.getElementById('finalsDefendingModalBody');
+  if (!modal || !body) return;
+
+  const raceSorted = [...(players || [])].sort((a, b) => {
+    const diff = (b.racePoints || 0) - (a.racePoints || 0);
+    if (diff !== 0) return diff;
+    return (a.rank || 300) - (b.rank || 300);
+  });
+  const getRaceRank = (id) => raceSorted.findIndex(p => p.id === id) + 1;
+
+  const roster2023 = [
+    { id: 'p_3', name: 'Max Kyupan', flag: 'GEO', res2023: '🏆 Чемпион', defPts: 1100, is2023: true, note: 'Защищает титул чемпиона 2023 года (+1100 pts)' },
+    { id: 'p_2', name: 'Will Wentra', flag: 'NOR', res2023: '🥈 Финалист', defPts: 600, is2023: true, note: 'Защищает очки за финал 2023 года (+600 pts)' },
+    { id: 'p_6', name: 'Gary Riffay', flag: 'SLO', res2023: '🥉 1/2 финала', defPts: 200, is2023: true, note: 'Защищает очки за полуфинал 2023 года (+200 pts)' },
+    { id: 'p_4', name: 'Puddy Mexalino', flag: 'CHI', res2023: '🥉 1/2 финала', defPts: 200, is2023: true, note: 'Не отобрался в Топ-8 2024 года, 200 очков сгорают без защиты' },
+    { id: 'p_22', name: 'Ussistian Shifter', flag: 'USA', res2023: '1/4 финала', defPts: 100, is2023: true, note: 'Защищает очки за 1/4 финала 2023 года (+100 pts)' },
+    { id: 'p_1', name: 'Istep Fofol', flag: 'SVK', res2023: '1/4 финала', defPts: 100, is2023: true, note: 'Защищает очки за 1/4 финала 2023 года (+100 pts)' },
+    { id: 'p_9', name: 'Omar Netigios', flag: 'AUS', res2023: '1/4 финала', defPts: 100, is2023: true, note: 'Защищает очки за 1/4 финала 2023 года (+100 pts)' },
+    { id: 'p_8', name: 'Fite Memsy Staprin', flag: 'NZL', res2023: '1/4 финала', defPts: 100, is2023: true, note: 'Не отобрался в Топ-8 2024 года, 100 очков сгорают без защиты' },
+    { id: 'p_33', name: 'Freddy Johnson', flag: 'SWE', res2023: '— (Дебют 2024)', defPts: 0, is2023: false, note: 'Дебютант Итогового турнира (0 очков к защите, чистый плюс)' },
+    { id: 'p_20', name: 'Tiago Logik', flag: 'GBR', res2023: '— (Дебют 2024)', defPts: 0, is2023: false, note: 'Дебютант Итогового турнира (0 очков к защите, чистый плюс)' }
+  ];
+
+  const totalDefending2023 = roster2023.filter(r => r.is2023).reduce((sum, r) => sum + r.defPts, 0);
+
+  const rowsHtml = roster2023.map((item, idx) => {
+    const pl = (players || []).find(p => p.id === item.id);
+    const raceRank = getRaceRank(item.id);
+    const isQualified = raceRank <= 8;
+    const racePoints = pl ? (pl.racePoints || 0) : 0;
+    const livePoints = pl ? (pl.points || 0) : 0;
+    const liveRank = pl ? (pl.rank || '—') : '—';
+    const flagSvg = getCountryFlagSvg(item.flag, 20, 14);
+
+    let statusBadge = '';
+    if (isQualified && !item.is2023) {
+      statusBadge = `<span style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700;">🌟 ДЕБЮТАНТ (ТОП-8)</span>`;
+    } else if (isQualified) {
+      statusBadge = `<span style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700;">✅ ОТОБРАЛСЯ (ТОП-8)</span>`;
+    } else {
+      statusBadge = `<span style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700;">❌ НЕ ОТОБРАЛСЯ</span>`;
+    }
+
+    const rowBg = !isQualified
+      ? 'background: rgba(239, 68, 68, 0.05);'
+      : (item.defPts >= 600 ? 'background: rgba(245, 158, 11, 0.05);' : '');
+
+    return `
+      <tr style="${rowBg} border-bottom: 1px solid var(--border);">
+        <td style="padding: 10px 12px; font-weight: 600; text-align: center; color: var(--text-dim);">${idx + 1}</td>
+        <td style="padding: 10px 12px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            ${flagSvg}
+            <div>
+              <span style="font-weight: 700; color: var(--text-main); font-size: 13.5px;">${item.name}</span>
+              <span style="color: var(--text-dim); font-size: 11.5px; margin-left: 4px;">(${item.flag})</span>
+            </div>
+          </div>
+        </td>
+        <td style="padding: 10px 12px; font-size: 13px;">
+          <b>${item.res2023}</b>
+        </td>
+        <td style="padding: 10px 12px; text-align: center; font-size: 13.5px; font-weight: 700; color: ${item.defPts > 0 ? 'var(--gold)' : 'var(--text-dim)'};">
+          ${item.defPts > 0 ? `🛡️ ${item.defPts.toLocaleString()} pts` : '0 pts'}
+        </td>
+        <td style="padding: 10px 12px; text-align: center; font-size: 13px;">
+          <b style="color: ${raceRank <= 8 ? '#10b981' : 'var(--text-dim)'};">#${raceRank}</b>
+          <div style="font-size: 11.5px; color: var(--text-dim);">${racePoints.toLocaleString()} pts</div>
+        </td>
+        <td style="padding: 10px 12px; text-align: center; font-size: 13px;">
+          #${liveRank}
+          <div style="font-size: 11.5px; color: var(--text-dim);">${livePoints.toLocaleString()} pts</div>
+        </td>
+        <td style="padding: 10px 12px; text-align: center;">
+          ${statusBadge}
+        </td>
+        <td style="padding: 10px 12px; font-size: 12px; color: var(--text-dim);">
+          ${item.note}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  body.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 16px; border-radius: 8px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3);">
+        <div>
+          <div style="font-weight: 700; color: var(--gold); font-size: 14.5px; margin-bottom: 4px;">
+            🏆 Регламент защиты очков на World Tour Finals
+          </div>
+          <div style="font-size: 12.5px; color: var(--text-main); line-height: 1.5;">
+            На Итоговом турнире 2023 года участвовало <b>8 игроков</b> (суммарно <b>${totalDefending2023.toLocaleString()} очков</b> к защите).
+            В сезоне 2024 года в турнир квалифицировались строго <b>Топ-8 Чемпионской гонки (Race 2024)</b>.
+            Очки игроков, не прошедших квалификацию (<b>Puddy Mexalino</b> [#10 в гонке] и <b>Fite Memsy Staprin</b> [#30 в гонке]), сгорают ровно через 52 недели.
+            Дебютанты турнира 2024 года (<b>Freddy Johnson</b> и <b>Tiago Logik</b>) защитных очков не имеют и получают чистый прирост мирового рейтинга.
+          </div>
+        </div>
+      </div>
+
+      <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg);">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;">
+          <thead style="background: rgba(255, 255, 255, 0.03); border-bottom: 2px solid var(--border);">
+            <tr>
+              <th style="padding: 10px 12px; text-align: center; width: 40px;">#</th>
+              <th style="padding: 10px 12px;">Игрок</th>
+              <th style="padding: 10px 12px;">Результат 2023</th>
+              <th style="padding: 10px 12px; text-align: center;">Защита 2024</th>
+              <th style="padding: 10px 12px; text-align: center;">Гонка 2024 (Race)</th>
+              <th style="padding: 10px 12px; text-align: center;">Рейтинг 52 нед.</th>
+              <th style="padding: 10px 12px; text-align: center;">Статус 2024</th>
+              <th style="padding: 10px 12px;">Примечание</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="font-size: 12px; color: var(--text-dim); line-height: 1.45; padding: 0 4px;">
+        💡 <b>Справка начисления очков 2024:</b> Групповой этап (Round Robin) — <b>+200 pts</b> за каждую победу в матче. Выход в финал — <b>+400 pts</b>. Победа в финале — <b>+500 pts</b>. Чемпион без поражений (3 победы в группе + SF + F) набирает максимум <b>1 500 очков</b>.
+      </div>
+    </div>
+  `;
+
   modal.classList.add('open');
 }
 
@@ -7104,6 +7248,7 @@ if (typeof window !== 'undefined') {
   window.openWeeklyATP250BracketModal = openWeeklyATP250BracketModal;
   window.changeATP250ModalTourney = changeATP250ModalTourney;
   window.switchATP250ModalRound = switchATP250ModalRound;
+  window.openFinalsDefendingModal = openFinalsDefendingModal;
 
   const syncLiveCanonSnapshotToLocalServer = () => {
     try {
@@ -7171,7 +7316,32 @@ if (typeof window !== 'undefined') {
         // ignore
       }
 
-      // 1. Всегда гарантируем наличие сеток завершенных турниров 2024 года (Галле, Queen's, Дублин, ТБШ 3, Гамбург):
+      // 1. Всегда гарантируем наличие сеток всех завершенных турниров из canonData:
+      if (canonData && canonData.draws) {
+        Object.entries(canonData.draws).forEach(([drawKey, canonDraw]) => {
+          if (!canonDraw || !Array.isArray(canonDraw) || canonDraw.length === 0) return;
+          const rest = String(drawKey).startsWith('draw_') ? String(drawKey).slice(5) : String(drawKey);
+          const fullKey = `draw_1_${rest}`;
+          const existing =
+            localStorage.getItem(fullKey) ||
+            localStorage.getItem(`universe_1_${drawKey}`) ||
+            localStorage.getItem(drawKey);
+          let existingParsed = null;
+          try {
+            if (existing) existingParsed = JSON.parse(existing);
+          } catch {}
+          const userHasValidDraw = Array.isArray(existingParsed) && existingParsed.length > 0 && existingParsed.some(r => Array.isArray(r) && r.some(m => m && (m.winner || m.p1)));
+          if (!userHasValidDraw) {
+            const str = JSON.stringify(canonDraw);
+            localStorage.setItem(fullKey, str);
+            localStorage.setItem(`universe_1_${drawKey}`, str);
+            localStorage.setItem(drawKey, str);
+            memoryUniverseStore[fullKey] = str;
+            memoryUniverseStore[drawKey] = str;
+          }
+        });
+      }
+
       const pastTourneyKeys = [
         'draw_500_5_2024',
         'draw_500_6_2024',
