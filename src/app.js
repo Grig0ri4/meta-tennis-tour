@@ -1642,6 +1642,8 @@ function readSavedDraw(tourneyId, year) {
   if (!tourneyId || !year) return [];
   const drawKey = `draw_${tourneyId}_${year}`;
   const unifiedKey = `draw_${activeUniverseId}_${tourneyId}_${year}`;
+  const hasCompletedWinner = (d) => Array.isArray(d) && d.length > 0 && d.some(r => Array.isArray(r) && r.some(m => m && (m.winner || (Array.isArray(m.score) && m.score.length > 0))));
+
   try {
     let raw = universeStorage.getItem(drawKey);
     if (!raw && typeof localStorage !== 'undefined') {
@@ -1651,13 +1653,15 @@ function readSavedDraw(tourneyId, year) {
         (activeUniverseId === '1' ? localStorage.getItem(drawKey) : null);
     }
     if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0 && parsed.some(r => Array.isArray(r) && r.some(m => m && m.winner))) {
-        return parsed;
-      }
+      try {
+        const parsed = JSON.parse(raw);
+        if (hasCompletedWinner(parsed)) {
+          return parsed;
+        }
+      } catch {}
     }
-    // ЖЕЛЕЗНЫЙ ФОЛЛБЭК: Если для завершенного турнира 2024 года (Галле, Queen's, Дублин, ТБШ 3, Гамбург)
-    // в localStorage сетка отсутствует или пуста — мгновенно отдаем и восстанавливаем каноническую сетку!
+    // ЖЕЛЕЗНЫЙ ФОЛЛБЭК: Если для завершенного турнира 2024 года в localStorage сетка отсутствует
+    // или пуста — мгновенно отдаем и восстанавливаем каноническую сетку из RESTORED_2024_DRAWS!
     if ((activeUniverseId === '1' || activeUniverseId === 1) && Number(year) === 2024 && RESTORED_2024_DRAWS && RESTORED_2024_DRAWS[drawKey]) {
       const fallbackDraw = RESTORED_2024_DRAWS[drawKey];
       if (Array.isArray(fallbackDraw) && fallbackDraw.length > 0) {
@@ -1668,13 +1672,24 @@ function readSavedDraw(tourneyId, year) {
             localStorage.setItem(unifiedKey, str);
             localStorage.setItem(`draw_1_${tourneyId}_${year}`, str);
           }
+          memoryUniverseStore[drawKey] = str;
+          memoryUniverseStore[`draw_1_${tourneyId}_${year}`] = str;
         } catch {}
         return fallbackDraw;
       }
     }
+    const memKey = `draw_1_${tourneyId}_${year}`;
+    if (memoryUniverseStore[memKey]) {
+      try {
+        const parsed = JSON.parse(memoryUniverseStore[memKey]);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
     if (raw) {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {}
     }
     return [];
   } catch {
@@ -2952,7 +2967,12 @@ function computeATP250BracketForTourneyWeek(tourneyObj, year) {
     });
   }
 
-  return computeWeeklyParallelTourPoints(tourneyObj, players, inMainSet, year, { mainEarnedMap });
+  const allTourneys = getSeasonTournaments(year, tournaments);
+  const tIdx = allTourneys.findIndex(t => t.id === tourneyObj.id);
+  return computeWeeklyParallelTourPoints(tourneyObj, players, inMainSet, year, {
+    tourneyIndex: tIdx >= 0 ? tIdx : 0,
+    mainEarnedMap
+  });
 }
 
 export function renderATP250ModalContent() {
@@ -7258,6 +7278,9 @@ if (typeof window !== 'undefined') {
       const host = String(window.location.hostname || '').toLowerCase();
       if (host !== 'localhost' && host !== '127.0.0.1') return;
       if (activeUniverseId !== '1') return;
+      const completedCount = Array.isArray(tournaments) ? tournaments.filter(t => t && t.completed).length : 0;
+      if (completedCount < 26) return; // Защита: никогда не отправляем на сервер регрессировавшее состояние!
+
       const drawsBackup = {};
       const withdrawalsBackup = {};
       const bg250Backup = {};
@@ -7319,66 +7342,37 @@ if (typeof window !== 'undefined') {
         // ignore
       }
 
-      // 1. Всегда гарантируем наличие сеток всех завершенных турниров из canonData:
-      if (canonData && canonData.draws) {
-        Object.entries(canonData.draws).forEach(([drawKey, canonDraw]) => {
-          if (!canonDraw || !Array.isArray(canonDraw) || canonDraw.length === 0) return;
-          const rest = String(drawKey).startsWith('draw_') ? String(drawKey).slice(5) : String(drawKey);
-          const fullKey = `draw_1_${rest}`;
-          const existing =
-            localStorage.getItem(fullKey) ||
-            localStorage.getItem(`universe_1_${drawKey}`) ||
-            localStorage.getItem(drawKey);
-          let existingParsed = null;
-          try {
-            if (existing) existingParsed = JSON.parse(existing);
-          } catch {}
-          const userHasValidDraw = Array.isArray(existingParsed) && existingParsed.length > 0 && existingParsed.some(r => Array.isArray(r) && r.some(m => m && (m.winner || m.p1)));
-          if (!userHasValidDraw) {
-            const str = JSON.stringify(canonDraw);
-            localStorage.setItem(fullKey, str);
-            localStorage.setItem(`universe_1_${drawKey}`, str);
-            localStorage.setItem(drawKey, str);
-            memoryUniverseStore[fullKey] = str;
-            memoryUniverseStore[drawKey] = str;
-          }
-        });
-      }
+      const allDrawSources = {
+        ...(RESTORED_2024_DRAWS || {}),
+        ...(canonData?.draws || {})
+      };
 
-      const pastTourneyKeys = [
-        'draw_500_5_2024',
-        'draw_500_6_2024',
-        'draw_m_6_2024',
-        'draw_tbsh_3_2024',
-        'draw_500_7_2024'
-      ];
-      pastTourneyKeys.forEach(drawKey => {
-        const canonDraw = canonData?.draws?.[drawKey] || RESTORED_2024_DRAWS?.[drawKey];
-        if (canonDraw && Array.isArray(canonDraw) && canonDraw.length > 0) {
-          const rest = drawKey.slice(5); // e.g. '500_5_2024'
-          const fullKey = `draw_1_${rest}`;
-          const existing =
-            localStorage.getItem(fullKey) ||
-            localStorage.getItem(`universe_1_${drawKey}`) ||
-            localStorage.getItem(drawKey);
-          let existingParsed = null;
-          try {
-            if (existing) existingParsed = JSON.parse(existing);
-          } catch {}
-          const isDrawCompleted = Array.isArray(existingParsed) && existingParsed.length > 0 && existingParsed.some(r => Array.isArray(r) && r.some(m => m && m.winner));
-          if (!isDrawCompleted) {
-            const str = JSON.stringify(canonDraw);
-            localStorage.setItem(fullKey, str);
-            localStorage.setItem(`universe_1_${drawKey}`, str);
-            localStorage.setItem(drawKey, str);
-            memoryUniverseStore[fullKey] = str;
-            memoryUniverseStore[drawKey] = str;
-          }
+      // 1. Всегда гарантируем наличие сеток всех завершенных турниров:
+      Object.entries(allDrawSources).forEach(([drawKey, canonDraw]) => {
+        if (!canonDraw || !Array.isArray(canonDraw) || canonDraw.length === 0) return;
+        const rest = String(drawKey).startsWith('draw_') ? String(drawKey).slice(5) : String(drawKey);
+        const fullKey = `draw_1_${rest}`;
+        const existing =
+          localStorage.getItem(fullKey) ||
+          localStorage.getItem(`universe_1_${drawKey}`) ||
+          localStorage.getItem(drawKey);
+        let existingParsed = null;
+        try {
+          if (existing) existingParsed = JSON.parse(existing);
+        } catch {}
+        const isDrawCompleted = Array.isArray(existingParsed) && existingParsed.length > 0 && existingParsed.some(r => Array.isArray(r) && r.some(m => m && m.winner));
+        if (!isDrawCompleted) {
+          const str = JSON.stringify(canonDraw);
+          localStorage.setItem(fullKey, str);
+          localStorage.setItem(`universe_1_${drawKey}`, str);
+          localStorage.setItem(drawKey, str);
+          memoryUniverseStore[fullKey] = str;
+          memoryUniverseStore[`universe_1_${drawKey}`] = str;
+          memoryUniverseStore[drawKey] = str;
         }
       });
 
       // 2. Сетка Олимпиады (draw_olympics_2024):
-      // ЖЕЛЕЗНОЕ ПРАВИЛО: сохраняем текущие матчи и результаты пользователя любой ценой!
       const olympicKey = 'draw_1_olympics_2024';
       const existingOlympicRaw =
         localStorage.getItem(olympicKey) ||
@@ -7389,26 +7383,28 @@ if (typeof window !== 'undefined') {
         if (existingOlympicRaw) existingOlympicParsed = JSON.parse(existingOlympicRaw);
       } catch {}
 
-      // Если в браузере уже есть сетка Олимпиады (пользователь проводит турнир) — НИКОГДА её не затираем!
-      const userHasOlympicDraw = Array.isArray(existingOlympicParsed) && existingOlympicParsed.length > 0;
-      if (!userHasOlympicDraw && canonData?.draws?.draw_olympics_2024) {
-        const str = JSON.stringify(canonData.draws.draw_olympics_2024);
+      const userHasOlympicDraw = Array.isArray(existingOlympicParsed) && existingOlympicParsed.length > 0 && existingOlympicParsed.some(r => Array.isArray(r) && r.some(m => m && m.winner));
+      if (!userHasOlympicDraw && allDrawSources.draw_olympics_2024) {
+        const str = JSON.stringify(allDrawSources.draw_olympics_2024);
         localStorage.setItem(olympicKey, str);
         localStorage.setItem('universe_1_draw_olympics_2024', str);
         localStorage.setItem('draw_olympics_2024', str);
         memoryUniverseStore[olympicKey] = str;
+        memoryUniverseStore['universe_1_draw_olympics_2024'] = str;
         memoryUniverseStore['draw_olympics_2024'] = str;
       }
 
-      // 3. Синхронизируем турниры из canonData (гарантируем completed: true для всех завершенных турниров сезона):
+      // 3. Синхронизируем турниры из canonData (гарантируем completed: true для всех 26 завершенных турниров):
       if (Array.isArray(canonData?.tournaments) && canonData.tournaments.length >= 26) {
+        const completedCanonCount = canonData.tournaments.filter(t => t.completed).length;
         const existingTourneysRaw = localStorage.getItem('universe_1_meta_tournaments_v8');
         let existingTourneys = null;
         try {
           if (existingTourneysRaw) existingTourneys = JSON.parse(existingTourneysRaw);
         } catch {}
+        const existingCompletedCount = Array.isArray(existingTourneys) ? existingTourneys.filter(t => t.completed).length : 0;
 
-        if (!Array.isArray(existingTourneys) || existingTourneys.length < 26) {
+        if (existingCompletedCount < completedCanonCount || !Array.isArray(existingTourneys) || existingTourneys.length < 26) {
           const str = JSON.stringify(canonData.tournaments);
           localStorage.setItem('universe_1_meta_tournaments_v8', str);
           memoryUniverseStore['universe_1_meta_tournaments_v8'] = str;
@@ -7434,10 +7430,13 @@ if (typeof window !== 'undefined') {
         }
       }
 
-      // 4. Синхронизируем дату и активный турнир:
+      // 4. Синхронизируем дату и активный турнир (турнир #27 World Tour Finals на 15 Ноября 2024):
       if (canonData?.universe?.currentTourDateStr) {
-        localStorage.setItem('universe_1_meta_tour_date_v8', canonData.universe.currentTourDateStr);
-        memoryUniverseStore['universe_1_meta_tour_date_v8'] = canonData.universe.currentTourDateStr;
+        const curDate = localStorage.getItem('universe_1_meta_tour_date_v8');
+        if (!curDate || curDate < canonData.universe.currentTourDateStr) {
+          localStorage.setItem('universe_1_meta_tour_date_v8', canonData.universe.currentTourDateStr);
+          memoryUniverseStore['universe_1_meta_tour_date_v8'] = canonData.universe.currentTourDateStr;
+        }
       }
       if (canonData?.universe?.activeTourneyId) {
         localStorage.setItem('universe_1_meta_active_tourney_v8', canonData.universe.activeTourneyId);

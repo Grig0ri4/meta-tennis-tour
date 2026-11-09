@@ -81,12 +81,22 @@ async function startServer() {
       const body = req.body;
       if (body && Array.isArray(body.players) && body.players.length === 300) {
         const canonPath = path.join(__dirname, "public", "canon.json");
+        const masterBackupPath = path.join(__dirname, "public", "canon.backup.nov15.json");
         let existingCanon: any = {};
         if (fs.existsSync(canonPath)) {
           try {
             existingCanon = JSON.parse(fs.readFileSync(canonPath, "utf8"));
           } catch {
             existingCanon = {};
+          }
+        }
+
+        let masterBackup: any = {};
+        if (fs.existsSync(masterBackupPath)) {
+          try {
+            masterBackup = JSON.parse(fs.readFileSync(masterBackupPath, "utf8"));
+          } catch {
+            masterBackup = {};
           }
         }
 
@@ -99,13 +109,22 @@ async function startServer() {
         }
 
         // Объединяем сетки:
-        // 1) Гарантированные завершенные турниры (Галле, Queen's, Дублин, ТБШ 3, Гамбург)
+        // 1) Эталонные сетки из бэкапа и restoredBaseDraws
         // 2) Существующие на сервере сетки
-        // 3) Входящие из браузера сетки (для Олимпиады приоритет у живых матчей пользователя)
-        const mergedDraws = { ...restoredBaseDraws, ...(existingCanon.draws || {}) };
+        // 3) Входящие из браузера сетки
+        const mergedDraws = {
+          ...(masterBackup.draws || {}),
+          ...restoredBaseDraws,
+          ...(existingCanon.draws || {})
+        };
         if (body.draws && typeof body.draws === "object") {
           for (const [k, d] of Object.entries(body.draws)) {
             if (Array.isArray(d) && d.length > 0) {
+              const hasWinner = d.some((r: any) => Array.isArray(r) && r.some((m: any) => m && m.winner));
+              // Если входящая сетка не имеет победителей, а существующая имеет — сохраняем завершенную!
+              if (!hasWinner && mergedDraws[k] && mergedDraws[k].some((r: any) => Array.isArray(r) && r.some((m: any) => m && m.winner))) {
+                continue;
+              }
               mergedDraws[k] = d;
             }
           }
@@ -121,10 +140,13 @@ async function startServer() {
           }
         }
 
-        // Объединяем турниры: завершенные турниры никогда не откатываются назад в completed: false!
-        const existingTourneys = Array.isArray(existingCanon.tournaments) ? existingCanon.tournaments : [];
+        // Объединяем турниры: завершенные турниры НИКОГДА не откатываются назад в completed: false!
+        const baseTourneys = Array.isArray(masterBackup.tournaments) && masterBackup.tournaments.length >= 26
+          ? masterBackup.tournaments
+          : (Array.isArray(existingCanon.tournaments) ? existingCanon.tournaments : []);
         const incomingTourneys = Array.isArray(body.tournaments) ? body.tournaments : [];
-        const mergedTournaments = existingTourneys.map((ext: any) => {
+
+        const mergedTournaments = baseTourneys.map((ext: any) => {
           const inc = incomingTourneys.find((t: any) => t && t.id === ext.id);
           if (ext.completed) {
             return { ...(inc || {}), ...ext, completed: true };
@@ -132,18 +154,33 @@ async function startServer() {
           return inc || ext;
         });
 
-        // Объединяем чекпоинты (включая ручные):
+        // Объединяем чекпоинты (включая ручной чекпоинт от 15 ноября):
+        const masterCps = Array.isArray(masterBackup.checkpoints) ? masterBackup.checkpoints : [];
         const existingCps = Array.isArray(existingCanon.checkpoints) ? existingCanon.checkpoints : [];
         const incomingCps = Array.isArray(body.checkpoints) ? body.checkpoints : [];
         const cpMap = new Map();
+        masterCps.forEach((c: any) => { if (c && c.id) cpMap.set(c.id, c); });
         existingCps.forEach((c: any) => { if (c && c.id) cpMap.set(c.id, c); });
         incomingCps.forEach((c: any) => { if (c && c.id) cpMap.set(c.id, c); });
         const mergedCheckpoints = Array.from(cpMap.values());
 
+        const mergedUniverse = {
+          id: "1",
+          name: "Вселенная Автора (Канон)",
+          currentTourYear: 2024,
+          currentTourDateStr: (body.universe?.currentTourDateStr && String(body.universe.currentTourDateStr) >= "2024-11-15")
+            ? body.universe.currentTourDateStr
+            : (masterBackup.universe?.currentTourDateStr || "2024-11-15"),
+          activeTourneyId: (body.universe?.activeTourneyId === "finals" || !body.universe?.activeTourneyId)
+            ? (masterBackup.universe?.activeTourneyId || "finals")
+            : body.universe.activeTourneyId
+        };
+
         const mergedCanon = {
           ...existingCanon,
           ...body,
-          tournaments: mergedTournaments.length >= 26 ? mergedTournaments : (incomingTourneys.length >= 26 ? incomingTourneys : existingTourneys),
+          universe: mergedUniverse,
+          tournaments: mergedTournaments.length >= 26 ? mergedTournaments : baseTourneys,
           draws: mergedDraws,
           checkpoints: mergedCheckpoints,
           exportedAt: new Date().toISOString()
