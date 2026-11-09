@@ -34,6 +34,15 @@ async function startServer() {
 
   app.use(express.json({ limit: "10mb" }));
 
+  app.get("/canon.json", (_req, res) => {
+    const backupPath = path.join(__dirname, "public", "canon.backup.nov15.json");
+    const canonPath = path.join(__dirname, "public", "canon.json");
+    const filePathToServe = fs.existsSync(backupPath) ? backupPath : canonPath;
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.sendFile(filePathToServe);
+  });
+
   app.get("/api/player-overrides", (_req, res) => {
     res.json(readServerOverrides());
   });

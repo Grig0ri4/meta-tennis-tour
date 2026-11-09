@@ -7,6 +7,7 @@
 
 import { PRESERVED_BASE, CLEAN_UNIQUE_POOL, PROCEDURAL_FLAGS, buildInitial300Players, generateRandom300Players } from '../data/players.js';
 import RESTORED_2024_DRAWS from '../data/restored_halle_hamburg_draws.json' with { type: 'json' };
+import CANON_MASTER_SNAPSHOT from '../data/canon_nov15_master.json' with { type: 'json' };
 import {
   FULL_CALENDAR_TEMPLATE,
   OLYMPIC_TOURNAMENT_TEMPLATE,
@@ -323,6 +324,18 @@ function pruneLegacyDuplicateStorageKeys(aggressive = false) {
           checkpointsToCompact.push(k);
         }
         continue;
+      }
+      // Удаляем раздутые дубликаты сеток:
+      if (k.startsWith('universe_1_draw_')) {
+        keysToRemove.push(k);
+        continue;
+      }
+      if (k.startsWith('draw_') && !k.startsWith('draw_1_')) {
+        const rest = k.slice(5);
+        if (localStorage.getItem(`draw_1_${rest}`) !== null) {
+          keysToRemove.push(k);
+          continue;
+        }
       }
       // Удаляем старые не-префиксированные дубликаты, если уже есть префиксированный ключ universe_1_*
       if (
@@ -1660,10 +1673,12 @@ function readSavedDraw(tourneyId, year) {
         }
       } catch {}
     }
-    // ЖЕЛЕЗНЫЙ ФОЛЛБЭК: Если для завершенного турнира 2024 года в localStorage сетка отсутствует
-    // или пуста — мгновенно отдаем и восстанавливаем каноническую сетку из RESTORED_2024_DRAWS!
-    if ((activeUniverseId === '1' || activeUniverseId === 1) && Number(year) === 2024 && RESTORED_2024_DRAWS && RESTORED_2024_DRAWS[drawKey]) {
-      const fallbackDraw = RESTORED_2024_DRAWS[drawKey];
+    // ЖЕЛЕЗНЫЙ ФОЛЛБЭК: Если для канонической вселенной сетка в localStorage отсутствует
+    // или не завершена — мгновенно отдаем и восстанавливаем каноническую сетку из CANON_MASTER_SNAPSHOT или RESTORED_2024_DRAWS!
+    if ((activeUniverseId === '1' || activeUniverseId === 1)) {
+      const fallbackDraw =
+        (CANON_MASTER_SNAPSHOT?.draws && CANON_MASTER_SNAPSHOT.draws[drawKey]) ||
+        (RESTORED_2024_DRAWS && RESTORED_2024_DRAWS[drawKey]);
       if (Array.isArray(fallbackDraw) && fallbackDraw.length > 0) {
         try {
           const str = JSON.stringify(fallbackDraw);
@@ -6558,17 +6573,24 @@ export function applyStateSnapshot(stateObj) {
 const CHECKPOINTS_STORAGE_KEY = 'meta_checkpoints_v2';
 
 function getSavedCheckpointsList() {
-  if (Array.isArray(memoryCheckpointsByUniverse[activeUniverseId]) && memoryCheckpointsByUniverse[activeUniverseId].length > 0) {
-    return memoryCheckpointsByUniverse[activeUniverseId];
+  let list = memoryCheckpointsByUniverse[activeUniverseId];
+  if (!Array.isArray(list) || list.length === 0) {
+    try {
+      const raw = universeStorage.getItem(CHECKPOINTS_STORAGE_KEY);
+      list = raw ? JSON.parse(raw) : [];
+    } catch {
+      list = [];
+    }
   }
-  try {
-    const raw = universeStorage.getItem(CHECKPOINTS_STORAGE_KEY);
-    const list = raw ? JSON.parse(raw) : [];
-    memoryCheckpointsByUniverse[activeUniverseId] = Array.isArray(list) ? list : [];
-    return memoryCheckpointsByUniverse[activeUniverseId];
-  } catch {
-    return [];
+  if (!Array.isArray(list)) list = [];
+  if (activeUniverseId === '1' && CANON_MASTER_SNAPSHOT && Array.isArray(CANON_MASTER_SNAPSHOT.checkpoints)) {
+    const map = new Map();
+    CANON_MASTER_SNAPSHOT.checkpoints.forEach(cp => { if (cp?.id) map.set(cp.id, cp); });
+    list.forEach(cp => { if (cp?.id && !map.has(cp.id)) map.set(cp.id, cp); });
+    list = Array.from(map.values()).sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
   }
+  memoryCheckpointsByUniverse[activeUniverseId] = list;
+  return list;
 }
 
 function buildCleanSeasonStartCheckpoint(year = 2024) {
@@ -6854,16 +6876,22 @@ function ensureInitialSeasonCheckpoint() {
   }
 
   if (changed) {
-    // Сохраняем все ручные чекпоинты пользователя (они никогда не вытесняются!)
+    // Сохраняем все ручные чекпоинты пользователя и мастер-точки канона (они никогда не вытесняются!)
+    const cpMap = new Map();
+    if (activeUniverseId === '1' && CANON_MASTER_SNAPSHOT && Array.isArray(CANON_MASTER_SNAPSHOT.checkpoints)) {
+      CANON_MASTER_SNAPSHOT.checkpoints.forEach(cp => { if (cp?.id) cpMap.set(cp.id, cp); });
+    }
     const manualItems = list.filter(x => x && (x.isManual || String(x.id).startsWith('cp_manual_')));
     const startItem = list.find(x => x.id === startId);
     const others = list
       .filter(x => x.id !== startId && !x.isManual && !String(x.id).startsWith('cp_manual_'))
-      .sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')))
-      .slice(0, 6);
-    const finalList = [...manualItems, ...others];
-    if (startItem && !finalList.some(x => x.id === startId)) finalList.push(startItem);
-    list = finalList;
+      .sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
+
+    manualItems.forEach(cp => { if (cp?.id) cpMap.set(cp.id, cp); });
+    others.slice(0, 6).forEach(cp => { if (cp?.id) cpMap.set(cp.id, cp); });
+    if (startItem) cpMap.set(startItem.id, startItem);
+
+    list = Array.from(cpMap.values()).sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
     memoryCheckpointsByUniverse[activeUniverseId] = list;
     universeStorage.setItem(CHECKPOINTS_STORAGE_KEY, JSON.stringify(list));
   }
@@ -7334,137 +7362,104 @@ if (typeof window !== 'undefined') {
       const host = String(window.location.hostname || '').toLowerCase();
       if (host !== 'localhost' && host !== '127.0.0.1') return;
 
-      let canonData = null;
+      const canonData = CANON_MASTER_SNAPSHOT;
+      if (!canonData) return;
+
+      // 0. Очищаем раздутые дубликаты сеток из localStorage, освобождая место
       try {
-        const res = await fetch(CANON_SNAPSHOT_URL, { cache: 'no-cache' });
-        if (res.ok) canonData = await res.json();
-      } catch {
-        // ignore
-      }
-
-      const allDrawSources = {
-        ...(RESTORED_2024_DRAWS || {}),
-        ...(canonData?.draws || {})
-      };
-
-      // 1. Всегда гарантируем наличие сеток всех завершенных турниров:
-      Object.entries(allDrawSources).forEach(([drawKey, canonDraw]) => {
-        if (!canonDraw || !Array.isArray(canonDraw) || canonDraw.length === 0) return;
-        const rest = String(drawKey).startsWith('draw_') ? String(drawKey).slice(5) : String(drawKey);
-        const fullKey = `draw_1_${rest}`;
-        const existing =
-          localStorage.getItem(fullKey) ||
-          localStorage.getItem(`universe_1_${drawKey}`) ||
-          localStorage.getItem(drawKey);
-        let existingParsed = null;
-        try {
-          if (existing) existingParsed = JSON.parse(existing);
-        } catch {}
-        const isDrawCompleted = Array.isArray(existingParsed) && existingParsed.length > 0 && existingParsed.some(r => Array.isArray(r) && r.some(m => m && m.winner));
-        if (!isDrawCompleted) {
-          const str = JSON.stringify(canonDraw);
-          localStorage.setItem(fullKey, str);
-          localStorage.setItem(`universe_1_${drawKey}`, str);
-          localStorage.setItem(drawKey, str);
-          memoryUniverseStore[fullKey] = str;
-          memoryUniverseStore[`universe_1_${drawKey}`] = str;
-          memoryUniverseStore[drawKey] = str;
-        }
-      });
-
-      // 2. Сетка Олимпиады (draw_olympics_2024):
-      const olympicKey = 'draw_1_olympics_2024';
-      const existingOlympicRaw =
-        localStorage.getItem(olympicKey) ||
-        localStorage.getItem('universe_1_draw_olympics_2024') ||
-        localStorage.getItem('draw_olympics_2024');
-      let existingOlympicParsed = null;
-      try {
-        if (existingOlympicRaw) existingOlympicParsed = JSON.parse(existingOlympicRaw);
+        pruneLegacyDuplicateStorageKeys(true);
       } catch {}
 
-      const userHasOlympicDraw = Array.isArray(existingOlympicParsed) && existingOlympicParsed.length > 0 && existingOlympicParsed.some(r => Array.isArray(r) && r.some(m => m && m.winner));
-      if (!userHasOlympicDraw && allDrawSources.draw_olympics_2024) {
-        const str = JSON.stringify(allDrawSources.draw_olympics_2024);
-        localStorage.setItem(olympicKey, str);
-        localStorage.setItem('universe_1_draw_olympics_2024', str);
-        localStorage.setItem('draw_olympics_2024', str);
-        memoryUniverseStore[olympicKey] = str;
-        memoryUniverseStore['universe_1_draw_olympics_2024'] = str;
-        memoryUniverseStore['draw_olympics_2024'] = str;
+      // 1. СНАЧАЛА гарантируем турниры (completed: true для всех 26 завершенных турниров 2024 года):
+      if (Array.isArray(canonData.tournaments) && canonData.tournaments.length >= 26) {
+        const str = JSON.stringify(canonData.tournaments);
+        try { localStorage.setItem('universe_1_meta_tournaments_v8', str); } catch {}
+        memoryUniverseStore['universe_1_meta_tournaments_v8'] = str;
+        tournaments = JSON.parse(str);
       }
 
-      // 3. Синхронизируем турниры из canonData (гарантируем completed: true для всех 26 завершенных турниров):
-      if (Array.isArray(canonData?.tournaments) && canonData.tournaments.length >= 26) {
-        const completedCanonCount = canonData.tournaments.filter(t => t.completed).length;
-        const existingTourneysRaw = localStorage.getItem('universe_1_meta_tournaments_v8');
-        let existingTourneys = null;
-        try {
-          if (existingTourneysRaw) existingTourneys = JSON.parse(existingTourneysRaw);
-        } catch {}
-        const existingCompletedCount = Array.isArray(existingTourneys) ? existingTourneys.filter(t => t.completed).length : 0;
-
-        if (existingCompletedCount < completedCanonCount || !Array.isArray(existingTourneys) || existingTourneys.length < 26) {
-          const str = JSON.stringify(canonData.tournaments);
-          localStorage.setItem('universe_1_meta_tournaments_v8', str);
-          memoryUniverseStore['universe_1_meta_tournaments_v8'] = str;
-        } else {
-          let modified = false;
-          canonData.tournaments.forEach(ct => {
-            if (ct && ct.completed) {
-              const found = existingTourneys.find(t => t.id === ct.id);
-              if (found && !found.completed) {
-                found.completed = true;
-                if (ct.lastWinner) found.lastWinner = ct.lastWinner;
-                if (ct.lastRunnerUp) found.lastRunnerUp = ct.lastRunnerUp;
-                if (ct.lastScore) found.lastScore = ct.lastScore;
-                modified = true;
-              }
-            }
-          });
-          if (modified) {
-            const str = JSON.stringify(existingTourneys);
-            localStorage.setItem('universe_1_meta_tournaments_v8', str);
-            memoryUniverseStore['universe_1_meta_tournaments_v8'] = str;
-          }
-        }
+      // 2. Гарантируем базу игроков с каноническими очками на 15 Ноября 2024 года:
+      if (Array.isArray(canonData.players) && canonData.players.length >= 300) {
+        const str = JSON.stringify(canonData.players);
+        try { localStorage.setItem('universe_1_meta_players_v8', str); } catch {}
+        memoryUniverseStore['universe_1_meta_players_v8'] = str;
+        players = JSON.parse(str);
       }
 
-      // 4. Синхронизируем дату и активный турнир (турнир #27 World Tour Finals на 15 Ноября 2024):
-      if (canonData?.universe?.currentTourDateStr) {
-        const curDate = localStorage.getItem('universe_1_meta_tour_date_v8');
-        if (!curDate || curDate < canonData.universe.currentTourDateStr) {
-          localStorage.setItem('universe_1_meta_tour_date_v8', canonData.universe.currentTourDateStr);
-          memoryUniverseStore['universe_1_meta_tour_date_v8'] = canonData.universe.currentTourDateStr;
-        }
-      }
-      if (canonData?.universe?.activeTourneyId) {
-        localStorage.setItem('universe_1_meta_active_tourney_v8', canonData.universe.activeTourneyId);
-        memoryUniverseStore['universe_1_meta_active_tourney_v8'] = canonData.universe.activeTourneyId;
-      }
+      // 3. Синхронизируем дату и активный турнир (турнир #27 World Tour Finals на 15 Ноября 2024):
+      const targetDate = canonData.universe?.currentTourDateStr || '2024-11-15';
+      const targetTourneyId = canonData.universe?.activeTourneyId || 'finals';
+      try {
+        localStorage.setItem('universe_1_meta_tour_year_v8', '2024');
+        localStorage.setItem('universe_1_meta_tour_date_v8', targetDate);
+        localStorage.setItem('universe_1_meta_active_tourney_v8', targetTourneyId);
+      } catch {}
+      memoryUniverseStore['universe_1_meta_tour_year_v8'] = '2024';
+      memoryUniverseStore['universe_1_meta_tour_date_v8'] = targetDate;
+      memoryUniverseStore['universe_1_meta_active_tourney_v8'] = targetTourneyId;
+      currentTourYear = 2024;
+      currentTourDateStr = targetDate;
+      activeTourneyId = targetTourneyId;
+      viewingYear = 2024;
 
-      // 5. Синхронизируем чекпоинты (включая ручной чекпоинт от 15 ноября):
-      if (Array.isArray(canonData?.checkpoints) && canonData.checkpoints.length > 0) {
+      // 4. Синхронизируем чекпоинты (включая ручной чекпоинт от 15 ноября и чекпоинт после Океанского шлема):
+      if (Array.isArray(canonData.checkpoints) && canonData.checkpoints.length > 0) {
         const rawCps = localStorage.getItem('universe_1_meta_checkpoints_v2') || localStorage.getItem('meta_checkpoints_v2');
         let currentCps = [];
-        try {
-          if (rawCps) currentCps = JSON.parse(rawCps);
-        } catch {}
+        try { if (rawCps) currentCps = JSON.parse(rawCps); } catch {}
         if (!Array.isArray(currentCps)) currentCps = [];
         const map = new Map();
         canonData.checkpoints.forEach(cp => { if (cp?.id) map.set(cp.id, cp); });
-        currentCps.forEach(cp => { if (cp?.id) map.set(cp.id, cp); });
-        const merged = Array.from(map.values()).sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
+        currentCps.forEach(cp => { if (cp?.id && !map.has(cp.id)) map.set(cp.id, cp); });
+        const merged = Array.from(map.values())
+          .map(cp => {
+            if (cp && cp.draws) {
+              const c = { ...cp };
+              delete c.draws;
+              return c;
+            }
+            return cp;
+          })
+          .sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
         const str = JSON.stringify(merged);
-        localStorage.setItem('universe_1_meta_checkpoints_v2', str);
-        localStorage.setItem('meta_checkpoints_v2', str);
+        try {
+          localStorage.setItem('universe_1_meta_checkpoints_v2', str);
+          localStorage.setItem('meta_checkpoints_v2', str);
+        } catch {}
         memoryUniverseStore['universe_1_meta_checkpoints_v2'] = str;
         memoryUniverseStore['meta_checkpoints_v2'] = str;
         memoryCheckpointsByUniverse['1'] = merged;
       }
 
-      localStorage.setItem('universe_1_meta_checkpoints_det_v6', 'true');
-      localStorage.setItem('meta_checkpoints_det_v6', 'true');
+      // 5. Загружаем ВСЕ 53 сетки в память memoryUniverseStore (без квоты localStorage):
+      const allDrawSources = {
+        ...(RESTORED_2024_DRAWS || {}),
+        ...(canonData.draws || {})
+      };
+
+      Object.entries(allDrawSources).forEach(([drawKey, canonDraw]) => {
+        if (!canonDraw || !Array.isArray(canonDraw) || canonDraw.length === 0) return;
+        const rest = String(drawKey).startsWith('draw_') ? String(drawKey).slice(5) : String(drawKey);
+        const fullKey = `draw_1_${rest}`;
+        const str = typeof canonDraw === 'string' ? canonDraw : JSON.stringify(canonDraw);
+        memoryUniverseStore[fullKey] = str;
+        memoryUniverseStore[`universe_1_${drawKey}`] = str;
+        memoryUniverseStore[drawKey] = str;
+
+        // В localStorage сохраняем только 2024 год и только под единым ключом draw_1_*:
+        if (rest.endsWith('_2024')) {
+          try {
+            localStorage.setItem(fullKey, str);
+          } catch {}
+        }
+      });
+
+      try {
+        localStorage.setItem('universe_1_meta_checkpoints_det_v6', 'true');
+        localStorage.setItem('meta_checkpoints_det_v6', 'true');
+        localStorage.setItem('universe_1_meta_jan2024_clean_start_v2', 'true');
+        localStorage.setItem('meta_jan2024_clean_start_v2', 'true');
+      } catch {}
     } catch {
       // ignore
     }

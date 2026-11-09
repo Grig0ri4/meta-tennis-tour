@@ -1,6 +1,6 @@
 {
   "metaTennisTourSaveVersion": 8,
-  "exportedAt": "2026-11-09T17:17:49.622Z",
+  "exportedAt": "2026-11-09T18:20:23.541Z",
   "universe": {
     "id": "1",
     "name": "Вселенная Автора (Канон)",
@@ -238,7 +238,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 1,
+      "bestRank": 2,
       "seasonsPlayed": 1,
       "seasonStartRank": 4,
       "medals": {
@@ -1169,7 +1169,7 @@
         }
       },
       "rankChange": 1,
-      "bestRank": 8,
+      "bestRank": 9,
       "seasonsPlayed": 1,
       "seasonStartRank": 42,
       "medals": {
@@ -1690,7 +1690,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 10,
+      "bestRank": 13,
       "seasonsPlayed": 1,
       "seasonStartRank": 23,
       "medals": {
@@ -1706,7 +1706,7 @@
       "lastRaceDelta": 100,
       "lastTourneyEarned": 100,
       "lastTourneyDefended": 200,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "nickname": "",
       "playStyle": "",
@@ -1970,7 +1970,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 14,
+      "bestRank": 15,
       "seasonsPlayed": 1,
       "seasonStartRank": 27,
       "medals": {
@@ -2110,7 +2110,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 14,
+      "bestRank": 16,
       "seasonsPlayed": 1,
       "seasonStartRank": 20,
       "medals": {
@@ -2539,7 +2539,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 16,
+      "bestRank": 19,
       "seasonsPlayed": 1,
       "seasonStartRank": 40,
       "medals": {
@@ -2959,7 +2959,7 @@
         }
       },
       "rankChange": 1,
-      "bestRank": 20,
+      "bestRank": 22,
       "seasonsPlayed": 1,
       "seasonStartRank": 32,
       "medals": {
@@ -3099,7 +3099,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 20,
+      "bestRank": 23,
       "seasonsPlayed": 1,
       "seasonStartRank": 51,
       "medals": {
@@ -3395,7 +3395,7 @@
       "lastRaceDelta": 50,
       "lastTourneyEarned": 50,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "nickname": "",
       "playStyle": "",
@@ -3646,7 +3646,7 @@
         }
       },
       "rankChange": 2,
-      "bestRank": 25,
+      "bestRank": 27,
       "seasonsPlayed": 1,
       "seasonStartRank": 34,
       "medals": {
@@ -3789,7 +3789,7 @@
         }
       },
       "rankChange": -2,
-      "bestRank": 22,
+      "bestRank": 28,
       "seasonsPlayed": 1,
       "seasonStartRank": 46,
       "medals": {
@@ -4194,7 +4194,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 17,
+      "bestRank": 18,
       "seasonsPlayed": 1,
       "seasonStartRank": 18,
       "medals": {
@@ -4334,7 +4334,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 31,
+      "bestRank": 32,
       "seasonsPlayed": 1,
       "seasonStartRank": 97,
       "medals": {
@@ -4464,7 +4464,7 @@
         }
       },
       "rankChange": -13,
-      "bestRank": 14,
+      "bestRank": 15,
       "seasonsPlayed": 1,
       "seasonStartRank": 15,
       "medals": {
@@ -5030,7 +5030,7 @@
         }
       },
       "rankChange": -3,
-      "bestRank": 27,
+      "bestRank": 37,
       "seasonsPlayed": 1,
       "seasonStartRank": 53,
       "medals": {
@@ -5170,7 +5170,7 @@
         }
       },
       "rankChange": -3,
-      "bestRank": 31,
+      "bestRank": 38,
       "seasonsPlayed": 1,
       "seasonStartRank": 163,
       "medals": {
@@ -5456,7 +5456,7 @@
         }
       },
       "rankChange": 5,
-      "bestRank": 35,
+      "bestRank": 40,
       "seasonsPlayed": 1,
       "seasonStartRank": 95,
       "medals": {
@@ -5721,7 +5721,7 @@
         }
       },
       "rankChange": -3,
-      "bestRank": 36,
+      "bestRank": 42,
       "seasonsPlayed": 1,
       "seasonStartRank": 189,
       "medals": {
@@ -5861,7 +5861,7 @@
         }
       },
       "rankChange": 3,
-      "bestRank": 33,
+      "bestRank": 43,
       "seasonsPlayed": 1,
       "seasonStartRank": 88,
       "medals": {
@@ -6017,7 +6017,7 @@
       "lastRaceDelta": 250,
       "lastTourneyEarned": 250,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 14,
       "remainingDefending": 0,
       "defendedSoFar": 705,
@@ -6416,7 +6416,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 44,
+      "bestRank": 47,
       "seasonsPlayed": 1,
       "seasonStartRank": 164,
       "medals": {
@@ -6565,7 +6565,7 @@
         }
       },
       "rankChange": 1,
-      "bestRank": 45,
+      "bestRank": 48,
       "seasonsPlayed": 1,
       "seasonStartRank": 92,
       "medals": {
@@ -6991,7 +6991,7 @@
         }
       },
       "rankChange": 3,
-      "bestRank": 46,
+      "bestRank": 51,
       "seasonsPlayed": 1,
       "seasonStartRank": 61,
       "medals": {
@@ -7007,7 +7007,7 @@
       "lastRaceDelta": 50,
       "lastTourneyEarned": 50,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 2,
       "remainingDefending": 0,
       "defendedSoFar": 1030,
@@ -7264,7 +7264,7 @@
         }
       },
       "rankChange": -17,
-      "bestRank": 28,
+      "bestRank": 36,
       "seasonsPlayed": 1,
       "seasonStartRank": 36,
       "medals": {
@@ -7407,7 +7407,7 @@
         }
       },
       "rankChange": -2,
-      "bestRank": 42,
+      "bestRank": 54,
       "seasonsPlayed": 1,
       "seasonStartRank": 77,
       "medals": {
@@ -7423,7 +7423,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 35,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 890,
@@ -7547,7 +7547,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 48,
+      "bestRank": 55,
       "seasonsPlayed": 1,
       "seasonStartRank": 119,
       "medals": {
@@ -7563,7 +7563,7 @@
       "lastRaceDelta": 50,
       "lastTourneyEarned": 50,
       "lastTourneyDefended": 50,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "nickname": "",
       "playStyle": "",
@@ -7701,7 +7701,7 @@
       "lastRaceDelta": 165,
       "lastTourneyEarned": 165,
       "lastTourneyDefended": 50,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 19,
       "nickname": "",
       "playStyle": "",
@@ -7847,7 +7847,7 @@
       "lastRaceDelta": 175,
       "lastTourneyEarned": 175,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 22,
       "remainingDefending": 0,
       "defendedSoFar": 605,
@@ -7971,7 +7971,7 @@
         }
       },
       "rankChange": 4,
-      "bestRank": 51,
+      "bestRank": 58,
       "seasonsPlayed": 1,
       "seasonStartRank": 103,
       "medals": {
@@ -7987,7 +7987,7 @@
       "lastRaceDelta": 50,
       "lastTourneyEarned": 50,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "remainingDefending": 0,
       "defendedSoFar": 785,
@@ -8124,7 +8124,7 @@
       "lastRaceDelta": 100,
       "lastTourneyEarned": 100,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 7,
       "remainingDefending": 0,
       "defendedSoFar": 650,
@@ -8248,7 +8248,7 @@
         }
       },
       "rankChange": -7,
-      "bestRank": 52,
+      "bestRank": 60,
       "seasonsPlayed": 1,
       "seasonStartRank": 70,
       "medals": {
@@ -8264,7 +8264,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 115,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 955,
@@ -8401,7 +8401,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 635,
@@ -8522,7 +8522,7 @@
         }
       },
       "rankChange": -2,
-      "bestRank": 60,
+      "bestRank": 62,
       "seasonsPlayed": 1,
       "seasonStartRank": 105,
       "medals": {
@@ -8538,7 +8538,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 45,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 780,
@@ -8659,7 +8659,7 @@
         }
       },
       "rankChange": 1,
-      "bestRank": 59,
+      "bestRank": 63,
       "seasonsPlayed": 1,
       "seasonStartRank": 84,
       "medals": {
@@ -8675,7 +8675,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 865,
@@ -8815,8 +8815,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -4,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -3,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -8939,7 +8939,7 @@
         }
       },
       "rankChange": -7,
-      "bestRank": 58,
+      "bestRank": 65,
       "seasonsPlayed": 1,
       "seasonStartRank": 73,
       "medals": {
@@ -8955,8 +8955,8 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 75,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -2,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -3,
       "remainingDefending": 0,
       "defendedSoFar": 905,
       "finalsPoints": 0,
@@ -9082,7 +9082,7 @@
         }
       },
       "rankChange": 3,
-      "bestRank": 36,
+      "bestRank": 66,
       "seasonsPlayed": 1,
       "seasonStartRank": 104,
       "medals": {
@@ -9098,7 +9098,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -2,
       "nickname": "",
       "playStyle": "",
@@ -9222,7 +9222,7 @@
         }
       },
       "rankChange": -2,
-      "bestRank": 41,
+      "bestRank": 67,
       "seasonsPlayed": 1,
       "seasonStartRank": 146,
       "medals": {
@@ -9238,7 +9238,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 50,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "nickname": "",
       "playStyle": "",
@@ -9499,7 +9499,7 @@
         }
       },
       "rankChange": -12,
-      "bestRank": 45,
+      "bestRank": 62,
       "seasonsPlayed": 1,
       "seasonStartRank": 62,
       "medals": {
@@ -9515,7 +9515,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 100,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "nickname": "",
       "playStyle": "",
@@ -9642,7 +9642,7 @@
         }
       },
       "rankChange": -3,
-      "bestRank": 64,
+      "bestRank": 70,
       "seasonsPlayed": 1,
       "seasonStartRank": 188,
       "medals": {
@@ -9658,7 +9658,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 45,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -3,
       "remainingDefending": 0,
       "defendedSoFar": 590,
@@ -9779,7 +9779,7 @@
         }
       },
       "rankChange": 7,
-      "bestRank": 66,
+      "bestRank": 71,
       "seasonsPlayed": 1,
       "seasonStartRank": 131,
       "medals": {
@@ -9795,7 +9795,7 @@
       "lastRaceDelta": 45,
       "lastTourneyEarned": 45,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 2,
       "remainingDefending": 0,
       "defendedSoFar": 725,
@@ -9919,7 +9919,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 68,
+      "bestRank": 72,
       "seasonsPlayed": 1,
       "seasonStartRank": 80,
       "medals": {
@@ -9935,7 +9935,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 870,
@@ -10072,7 +10072,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -3,
       "remainingDefending": 0,
       "defendedSoFar": 375,
@@ -10218,7 +10218,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 80,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -3,
       "nickname": "",
       "playStyle": "",
@@ -10342,7 +10342,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 56,
+      "bestRank": 75,
       "seasonsPlayed": 1,
       "seasonStartRank": 110,
       "medals": {
@@ -10358,7 +10358,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -6,
       "remainingDefending": 0,
       "defendedSoFar": 770,
@@ -10498,7 +10498,7 @@
       "lastRaceDelta": 115,
       "lastTourneyEarned": 115,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 18,
       "remainingDefending": 0,
       "defendedSoFar": 1125,
@@ -10622,7 +10622,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 61,
+      "bestRank": 77,
       "seasonsPlayed": 1,
       "seasonStartRank": 120,
       "medals": {
@@ -10638,7 +10638,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 745,
@@ -10775,7 +10775,7 @@
       "lastRaceDelta": 80,
       "lastTourneyEarned": 80,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 13,
       "remainingDefending": 0,
       "defendedSoFar": 320,
@@ -10912,7 +10912,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 1265,
@@ -11049,8 +11049,8 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -3,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 1220,
       "finalsPoints": 0,
@@ -11173,7 +11173,7 @@
         }
       },
       "rankChange": -25,
-      "bestRank": 47,
+      "bestRank": 72,
       "seasonsPlayed": 1,
       "seasonStartRank": 72,
       "medals": {
@@ -11189,8 +11189,8 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 175,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -3,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 940,
       "finalsPoints": 0,
@@ -11313,7 +11313,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 77,
+      "bestRank": 82,
       "seasonsPlayed": 1,
       "seasonStartRank": 127,
       "medals": {
@@ -11329,7 +11329,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -6,
       "remainingDefending": 0,
       "defendedSoFar": 735,
@@ -11587,7 +11587,7 @@
         }
       },
       "rankChange": 2,
-      "bestRank": 78,
+      "bestRank": 84,
       "seasonsPlayed": 1,
       "seasonStartRank": 133,
       "medals": {
@@ -11603,8 +11603,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -4,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -3,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -11727,7 +11727,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 55,
+      "bestRank": 85,
       "seasonsPlayed": 1,
       "seasonStartRank": 139,
       "medals": {
@@ -11743,8 +11743,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 15,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -4,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 695,
       "finalsPoints": 0,
@@ -11880,7 +11880,7 @@
       "lastRaceDelta": 45,
       "lastTourneyEarned": 45,
       "lastTourneyDefended": 45,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 3,
       "remainingDefending": 0,
       "defendedSoFar": 665,
@@ -12020,7 +12020,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "remainingDefending": 0,
       "defendedSoFar": 865,
@@ -12141,7 +12141,7 @@
         }
       },
       "rankChange": -15,
-      "bestRank": 73,
+      "bestRank": 88,
       "seasonsPlayed": 1,
       "seasonStartRank": 153,
       "medals": {
@@ -12157,7 +12157,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 90,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 670,
@@ -12278,7 +12278,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 82,
+      "bestRank": 89,
       "seasonsPlayed": 1,
       "seasonStartRank": 208,
       "medals": {
@@ -12294,7 +12294,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 545,
@@ -12415,7 +12415,7 @@
         }
       },
       "rankChange": -31,
-      "bestRank": 59,
+      "bestRank": 87,
       "seasonsPlayed": 1,
       "seasonStartRank": 87,
       "medals": {
@@ -12431,7 +12431,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 175,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 855,
@@ -12568,7 +12568,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 115,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 1315,
@@ -12692,7 +12692,7 @@
         }
       },
       "rankChange": -12,
-      "bestRank": 72,
+      "bestRank": 92,
       "seasonsPlayed": 1,
       "seasonStartRank": 115,
       "medals": {
@@ -12708,7 +12708,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 75,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 760,
@@ -12829,7 +12829,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 87,
+      "bestRank": 93,
       "seasonsPlayed": 1,
       "seasonStartRank": 125,
       "medals": {
@@ -12845,7 +12845,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 740,
@@ -12969,7 +12969,7 @@
         }
       },
       "rankChange": 6,
-      "bestRank": 54,
+      "bestRank": 56,
       "seasonsPlayed": 1,
       "seasonStartRank": 56,
       "medals": {
@@ -12985,8 +12985,8 @@
       "lastRaceDelta": 45,
       "lastTourneyEarned": 45,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 4,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 5,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -13106,7 +13106,7 @@
         }
       },
       "rankChange": -4,
-      "bestRank": 91,
+      "bestRank": 95,
       "seasonsPlayed": 1,
       "seasonStartRank": 109,
       "medals": {
@@ -13122,8 +13122,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -4,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 770,
       "finalsPoints": 0,
@@ -13243,7 +13243,7 @@
         }
       },
       "rankChange": 9,
-      "bestRank": 78,
+      "bestRank": 96,
       "seasonsPlayed": 1,
       "seasonStartRank": 138,
       "medals": {
@@ -13259,7 +13259,7 @@
       "lastRaceDelta": 45,
       "lastTourneyEarned": 45,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 6,
       "nickname": "",
       "playStyle": "",
@@ -13383,7 +13383,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 80,
+      "bestRank": 97,
       "seasonsPlayed": 1,
       "seasonStartRank": 112,
       "medals": {
@@ -13399,7 +13399,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "nickname": "",
       "playStyle": "",
@@ -13526,7 +13526,7 @@
         }
       },
       "rankChange": -2,
-      "bestRank": 96,
+      "bestRank": 98,
       "seasonsPlayed": 1,
       "seasonStartRank": 170,
       "medals": {
@@ -13542,7 +13542,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 30,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 635,
@@ -13669,7 +13669,7 @@
         }
       },
       "rankChange": 9,
-      "bestRank": 46,
+      "bestRank": 99,
       "seasonsPlayed": 1,
       "seasonStartRank": 108,
       "medals": {
@@ -13685,7 +13685,7 @@
       "lastRaceDelta": 80,
       "lastTourneyEarned": 80,
       "lastTourneyDefended": 50,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 10,
       "nickname": "",
       "playStyle": "",
@@ -13806,7 +13806,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 71,
+      "bestRank": 100,
       "seasonsPlayed": 1,
       "seasonStartRank": 193,
       "medals": {
@@ -13822,7 +13822,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 570,
@@ -13944,7 +13944,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "nickname": "",
       "playStyle": "",
@@ -14084,8 +14084,8 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 1,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 2,
       "remainingDefending": 0,
       "defendedSoFar": 1105,
       "finalsPoints": 0,
@@ -14208,7 +14208,7 @@
         }
       },
       "rankChange": -21,
-      "bestRank": 82,
+      "bestRank": 103,
       "seasonsPlayed": 1,
       "seasonStartRank": 137,
       "medals": {
@@ -14224,8 +14224,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 100,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -5,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -6,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -14485,7 +14485,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 104,
+      "bestRank": 105,
       "seasonsPlayed": 1,
       "seasonStartRank": 116,
       "medals": {
@@ -14501,7 +14501,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "nickname": "",
       "playStyle": "",
@@ -14641,7 +14641,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -3,
       "nickname": "",
       "playStyle": "",
@@ -14765,7 +14765,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 102,
+      "bestRank": 107,
       "seasonsPlayed": 1,
       "seasonStartRank": 132,
       "medals": {
@@ -14781,7 +14781,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 715,
@@ -14905,7 +14905,7 @@
         }
       },
       "rankChange": 15,
-      "bestRank": 58,
+      "bestRank": 75,
       "seasonsPlayed": 1,
       "seasonStartRank": 75,
       "medals": {
@@ -14921,7 +14921,7 @@
       "lastRaceDelta": 125,
       "lastTourneyEarned": 125,
       "lastTourneyDefended": 80,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 28,
       "nickname": "",
       "playStyle": "",
@@ -15204,7 +15204,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 570,
@@ -15341,7 +15341,7 @@
       "lastRaceDelta": 20,
       "lastTourneyEarned": 20,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "remainingDefending": 0,
       "defendedSoFar": 605,
@@ -15462,7 +15462,7 @@
         }
       },
       "rankChange": 2,
-      "bestRank": 108,
+      "bestRank": 112,
       "seasonsPlayed": 1,
       "seasonStartRank": 152,
       "medals": {
@@ -15479,7 +15479,7 @@
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -6,
+      "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 670,
       "finalsPoints": 0,
@@ -15602,7 +15602,7 @@
         }
       },
       "rankChange": -3,
-      "bestRank": 105,
+      "bestRank": 113,
       "seasonsPlayed": 1,
       "seasonStartRank": 165,
       "medals": {
@@ -15618,7 +15618,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 50,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 1,
       "remainingDefending": 0,
       "defendedSoFar": 640,
@@ -15742,7 +15742,7 @@
         }
       },
       "rankChange": -19,
-      "bestRank": 95,
+      "bestRank": 114,
       "seasonsPlayed": 1,
       "seasonStartRank": 175,
       "medals": {
@@ -15758,8 +15758,8 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 100,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 1,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -1,
       "remainingDefending": 0,
       "defendedSoFar": 625,
       "finalsPoints": 0,
@@ -15882,7 +15882,7 @@
         }
       },
       "rankChange": 28,
-      "bestRank": 70,
+      "bestRank": 115,
       "seasonsPlayed": 1,
       "seasonStartRank": 129,
       "medals": {
@@ -15898,7 +15898,7 @@
       "lastRaceDelta": 90,
       "lastTourneyEarned": 90,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 20,
       "remainingDefending": 0,
       "defendedSoFar": 725,
@@ -16025,7 +16025,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 78,
+      "bestRank": 116,
       "seasonsPlayed": 1,
       "seasonStartRank": 160,
       "medals": {
@@ -16041,7 +16041,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 655,
@@ -16181,8 +16181,8 @@
       "lastRaceDelta": 65,
       "lastTourneyEarned": 65,
       "lastTourneyDefended": 50,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 8,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 9,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -16302,7 +16302,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 63,
+      "bestRank": 118,
       "seasonsPlayed": 1,
       "seasonStartRank": 178,
       "medals": {
@@ -16318,8 +16318,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -5,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -6,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -16442,7 +16442,7 @@
         }
       },
       "rankChange": 19,
-      "bestRank": 109,
+      "bestRank": 119,
       "seasonsPlayed": 1,
       "seasonStartRank": 121,
       "medals": {
@@ -16458,7 +16458,7 @@
       "lastRaceDelta": 65,
       "lastTourneyEarned": 65,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 11,
       "remainingDefending": 0,
       "defendedSoFar": 745,
@@ -16732,7 +16732,7 @@
       "lastRaceDelta": 35,
       "lastTourneyEarned": 35,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 1175,
@@ -16872,7 +16872,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 15,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 620,
@@ -16993,7 +16993,7 @@
         }
       },
       "rankChange": 10,
-      "bestRank": 82,
+      "bestRank": 123,
       "seasonsPlayed": 1,
       "seasonStartRank": 199,
       "medals": {
@@ -17009,7 +17009,7 @@
       "lastRaceDelta": 35,
       "lastTourneyEarned": 35,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 1,
       "nickname": "",
       "playStyle": "",
@@ -17149,7 +17149,7 @@
       "lastRaceDelta": 20,
       "lastTourneyEarned": 20,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 840,
@@ -17286,7 +17286,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 80,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -7,
       "remainingDefending": 0,
       "defendedSoFar": 870,
@@ -17407,7 +17407,7 @@
         }
       },
       "rankChange": -7,
-      "bestRank": 105,
+      "bestRank": 126,
       "seasonsPlayed": 1,
       "seasonStartRank": 219,
       "medals": {
@@ -17423,7 +17423,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 45,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -6,
       "nickname": "",
       "playStyle": "",
@@ -17681,7 +17681,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 65,
+      "bestRank": 126,
       "seasonsPlayed": 1,
       "seasonStartRank": 126,
       "medals": {
@@ -17697,7 +17697,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "nickname": "",
       "playStyle": "",
@@ -17837,8 +17837,8 @@
       "lastRaceDelta": 100,
       "lastTourneyEarned": 100,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 35,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 37,
       "remainingDefending": 0,
       "defendedSoFar": 740,
       "finalsPoints": 0,
@@ -17974,8 +17974,8 @@
       "lastRaceDelta": 20,
       "lastTourneyEarned": 20,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 2,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 1,
       "remainingDefending": 0,
       "defendedSoFar": 605,
       "finalsPoints": 0,
@@ -18111,8 +18111,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -5,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -6,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -18254,8 +18254,8 @@
       "lastRaceDelta": 50,
       "lastTourneyEarned": 50,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 13,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 14,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -18391,8 +18391,8 @@
       "lastRaceDelta": 20,
       "lastTourneyEarned": 20,
       "lastTourneyDefended": 20,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 0,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -1,
       "remainingDefending": 0,
       "defendedSoFar": 705,
       "finalsPoints": 0,
@@ -18515,7 +18515,7 @@
         }
       },
       "rankChange": -8,
-      "bestRank": 126,
+      "bestRank": 134,
       "seasonsPlayed": 1,
       "seasonStartRank": 145,
       "medals": {
@@ -18531,7 +18531,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 50,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -7,
       "remainingDefending": 0,
       "defendedSoFar": 680,
@@ -18652,7 +18652,7 @@
         }
       },
       "rankChange": 1,
-      "bestRank": 132,
+      "bestRank": 135,
       "seasonsPlayed": 1,
       "seasonStartRank": 156,
       "medals": {
@@ -18668,7 +18668,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -7,
       "remainingDefending": 0,
       "defendedSoFar": 660,
@@ -18805,7 +18805,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -7,
       "nickname": "",
       "playStyle": "",
@@ -18926,7 +18926,7 @@
         }
       },
       "rankChange": -19,
-      "bestRank": 64,
+      "bestRank": 81,
       "seasonsPlayed": 1,
       "seasonStartRank": 81,
       "medals": {
@@ -18942,7 +18942,7 @@
       "lastRaceDelta": 35,
       "lastTourneyEarned": 35,
       "lastTourneyDefended": 100,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 2,
       "remainingDefending": 0,
       "defendedSoFar": 870,
@@ -19063,7 +19063,7 @@
         }
       },
       "rankChange": 2,
-      "bestRank": 111,
+      "bestRank": 138,
       "seasonsPlayed": 1,
       "seasonStartRank": 257,
       "medals": {
@@ -19079,7 +19079,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 15,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 445,
@@ -19200,7 +19200,7 @@
         }
       },
       "rankChange": 30,
-      "bestRank": 135,
+      "bestRank": 139,
       "seasonsPlayed": 1,
       "seasonStartRank": 202,
       "medals": {
@@ -19216,7 +19216,7 @@
       "lastRaceDelta": 75,
       "lastTourneyEarned": 75,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 26,
       "remainingDefending": 0,
       "defendedSoFar": 560,
@@ -19353,7 +19353,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 18,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -6,
       "remainingDefending": 0,
       "defendedSoFar": 660,
@@ -19493,8 +19493,8 @@
       "lastRaceDelta": 18,
       "lastTourneyEarned": 18,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -1,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 1,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -19617,7 +19617,7 @@
         }
       },
       "rankChange": 4,
-      "bestRank": 102,
+      "bestRank": 107,
       "seasonsPlayed": 1,
       "seasonStartRank": 107,
       "medals": {
@@ -19633,8 +19633,8 @@
       "lastRaceDelta": 20,
       "lastTourneyEarned": 20,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 2,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 1,
       "remainingDefending": 0,
       "defendedSoFar": 775,
       "finalsPoints": 0,
@@ -19770,8 +19770,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -5,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -6,
       "remainingDefending": 0,
       "defendedSoFar": 445,
       "finalsPoints": 0,
@@ -19907,7 +19907,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -6,
       "nickname": "",
       "playStyle": "",
@@ -20031,7 +20031,7 @@
         }
       },
       "rankChange": 15,
-      "bestRank": 133,
+      "bestRank": 145,
       "seasonsPlayed": 1,
       "seasonStartRank": 150,
       "medals": {
@@ -20047,7 +20047,7 @@
       "lastRaceDelta": 30,
       "lastTourneyEarned": 30,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 9,
       "remainingDefending": 0,
       "defendedSoFar": 675,
@@ -20171,8 +20171,8 @@
       "lastRaceDelta": 20,
       "lastTourneyEarned": 20,
       "lastTourneyDefended": 50,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 2,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 3,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -20308,8 +20308,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 50,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -6,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -7,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -20429,7 +20429,7 @@
         }
       },
       "rankChange": -4,
-      "bestRank": 144,
+      "bestRank": 148,
       "seasonsPlayed": 1,
       "seasonStartRank": 232,
       "medals": {
@@ -20445,7 +20445,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -7,
       "remainingDefending": 0,
       "defendedSoFar": 500,
@@ -20569,7 +20569,7 @@
         }
       },
       "rankChange": 6,
-      "bestRank": 120,
+      "bestRank": 149,
       "seasonsPlayed": 1,
       "seasonStartRank": 173,
       "medals": {
@@ -20585,7 +20585,7 @@
       "lastRaceDelta": 18,
       "lastTourneyEarned": 18,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "remainingDefending": 0,
       "defendedSoFar": 630,
@@ -20725,8 +20725,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -6,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 1205,
       "finalsPoints": 0,
@@ -20862,8 +20862,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 165,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -6,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -7,
       "remainingDefending": 0,
       "defendedSoFar": 1015,
       "finalsPoints": 0,
@@ -20986,7 +20986,7 @@
         }
       },
       "rankChange": 2,
-      "bestRank": 44,
+      "bestRank": 52,
       "seasonsPlayed": 1,
       "seasonStartRank": 52,
       "medals": {
@@ -21002,7 +21002,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 1115,
@@ -21123,7 +21123,7 @@
         }
       },
       "rankChange": 3,
-      "bestRank": 76,
+      "bestRank": 85,
       "seasonsPlayed": 1,
       "seasonStartRank": 85,
       "medals": {
@@ -21139,8 +21139,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -3,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -2,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -21260,7 +21260,7 @@
         }
       },
       "rankChange": -9,
-      "bestRank": 127,
+      "bestRank": 154,
       "seasonsPlayed": 1,
       "seasonStartRank": 169,
       "medals": {
@@ -21276,8 +21276,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 35,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -3,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 635,
       "finalsPoints": 0,
@@ -21416,7 +21416,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -3,
       "remainingDefending": 0,
       "defendedSoFar": 540,
@@ -21540,7 +21540,7 @@
         }
       },
       "rankChange": 3,
-      "bestRank": 153,
+      "bestRank": 156,
       "seasonsPlayed": 1,
       "seasonStartRank": 236,
       "medals": {
@@ -21556,7 +21556,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -3,
       "nickname": "",
       "playStyle": "",
@@ -21696,7 +21696,7 @@
       "lastRaceDelta": 18,
       "lastTourneyEarned": 18,
       "lastTourneyDefended": 20,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "remainingDefending": 0,
       "defendedSoFar": 765,
@@ -21833,7 +21833,7 @@
       "lastRaceDelta": 75,
       "lastTourneyEarned": 75,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 23,
       "remainingDefending": 0,
       "defendedSoFar": 525,
@@ -21954,7 +21954,7 @@
         }
       },
       "rankChange": 3,
-      "bestRank": 129,
+      "bestRank": 159,
       "seasonsPlayed": 1,
       "seasonStartRank": 205,
       "medals": {
@@ -21970,7 +21970,7 @@
       "lastRaceDelta": 18,
       "lastTourneyEarned": 18,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "remainingDefending": 0,
       "defendedSoFar": 555,
@@ -22091,7 +22091,7 @@
         }
       },
       "rankChange": -23,
-      "bestRank": 131,
+      "bestRank": 144,
       "seasonsPlayed": 1,
       "seasonStartRank": 144,
       "medals": {
@@ -22107,7 +22107,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 65,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 685,
@@ -22231,7 +22231,7 @@
         }
       },
       "rankChange": -40,
-      "bestRank": 121,
+      "bestRank": 161,
       "seasonsPlayed": 1,
       "seasonStartRank": 201,
       "medals": {
@@ -22247,7 +22247,7 @@
       "lastRaceDelta": 20,
       "lastTourneyEarned": 20,
       "lastTourneyDefended": 125,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 565,
@@ -22387,7 +22387,7 @@
       "lastRaceDelta": 30,
       "lastTourneyEarned": 30,
       "lastTourneyDefended": 50,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "nickname": "",
       "playStyle": "",
@@ -22514,7 +22514,7 @@
         }
       },
       "rankChange": -2,
-      "bestRank": 161,
+      "bestRank": 163,
       "seasonsPlayed": 1,
       "seasonStartRank": 259,
       "medals": {
@@ -22530,7 +22530,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 15,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -6,
       "remainingDefending": 0,
       "defendedSoFar": 440,
@@ -22657,7 +22657,7 @@
         }
       },
       "rankChange": -17,
-      "bestRank": 106,
+      "bestRank": 162,
       "seasonsPlayed": 1,
       "seasonStartRank": 162,
       "medals": {
@@ -22673,7 +22673,7 @@
       "lastRaceDelta": 35,
       "lastTourneyEarned": 35,
       "lastTourneyDefended": 80,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 6,
       "nickname": "",
       "playStyle": "",
@@ -22810,7 +22810,7 @@
       "lastRaceDelta": 18,
       "lastTourneyEarned": 18,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -3,
       "nickname": "",
       "playStyle": "",
@@ -22931,7 +22931,7 @@
         }
       },
       "rankChange": 6,
-      "bestRank": 125,
+      "bestRank": 166,
       "seasonsPlayed": 1,
       "seasonStartRank": 204,
       "medals": {
@@ -22947,7 +22947,7 @@
       "lastRaceDelta": 30,
       "lastTourneyEarned": 30,
       "lastTourneyDefended": 15,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 5,
       "remainingDefending": 0,
       "defendedSoFar": 560,
@@ -23084,8 +23084,8 @@
       "lastRaceDelta": 50,
       "lastTourneyEarned": 50,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 10,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 12,
       "remainingDefending": 0,
       "defendedSoFar": 880,
       "finalsPoints": 0,
@@ -23208,7 +23208,7 @@
         }
       },
       "rankChange": 2,
-      "bestRank": 78,
+      "bestRank": 122,
       "seasonsPlayed": 1,
       "seasonStartRank": 122,
       "medals": {
@@ -23224,7 +23224,7 @@
       "lastRaceDelta": 18,
       "lastTourneyEarned": 18,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 740,
@@ -23345,7 +23345,7 @@
         }
       },
       "rankChange": -4,
-      "bestRank": 119,
+      "bestRank": 143,
       "seasonsPlayed": 1,
       "seasonStartRank": 143,
       "medals": {
@@ -23361,8 +23361,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -7,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -9,
       "remainingDefending": 0,
       "defendedSoFar": 690,
       "finalsPoints": 0,
@@ -23625,7 +23625,7 @@
         }
       },
       "rankChange": -3,
-      "bestRank": 131,
+      "bestRank": 171,
       "seasonsPlayed": 1,
       "seasonStartRank": 192,
       "medals": {
@@ -23641,7 +23641,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -7,
       "remainingDefending": 0,
       "defendedSoFar": 570,
@@ -23762,7 +23762,7 @@
         }
       },
       "rankChange": -8,
-      "bestRank": 164,
+      "bestRank": 172,
       "seasonsPlayed": 1,
       "seasonStartRank": 294,
       "medals": {
@@ -23778,7 +23778,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 330,
@@ -23918,7 +23918,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "nickname": "",
       "playStyle": "",
@@ -24042,7 +24042,7 @@
         }
       },
       "rankChange": -32,
-      "bestRank": 90,
+      "bestRank": 136,
       "seasonsPlayed": 1,
       "seasonStartRank": 136,
       "medals": {
@@ -24058,7 +24058,7 @@
       "lastRaceDelta": 20,
       "lastTourneyEarned": 20,
       "lastTourneyDefended": 100,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 700,
@@ -24195,7 +24195,7 @@
       "lastRaceDelta": 18,
       "lastTourneyEarned": 18,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "nickname": "",
       "playStyle": "",
@@ -24322,7 +24322,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 149,
+      "bestRank": 176,
       "seasonsPlayed": 1,
       "seasonStartRank": 183,
       "medals": {
@@ -24338,7 +24338,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 600,
@@ -24474,7 +24474,7 @@
         }
       },
       "rankChange": -4,
-      "bestRank": 170,
+      "bestRank": 177,
       "seasonsPlayed": 1,
       "seasonStartRank": 197,
       "medals": {
@@ -24490,7 +24490,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 20,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 565,
@@ -24614,7 +24614,7 @@
         }
       },
       "rankChange": 1,
-      "bestRank": 146,
+      "bestRank": 178,
       "seasonsPlayed": 1,
       "seasonStartRank": 278,
       "medals": {
@@ -24630,7 +24630,7 @@
       "lastRaceDelta": 18,
       "lastTourneyEarned": 18,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "remainingDefending": 0,
       "defendedSoFar": 405,
@@ -24754,7 +24754,7 @@
         }
       },
       "rankChange": -5,
-      "bestRank": 116,
+      "bestRank": 142,
       "seasonsPlayed": 1,
       "seasonStartRank": 142,
       "medals": {
@@ -24770,7 +24770,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -3,
       "remainingDefending": 0,
       "defendedSoFar": 690,
@@ -24907,7 +24907,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 20,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 860,
@@ -25047,7 +25047,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "nickname": "",
       "playStyle": "",
@@ -25184,7 +25184,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 585,
@@ -25305,7 +25305,7 @@
         }
       },
       "rankChange": 2,
-      "bestRank": 178,
+      "bestRank": 183,
       "seasonsPlayed": 1,
       "seasonStartRank": 234,
       "medals": {
@@ -25321,7 +25321,7 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 15,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 490,
@@ -25461,7 +25461,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 1,
       "remainingDefending": 0,
       "defendedSoFar": 695,
@@ -25598,7 +25598,7 @@
       "lastRaceDelta": 40,
       "lastTourneyEarned": 40,
       "lastTourneyDefended": 18,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 7,
       "remainingDefending": 0,
       "defendedSoFar": 515,
@@ -25719,7 +25719,7 @@
         }
       },
       "rankChange": -3,
-      "bestRank": 132,
+      "bestRank": 186,
       "seasonsPlayed": 1,
       "seasonStartRank": 200,
       "medals": {
@@ -25735,7 +25735,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 30,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 565,
@@ -25859,7 +25859,7 @@
         }
       },
       "rankChange": 1,
-      "bestRank": 163,
+      "bestRank": 176,
       "seasonsPlayed": 1,
       "seasonStartRank": 176,
       "medals": {
@@ -25875,7 +25875,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 18,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "remainingDefending": 0,
       "defendedSoFar": 620,
@@ -26012,7 +26012,7 @@
       "lastRaceDelta": 60,
       "lastTourneyEarned": 60,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 14,
       "remainingDefending": 0,
       "defendedSoFar": 450,
@@ -26136,7 +26136,7 @@
         }
       },
       "rankChange": 6,
-      "bestRank": 129,
+      "bestRank": 174,
       "seasonsPlayed": 1,
       "seasonStartRank": 174,
       "medals": {
@@ -26152,8 +26152,8 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 3,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 4,
       "remainingDefending": 0,
       "defendedSoFar": 625,
       "finalsPoints": 0,
@@ -26276,7 +26276,7 @@
         }
       },
       "rankChange": -3,
-      "bestRank": 175,
+      "bestRank": 190,
       "seasonsPlayed": 1,
       "seasonStartRank": 290,
       "medals": {
@@ -26292,8 +26292,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -2,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -3,
       "remainingDefending": 0,
       "defendedSoFar": 375,
       "finalsPoints": 0,
@@ -26435,7 +26435,7 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 750,
@@ -26559,7 +26559,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 116,
+      "bestRank": 180,
       "seasonsPlayed": 1,
       "seasonStartRank": 180,
       "medals": {
@@ -26575,8 +26575,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -3,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 605,
       "finalsPoints": 0,
@@ -26696,7 +26696,7 @@
         }
       },
       "rankChange": -4,
-      "bestRank": 189,
+      "bestRank": 193,
       "seasonsPlayed": 1,
       "seasonStartRank": 252,
       "medals": {
@@ -26713,7 +26713,7 @@
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 15,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -4,
+      "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 460,
       "finalsPoints": 0,
@@ -26833,7 +26833,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 191,
+      "bestRank": 194,
       "seasonsPlayed": 1,
       "seasonStartRank": 214,
       "medals": {
@@ -26849,7 +26849,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -3,
       "remainingDefending": 0,
       "defendedSoFar": 535,
@@ -26986,7 +26986,7 @@
       "lastRaceDelta": 30,
       "lastTourneyEarned": 30,
       "lastTourneyDefended": 100,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 3,
       "nickname": "",
       "playStyle": "",
@@ -27107,7 +27107,7 @@
         }
       },
       "rankChange": 1,
-      "bestRank": 154,
+      "bestRank": 196,
       "seasonsPlayed": 1,
       "seasonStartRank": 253,
       "medals": {
@@ -27123,7 +27123,7 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -1,
       "remainingDefending": 0,
       "defendedSoFar": 455,
@@ -27247,7 +27247,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 194,
+      "bestRank": 197,
       "seasonsPlayed": 1,
       "seasonStartRank": 270,
       "medals": {
@@ -27263,7 +27263,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 15,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -3,
       "remainingDefending": 0,
       "defendedSoFar": 420,
@@ -27400,7 +27400,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 2,
       "remainingDefending": 0,
       "defendedSoFar": 515,
@@ -27537,7 +27537,7 @@
       "lastRaceDelta": 75,
       "lastTourneyEarned": 75,
       "lastTourneyDefended": 15,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 29,
       "remainingDefending": 0,
       "defendedSoFar": 390,
@@ -27658,7 +27658,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 164,
+      "bestRank": 184,
       "seasonsPlayed": 1,
       "seasonStartRank": 184,
       "medals": {
@@ -27674,7 +27674,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 600,
@@ -27811,7 +27811,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 680,
@@ -27938,7 +27938,7 @@
         }
       },
       "rankChange": -4,
-      "bestRank": 182,
+      "bestRank": 202,
       "seasonsPlayed": 1,
       "seasonStartRank": 242,
       "medals": {
@@ -27954,7 +27954,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": -3,
       "nickname": "",
       "playStyle": "",
@@ -28094,8 +28094,8 @@
       "lastRaceDelta": 40,
       "lastTourneyEarned": 40,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 20,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 21,
       "remainingDefending": 0,
       "defendedSoFar": 420,
       "finalsPoints": 0,
@@ -28237,8 +28237,8 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 11,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 10,
       "remainingDefending": 0,
       "defendedSoFar": 350,
       "finalsPoints": 0,
@@ -28358,7 +28358,7 @@
         }
       },
       "rankChange": 6,
-      "bestRank": 177,
+      "bestRank": 205,
       "seasonsPlayed": 1,
       "seasonStartRank": 231,
       "medals": {
@@ -28374,7 +28374,7 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 3,
       "remainingDefending": 0,
       "defendedSoFar": 500,
@@ -28511,7 +28511,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 640,
@@ -28638,7 +28638,7 @@
         }
       },
       "rankChange": 3,
-      "bestRank": 186,
+      "bestRank": 207,
       "seasonsPlayed": 1,
       "seasonStartRank": 210,
       "medals": {
@@ -28654,7 +28654,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 540,
@@ -28775,7 +28775,7 @@
         }
       },
       "rankChange": -5,
-      "bestRank": 200,
+      "bestRank": 208,
       "seasonsPlayed": 1,
       "seasonStartRank": 285,
       "medals": {
@@ -28915,7 +28915,7 @@
         }
       },
       "rankChange": -10,
-      "bestRank": 166,
+      "bestRank": 209,
       "seasonsPlayed": 1,
       "seasonStartRank": 268,
       "medals": {
@@ -28931,7 +28931,7 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 50,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 2,
       "remainingDefending": 0,
       "defendedSoFar": 420,
@@ -29055,7 +29055,7 @@
         }
       },
       "rankChange": -3,
-      "bestRank": 184,
+      "bestRank": 210,
       "seasonsPlayed": 1,
       "seasonStartRank": 223,
       "medals": {
@@ -29192,7 +29192,7 @@
         }
       },
       "rankChange": -3,
-      "bestRank": 208,
+      "bestRank": 211,
       "seasonsPlayed": 1,
       "seasonStartRank": 286,
       "medals": {
@@ -29329,7 +29329,7 @@
         }
       },
       "rankChange": -7,
-      "bestRank": 194,
+      "bestRank": 206,
       "seasonsPlayed": 1,
       "seasonStartRank": 206,
       "medals": {
@@ -29466,7 +29466,7 @@
         }
       },
       "rankChange": -23,
-      "bestRank": 190,
+      "bestRank": 207,
       "seasonsPlayed": 1,
       "seasonStartRank": 207,
       "medals": {
@@ -29482,7 +29482,7 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 75,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 3,
       "remainingDefending": 0,
       "defendedSoFar": 555,
@@ -29603,7 +29603,7 @@
         }
       },
       "rankChange": -2,
-      "bestRank": 212,
+      "bestRank": 214,
       "seasonsPlayed": 1,
       "seasonStartRank": 250,
       "medals": {
@@ -29743,7 +29743,7 @@
         }
       },
       "rankChange": -2,
-      "bestRank": 171,
+      "bestRank": 215,
       "seasonsPlayed": 1,
       "seasonStartRank": 237,
       "medals": {
@@ -30173,8 +30173,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 18,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 0,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 1,
       "remainingDefending": 0,
       "defendedSoFar": 590,
       "finalsPoints": 0,
@@ -30297,7 +30297,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 160,
+      "bestRank": 219,
       "seasonsPlayed": 1,
       "seasonStartRank": 221,
       "medals": {
@@ -30314,7 +30314,7 @@
       "lastTourneyEarned": 0,
       "lastTourneyDefended": 10,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -3,
+      "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 515,
       "finalsPoints": 0,
@@ -30453,7 +30453,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 3,
       "remainingDefending": 0,
       "defendedSoFar": 725,
@@ -30590,8 +30590,8 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 18,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 5,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 6,
       "remainingDefending": 0,
       "defendedSoFar": 570,
       "finalsPoints": 0,
@@ -30714,7 +30714,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 169,
+      "bestRank": 222,
       "seasonsPlayed": 1,
       "seasonStartRank": 277,
       "medals": {
@@ -30731,7 +30731,7 @@
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 20,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": 4,
+      "raceRankChange": 3,
       "remainingDefending": 0,
       "defendedSoFar": 410,
       "finalsPoints": 0,
@@ -30994,7 +30994,7 @@
         }
       },
       "rankChange": -20,
-      "bestRank": 204,
+      "bestRank": 224,
       "seasonsPlayed": 1,
       "seasonStartRank": 226,
       "medals": {
@@ -31137,7 +31137,7 @@
         }
       },
       "rankChange": 4,
-      "bestRank": 205,
+      "bestRank": 225,
       "seasonsPlayed": 1,
       "seasonStartRank": 264,
       "medals": {
@@ -31294,7 +31294,7 @@
       "lastTourneyEarned": 0,
       "lastTourneyDefended": 10,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -6,
+      "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 530,
       "finalsPoints": 0,
@@ -31414,7 +31414,7 @@
         }
       },
       "rankChange": -6,
-      "bestRank": 203,
+      "bestRank": 227,
       "seasonsPlayed": 1,
       "seasonStartRank": 243,
       "medals": {
@@ -31431,7 +31431,7 @@
       "lastTourneyEarned": 0,
       "lastTourneyDefended": 18,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -6,
+      "raceRankChange": -7,
       "remainingDefending": 0,
       "defendedSoFar": 475,
       "finalsPoints": 0,
@@ -31551,7 +31551,7 @@
         }
       },
       "rankChange": -3,
-      "bestRank": 224,
+      "bestRank": 228,
       "seasonsPlayed": 1,
       "seasonStartRank": 249,
       "medals": {
@@ -31704,7 +31704,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 11,
       "remainingDefending": 0,
       "defendedSoFar": 475,
@@ -31847,7 +31847,7 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 6,
       "nickname": "",
       "playStyle": "",
@@ -31984,7 +31984,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 18,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 580,
@@ -32124,7 +32124,7 @@
       "lastRaceDelta": 40,
       "lastTourneyEarned": 40,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 22,
       "nickname": "",
       "playStyle": "",
@@ -32248,7 +32248,7 @@
         }
       },
       "rankChange": 2,
-      "bestRank": 199,
+      "bestRank": 233,
       "seasonsPlayed": 1,
       "seasonStartRank": 233,
       "medals": {
@@ -32401,8 +32401,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 1,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 3,
       "remainingDefending": 0,
       "defendedSoFar": 825,
       "finalsPoints": 0,
@@ -32525,7 +32525,7 @@
         }
       },
       "rankChange": -17,
-      "bestRank": 197,
+      "bestRank": 235,
       "seasonsPlayed": 1,
       "seasonStartRank": 280,
       "medals": {
@@ -32542,7 +32542,7 @@
       "lastTourneyEarned": 0,
       "lastTourneyDefended": 40,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -4,
+      "raceRankChange": -5,
       "remainingDefending": 0,
       "defendedSoFar": 400,
       "finalsPoints": 0,
@@ -32662,7 +32662,7 @@
         }
       },
       "rankChange": -6,
-      "bestRank": 230,
+      "bestRank": 236,
       "seasonsPlayed": 1,
       "seasonStartRank": 282,
       "medals": {
@@ -32678,8 +32678,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 30,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -2,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -3,
       "remainingDefending": 0,
       "defendedSoFar": 395,
       "finalsPoints": 0,
@@ -32799,7 +32799,7 @@
         }
       },
       "rankChange": -6,
-      "bestRank": 231,
+      "bestRank": 237,
       "seasonsPlayed": 1,
       "seasonStartRank": 266,
       "medals": {
@@ -32815,7 +32815,7 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 40,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 5,
       "remainingDefending": 0,
       "defendedSoFar": 425,
@@ -33089,7 +33089,7 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 8,
       "remainingDefending": 0,
       "defendedSoFar": 460,
@@ -33230,7 +33230,7 @@
       "lastTourneyEarned": 0,
       "lastTourneyDefended": 10,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -7,
+      "raceRankChange": -5,
       "nickname": "",
       "playStyle": "",
       "remainingDefending": 0,
@@ -33513,7 +33513,7 @@
       "lastTourneyEarned": 0,
       "lastTourneyDefended": 10,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -5,
+      "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 570,
       "finalsPoints": 0,
@@ -33636,7 +33636,7 @@
         }
       },
       "rankChange": 4,
-      "bestRank": 199,
+      "bestRank": 243,
       "seasonsPlayed": 1,
       "seasonStartRank": 261,
       "medals": {
@@ -33652,8 +33652,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 0,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 1,
       "remainingDefending": 0,
       "defendedSoFar": 435,
       "finalsPoints": 0,
@@ -33790,7 +33790,7 @@
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": 0,
+      "raceRankChange": 1,
       "remainingDefending": 0,
       "defendedSoFar": 425,
       "finalsPoints": 0,
@@ -33910,7 +33910,7 @@
         }
       },
       "rankChange": -13,
-      "bestRank": 232,
+      "bestRank": 245,
       "seasonsPlayed": 1,
       "seasonStartRank": 276,
       "medals": {
@@ -33926,8 +33926,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 40,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 3,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 415,
       "finalsPoints": 0,
@@ -34190,7 +34190,7 @@
         }
       },
       "rankChange": -3,
-      "bestRank": 167,
+      "bestRank": 220,
       "seasonsPlayed": 1,
       "seasonStartRank": 220,
       "medals": {
@@ -34327,7 +34327,7 @@
         }
       },
       "rankChange": -2,
-      "bestRank": 215,
+      "bestRank": 248,
       "seasonsPlayed": 1,
       "seasonStartRank": 273,
       "medals": {
@@ -34481,7 +34481,7 @@
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": 0,
+      "raceRankChange": 4,
       "remainingDefending": 0,
       "defendedSoFar": 1150,
       "finalsPoints": 0,
@@ -34884,7 +34884,7 @@
         }
       },
       "rankChange": -24,
-      "bestRank": 209,
+      "bestRank": 252,
       "seasonsPlayed": 1,
       "seasonStartRank": 275,
       "medals": {
@@ -34901,7 +34901,7 @@
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 60,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": 3,
+      "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 415,
       "finalsPoints": 0,
@@ -35024,7 +35024,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 244,
+      "bestRank": 253,
       "seasonsPlayed": 1,
       "seasonStartRank": 287,
       "medals": {
@@ -35041,7 +35041,7 @@
       "lastTourneyEarned": 0,
       "lastTourneyDefended": 10,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -2,
+      "raceRankChange": -3,
       "remainingDefending": 0,
       "defendedSoFar": 385,
       "finalsPoints": 0,
@@ -35314,7 +35314,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 660,
@@ -35454,7 +35454,7 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 18,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 2,
       "remainingDefending": 0,
       "defendedSoFar": 660,
@@ -35578,7 +35578,7 @@
         }
       },
       "rankChange": -20,
-      "bestRank": 173,
+      "bestRank": 247,
       "seasonsPlayed": 1,
       "seasonStartRank": 247,
       "medals": {
@@ -35855,7 +35855,7 @@
         }
       },
       "rankChange": 6,
-      "bestRank": 234,
+      "bestRank": 240,
       "seasonsPlayed": 1,
       "seasonStartRank": 240,
       "medals": {
@@ -35992,7 +35992,7 @@
         }
       },
       "rankChange": 4,
-      "bestRank": 249,
+      "bestRank": 255,
       "seasonsPlayed": 1,
       "seasonStartRank": 255,
       "medals": {
@@ -36008,7 +36008,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 15,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 4,
       "remainingDefending": 0,
       "defendedSoFar": 450,
@@ -36266,7 +36266,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 260,
+      "bestRank": 262,
       "seasonsPlayed": 1,
       "seasonStartRank": 262,
       "medals": {
@@ -36282,7 +36282,7 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 5,
       "remainingDefending": 0,
       "defendedSoFar": 435,
@@ -36546,7 +36546,7 @@
         }
       },
       "rankChange": -9,
-      "bestRank": 249,
+      "bestRank": 264,
       "seasonsPlayed": 1,
       "seasonStartRank": 284,
       "medals": {
@@ -36562,7 +36562,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 40,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 1,
       "remainingDefending": 0,
       "defendedSoFar": 390,
@@ -36963,7 +36963,7 @@
         }
       },
       "rankChange": 1,
-      "bestRank": 236,
+      "bestRank": 238,
       "seasonsPlayed": 1,
       "seasonStartRank": 238,
       "medals": {
@@ -37103,7 +37103,7 @@
         }
       },
       "rankChange": 3,
-      "bestRank": 169,
+      "bestRank": 209,
       "seasonsPlayed": 1,
       "seasonStartRank": 209,
       "medals": {
@@ -37396,7 +37396,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 6,
       "remainingDefending": 0,
       "defendedSoFar": 425,
@@ -37533,7 +37533,7 @@
       "lastRaceDelta": 25,
       "lastTourneyEarned": 25,
       "lastTourneyDefended": 15,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 10,
       "remainingDefending": 0,
       "defendedSoFar": 420,
@@ -37654,7 +37654,7 @@
         }
       },
       "rankChange": -18,
-      "bestRank": 220,
+      "bestRank": 248,
       "seasonsPlayed": 1,
       "seasonStartRank": 248,
       "medals": {
@@ -37670,7 +37670,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 75,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 465,
@@ -37791,7 +37791,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 245,
+      "bestRank": 260,
       "seasonsPlayed": 1,
       "seasonStartRank": 260,
       "medals": {
@@ -38085,7 +38085,7 @@
       "lastTourneyEarned": 0,
       "lastTourneyDefended": 10,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -3,
+      "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 730,
       "finalsPoints": 0,
@@ -38205,7 +38205,7 @@
         }
       },
       "rankChange": -1,
-      "bestRank": 274,
+      "bestRank": 276,
       "seasonsPlayed": 1,
       "seasonStartRank": 279,
       "medals": {
@@ -38221,8 +38221,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 25,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 5,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 4,
       "remainingDefending": 0,
       "defendedSoFar": 400,
       "finalsPoints": 0,
@@ -38495,8 +38495,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 4,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 5,
       "remainingDefending": 0,
       "defendedSoFar": 665,
       "finalsPoints": 0,
@@ -38633,7 +38633,7 @@
       "lastTourneyEarned": 0,
       "lastTourneyDefended": 15,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -3,
+      "raceRankChange": -4,
       "remainingDefending": 0,
       "defendedSoFar": 435,
       "finalsPoints": 0,
@@ -38769,7 +38769,7 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 6,
       "remainingDefending": 0,
       "defendedSoFar": 400,
@@ -39164,7 +39164,7 @@
         }
       },
       "rankChange": -9,
-      "bestRank": 211,
+      "bestRank": 241,
       "seasonsPlayed": 1,
       "seasonStartRank": 241,
       "medals": {
@@ -39454,7 +39454,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 2,
       "remainingDefending": 0,
       "defendedSoFar": 540,
@@ -39578,7 +39578,7 @@
         }
       },
       "rankChange": 4,
-      "bestRank": 268,
+      "bestRank": 286,
       "seasonsPlayed": 1,
       "seasonStartRank": 288,
       "medals": {
@@ -39594,7 +39594,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 10,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 3,
       "remainingDefending": 0,
       "defendedSoFar": 385,
@@ -40008,8 +40008,8 @@
       "lastRaceDelta": 15,
       "lastTourneyEarned": 15,
       "lastTourneyDefended": 15,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 0,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 1,
       "remainingDefending": 0,
       "defendedSoFar": 420,
       "finalsPoints": 0,
@@ -40146,7 +40146,7 @@
       "lastTourneyEarned": 0,
       "lastTourneyDefended": 10,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -1,
+      "raceRankChange": -2,
       "remainingDefending": 0,
       "defendedSoFar": 420,
       "finalsPoints": 0,
@@ -40752,7 +40752,7 @@
           "2024": 60
         }
       },
-      "rankChange": 2,
+      "rankChange": 0,
       "bestRank": 295,
       "historicalBestRank": 300,
       "seasonStartRank": 300,
@@ -40767,8 +40767,8 @@
       "lastRaceDelta": 60,
       "lastTourneyEarned": 60,
       "lastTourneyDefended": 0,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": 2,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 0,
       "_prevRaceRank": 297
     },
     {
@@ -40902,7 +40902,7 @@
       "lastTourneyEarned": 0,
       "lastTourneyDefended": 10,
       "lastTourneyName": "Хельсинки Masters",
-      "raceRankChange": -1,
+      "raceRankChange": 0,
       "remainingDefending": 0,
       "defendedSoFar": 330,
       "finalsPoints": 0,
@@ -40963,8 +40963,8 @@
           "2024": 10
         }
       },
-      "rankChange": -1,
-      "bestRank": 296,
+      "rankChange": 0,
+      "bestRank": 297,
       "historicalBestRank": 299,
       "seasonStartRank": 299,
       "seasonsPlayed": 1,
@@ -40978,8 +40978,8 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 0,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
-      "raceRankChange": -1,
+      "lastTourneyName": "Хельсинки Masters",
+      "raceRankChange": 0,
       "_prevRaceRank": 296
     },
     {
@@ -41046,7 +41046,7 @@
       "lastRaceDelta": 10,
       "lastTourneyEarned": 10,
       "lastTourneyDefended": 0,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "_prevRaceRank": 298
     },
@@ -41114,7 +41114,7 @@
       "lastRaceDelta": 40,
       "lastTourneyEarned": 40,
       "lastTourneyDefended": 0,
-      "lastTourneyName": "Лос-Кабос 250 (ATP 250 / Challenger)",
+      "lastTourneyName": "Хельсинки Masters",
       "raceRankChange": 0,
       "_prevRaceRank": 299
     },
@@ -41168,7 +41168,7 @@
         }
       },
       "rankChange": 0,
-      "bestRank": 297,
+      "bestRank": 298,
       "historicalBestRank": 298,
       "seasonStartRank": 298,
       "seasonsPlayed": 1,
@@ -197980,66 +197980,7 @@
       "Shaun Salkar",
       "Pen Klak"
     ],
-    "withdrawals_500_9_2024": [
-      "Max Kyupan",
-      "Istep Fofol",
-      "Gary Riffay",
-      "Freddy Johnson",
-      "Tiago Logik",
-      "Vorb Blaostie",
-      "Pen Klak",
-      "Markon Leoxan",
-      "Vyacheslavv Abashev",
-      "Spam Kyutol Robertson"
-    ],
-    "withdrawals_500_10_2024": [
-      "Ussistian Shifter",
-      "Max Kyupan",
-      "Will Wentra",
-      "Istep Fofol",
-      "Omar Netigios",
-      "Gary Riffay",
-      "Freddy Johnson",
-      "Tiago Logik",
-      "Vorb Blaostie",
-      "Markon Leoxan"
-    ],
     "withdrawals_m_8_2024": [
-      "Istep Fofol",
-      "Vorb Blaostie",
-      "Shaun Salkar",
-      "Lars Nielsen",
-      "Rebekka Yentif",
-      "Jho Flattin",
-      "Fite Memsy Staprin"
-    ],
-    "withdrawals_500_11_2024": [
-      "Ussistian Shifter",
-      "Max Kyupan",
-      "Will Wentra",
-      "Istep Fofol",
-      "Freddy Johnson",
-      "Gary Riffay",
-      "Tiago Logik",
-      "Vorb Blaostie",
-      "Markon Leoxan",
-      "Puddy Mexalino"
-    ],
-    "withdrawals_500_12_2024": [
-      "Ussistian Shifter",
-      "Max Kyupan",
-      "Omar Netigios",
-      "Gary Riffay",
-      "Tiago Logik",
-      "Vorb Blaostie",
-      "Markon Leoxan",
-      "Shaun Salkar",
-      "Spam Kyutol Robertson",
-      "Sumaul Erpolast"
-    ],
-    "withdrawals_m_9_2024": [
-      "Will Wentra",
-      "Markon Leoxan",
       "Julian Papai-tons"
     ]
   },
@@ -198054,15 +197995,7 @@
     "bg250_500_4_2024": "🎾 <b>Параллельный тур недели (Хьюстон 250 · ATP 250 + серия Челленджеров):</b> Чемпион: <b>Sepsor Loreo</b> (+250 pts) · Финалист: <b>Dustin Nilly</b> · 1/2 финала: Matthew Giblisis, Temkos Timmy · 1-й круг всем участникам: <b>+10 pts</b>",
     "bg250_m_5_2024": "🎾 <b>Параллельный тур недели (Марракеш 250 · ATP 250 + серия Челленджеров):</b> Чемпион: <b>Diego Carballo</b> (+250 pts) · Финалист: <b>Casper Holm</b> · 1/2 финала: Sam Spore, Nikola Tortalo · 1-й круг всем участникам: <b>+10 pts</b>",
     "bg250_tbsh_2_2024": "🎾 <b>Параллельный тур недели (Бухарест 250 · Challenger 125 + серия Челленджеров):</b> Чемпион: <b>Takeshi Mori</b> (+125 pts) · Финалист: <b>chille Ham Tochesty</b> · 1/2 финала: Liam MacIntyre, Donatello Dodlon · 1-й круг всем участникам: <b>+10 pts</b>",
-    "bg250_500_8_2024": "🎾 <b>Параллельный тур недели (Мальорка 250 · ATP 250 + серия Челленджеров):</b> Чемпион: <b>Omar Netigios</b> (+250 pts) · Финалист: <b>Tiago Logik</b> · 1/2 финала: Freddy Johnson, Gary Riffay · Топ-4 сеяных [1]–[4] с BYE в 1/16 · <button type=\"button\" class=\"btn-gold\" onclick=\"openWeeklyATP250BracketModal('500_8', 2024)\" style=\"padding:2px 9px; font-size:11.5px; margin-left:6px;\">🏆 Открыть авто-сетку ATP 250</button>",
-    "bg250_m_7_2024": "🎾 <b>Параллельный тур недели (Истборн 250 · ATP 250 + серия Челленджеров):</b> Чемпион: <b>Pen Klak</b> (+250 pts) · Финалист: <b>Timo Haapala</b> · 1/2 финала: Anatoly Fipomba, Soren Dahl · Топ-4 сеяных [1]–[4] с BYE в 1/16 · <button type=\"button\" class=\"btn-gold\" onclick=\"openWeeklyATP250BracketModal('m_7', 2024)\" style=\"padding:2px 9px; font-size:11.5px; margin-left:6px;\">🏆 Открыть авто-сетку ATP 250</button>",
-    "bg250_tbsh_4_2024": "🎾 <b>Параллельный тур недели (Ньюпорт 250 · ATP 250 + серия Челленджеров):</b> Чемпион: <b>Esteban Aranda</b> (+250 pts) · Финалист: <b>Nikolai Lind</b> · 1/2 финала: Olias Forgnine, Matthew Vereshevskiy · Топ-4 сеяных [1]–[4] с BYE в 1/16 · <button type=\"button\" class=\"btn-gold\" onclick=\"openWeeklyATP250BracketModal('tbsh_4', 2024)\" style=\"padding:2px 9px; font-size:11.5px; margin-left:6px;\">🏆 Открыть авто-сетку ATP 250</button>",
-    "bg250_500_9_2024": "🎾 <b>Параллельный тур недели (Бостад 250 · ATP 250 + серия Челленджеров):</b> Чемпион: <b>Markon Leoxan</b> (+250 pts) · Финалист: <b>Vorb Blaostie</b> · 1/2 финала: Julian Papai-tons, Venn Hentay · Топ-4 сеяных [1]–[4] с BYE в 1/16 · <button type=\"button\" class=\"btn-gold\" onclick=\"openWeeklyATP250BracketModal('500_9', 2024)\" style=\"padding:2px 9px; font-size:11.5px; margin-left:6px;\">🏆 Открыть авто-сетку ATP 250</button>",
-    "bg250_500_10_2024": "🎾 <b>Параллельный тур недели (Гштаад 250 · ATP 250 + серия Челленджеров):</b> Чемпион: <b>Tiago Logik</b> (+250 pts) · Финалист: <b>Gary Riffay</b> · 1/2 финала: Sumaul Erpolast, Freddy Johnson · Топ-4 сеяных [1]–[4] с BYE в 1/16 · <button type=\"button\" class=\"btn-gold\" onclick=\"openWeeklyATP250BracketModal('500_10', 2024)\" style=\"padding:2px 9px; font-size:11.5px; margin-left:6px;\">🏆 Открыть авто-сетку ATP 250</button>",
-    "bg250_m_8_2024": "🎾 <b>Параллельный тур недели (Умаг 250 · ATP 250 + серия Челленджеров):</b> Чемпион: <b>Vorb Blaostie</b> (+250 pts) · Финалист: <b>Shaun Salkar</b> · 1/2 финала: Rebekka Yentif, Fite Memsy Staprin · Топ-4 сеяных [1]–[4] с BYE в 1/16 · <button type=\"button\" class=\"btn-gold\" onclick=\"openWeeklyATP250BracketModal('m_8', 2024)\" style=\"padding:2px 9px; font-size:11.5px; margin-left:6px;\">🏆 Открыть авто-сетку ATP 250</button>",
-    "bg250_500_11_2024": "🎾 <b>Параллельный тур недели (Китцбюэль 250 · ATP 250 + серия Челленджеров):</b> Чемпион: <b>Timo Haapala</b> (+250 pts) · Финалист: <b>Freddy Johnson</b> · 1/2 финала: Norbert Zembaloft, Tiago Logik · Топ-4 сеяных [1]–[4] с BYE в 1/16 · <button type=\"button\" class=\"btn-gold\" onclick=\"openWeeklyATP250BracketModal('500_11', 2024)\" style=\"padding:2px 9px; font-size:11.5px; margin-left:6px;\">🏆 Открыть авто-сетку ATP 250</button>",
-    "bg250_500_12_2024": "🎾 <b>Параллельный тур недели (Атланта 250 · ATP 250 + серия Челленджеров):</b> Чемпион: <b>Sumaul Erpolast</b> (+250 pts) · Финалист: <b>Spam Kyutol Robertson</b> · 1/2 финала: Vorb Blaostie, Tiago Logik · Топ-4 сеяных [1]–[4] с BYE в 1/16 · <button type=\"button\" class=\"btn-gold\" onclick=\"openWeeklyATP250BracketModal('500_12', 2024)\" style=\"padding:2px 9px; font-size:11.5px; margin-left:6px;\">🏆 Открыть авто-сетку ATP 250</button>",
-    "bg250_m_9_2024": "🎾 <b>Параллельный тур недели (Лос-Кабос 250 · ATP 250 + серия Челленджеров):</b> Чемпион: <b>Benoit Chabal</b> (+250 pts) · Финалист: <b>Oliver Stelalir</b> · 1/2 финала: Markon Leoxan, Soren Hansen · Топ-4 сеяных [1]–[4] с BYE в 1/16 · <button type=\"button\" class=\"btn-gold\" onclick=\"openWeeklyATP250BracketModal('m_9', 2024)\" style=\"padding:2px 9px; font-size:11.5px; margin-left:6px;\">🏆 Открыть авто-сетку ATP 250</button>"
+    "bg250_500_8_2024": "🎾 <b>Параллельный тур недели (Мальорка 250 · ATP 250 + серия Челленджеров):</b> Чемпион: <b>Omar Netigios</b> (+250 pts) · Финалист: <b>Tiago Logik</b> · 1/2 финала: Freddy Johnson, Gary Riffay · Топ-4 сеяных [1]–[4] с BYE в 1/16 · <button type=\"button\" class=\"btn-gold\" onclick=\"openWeeklyATP250BracketModal('500_8', 2024)\" style=\"padding:2px 9px; font-size:11.5px; margin-left:6px;\">🏆 Открыть авто-сетку ATP 250</button>"
   },
   "checkpoints": [
     {
