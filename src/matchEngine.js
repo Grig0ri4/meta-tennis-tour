@@ -620,9 +620,17 @@ export function parseAndValidateScoreString(str, bestOf = 3) {
       }
     }
 
-    const p1WinsMatch = p1W !== p2W
-      ? p1W > p2W
-      : (lastG1 !== lastG2 ? lastG1 > lastG2 : p1TotalG >= p2TotalG);
+    // Если матч прерван в ходе незавершенного сета, травмировался и снялся отстающий игрок
+    const lastSetClean = setTokens[setTokens.length - 1].replace(/\(\d+\)/g, '');
+    const lastParts = lastSetClean.split('-');
+    const lg1 = parseInt(lastParts[0], 10);
+    const lg2 = parseInt(lastParts[1], 10);
+    const lastSetIsComplete = (Math.max(lg1, lg2) === 6 && Math.min(lg1, lg2) <= 4) ||
+                              (Math.max(lg1, lg2) === 7 && (Math.min(lg1, lg2) === 5 || Math.min(lg1, lg2) === 6));
+
+    const p1WinsMatch = !lastSetIsComplete && lg1 !== lg2
+      ? lg1 > lg2
+      : (p1W !== p2W ? p1W > p2W : p1TotalG >= p2TotalG);
 
     const normalizedSets = [...setTokens, 'RET'];
     return {

@@ -4662,11 +4662,15 @@ export function endSeasonAndDecayPoints() {
   activeTourney = tournaments[0];
   activeTourneyId = activeTourney.id;
 
-  sortAndRankPlayers(players, false);
+  // Сначала рассчитываем чистую сумму очков к защите на новый сезон
+  syncPlayers52WeekDiagnostics(players, tournaments, currentTourYear);
+
+  // На 02 января рейтинг 52 недель строго равен оставшейся защите прошлого года (Гонка = 0, Итоговый = 0)
   players.forEach(p => {
+    p.points = Math.max(0, p.remainingDefending || 0);
     p.racePoints = 0;
     p.finalsPoints = 0;
-    p.seasonStartRank = p.rank;
+    p.defendedSoFar = 0;
     p.rankChange = 0;
     p.raceRankChange = 0;
     p.lastPointsDelta = 0;
@@ -4675,7 +4679,12 @@ export function endSeasonAndDecayPoints() {
     p.lastTourneyDefended = 0;
     p.lastTourneyName = '';
   });
-  syncPlayers52WeekDiagnostics(players, tournaments, currentTourYear);
+
+  // Ранжируем игроков строго по чистым очкам нового сезона и фиксируем стартовую позицию
+  sortAndRankPlayers(players, false);
+  players.forEach(p => {
+    p.seasonStartRank = p.rank;
+  });
 
   savePlayers(false);
   saveTournaments();
@@ -6668,6 +6677,35 @@ export function saveSeasonCheckpoint(cpId, customName, options = {}) {
     const completedTourneyIds = clonedTournaments.filter(t => t && t.completed).map(t => t.id);
 
     const labelText = customName || `Чекпоинт · ${formatDateDisplay(fixedDateStr)}`;
+
+    // Компактный слепок игроков: исключаем дублирование статических полей
+    const leanPlayers = clonedPlayers.map(p => ({
+      id: p.id,
+      name: p.name,
+      flag: p.flag,
+      rank: p.rank,
+      points: p.points,
+      racePoints: p.racePoints || 0,
+      finalsPoints: p.finalsPoints || 0,
+      remainingDefending: p.remainingDefending || 0,
+      defendedSoFar: p.defendedSoFar || 0,
+      birthDate: p.birthDate,
+      tournamentPoints: p.tournamentPoints || {},
+      bestRank: p.bestRank,
+      seasonStartRank: p.seasonStartRank,
+      stamina: p.stamina,
+      medals: p.medals,
+      nickname: p.nickname,
+      playStyle: p.playStyle,
+      isNewgen: p.isNewgen,
+      isCleanReplacement: p.isCleanReplacement
+    }));
+
+    // В чекпоинте храним историю только активного года (прошлые сезоны уже в сохраненной глобальной базе)
+    const leanHistory = clonedSeasonsHistory[fixedYear]
+      ? { [fixedYear]: clonedSeasonsHistory[fixedYear] }
+      : clonedSeasonsHistory;
+
     const checkpointData = {
       id: targetId,
       name: labelText,
@@ -6679,9 +6717,9 @@ export function saveSeasonCheckpoint(cpId, customName, options = {}) {
       createdAt: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
       lockedStartCheckpoint: Boolean(options.lockedStartCheckpoint),
       completedTourneyIds,
-      players: clonedPlayers,
+      players: leanPlayers,
       tournaments: clonedTournaments,
-      seasonsHistory: clonedSeasonsHistory,
+      seasonsHistory: leanHistory,
       retiredLegends: clonedRetiredLegends
     };
 

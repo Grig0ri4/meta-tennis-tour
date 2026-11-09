@@ -1235,5 +1235,89 @@
     "birthDate": "1990-03-15",
     "nickname": "",
     "playStyle": ""
+  },
+  "id:p_151": {
+    "name": "Kevin Lidirt",
+    "flag": "ITA",
+    "birthDate": "1982-08-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:kevin lidirt": {
+    "name": "Kevin Lidirt",
+    "flag": "ITA",
+    "birthDate": "1982-08-27",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_285": {
+    "name": "Ruben Castellanos",
+    "flag": "ESP",
+    "birthDate": "2006-07-16",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:ruben castellanos": {
+    "name": "Ruben Castellanos",
+    "flag": "ESP",
+    "birthDate": "2006-07-16",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_new_2025_2": {
+    "name": "Alvaro Zeiler",
+    "flag": "CRO",
+    "birthDate": "2006-12-11",
+    "nickname": "Лисичка",
+    "playStyle": "Техничный контрпанчер с быстрой игрой у сетки"
+  },
+  "name:alvaro zeiler": {
+    "name": "Alvaro Zeiler",
+    "flag": "CRO",
+    "birthDate": "2006-12-11",
+    "nickname": "Лисичка",
+    "playStyle": "Техничный контрпанчер с быстрой игрой у сетки"
+  },
+  "id:p_89": {
+    "name": "Ben Sherlok",
+    "flag": "FRA",
+    "birthDate": "2003-03-15",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:ben sherlok": {
+    "name": "Ben Sherlok",
+    "flag": "FRA",
+    "birthDate": "2003-03-15",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_171": {
+    "name": "Jerry Lolepso",
+    "flag": "ESP",
+    "birthDate": "1989-11-13",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:jerry lolepso": {
+    "name": "Jerry Lolepso",
+    "flag": "ESP",
+    "birthDate": "1989-11-13",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "id:p_123": {
+    "name": "Matthew Vereshevskiy",
+    "flag": "FRA",
+    "birthDate": "2003-04-30",
+    "nickname": "",
+    "playStyle": ""
+  },
+  "name:matthew vereshevskiy": {
+    "name": "Matthew Vereshevskiy",
+    "flag": "FRA",
+    "birthDate": "2003-04-30",
+    "nickname": "",
+    "playStyle": ""
   }
 }

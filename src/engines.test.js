@@ -1415,4 +1415,68 @@ test('Автоматическая сетка турнира ATP 250 (28 игр�
   assert.equal(bagelSets, 0, 'В авто-сетке ATP 250 нет спама счетов 6-0 / 0-6');
 });
 
+test('Хирургический аудит 6 High-багов: инверсия RET, регламент ATP H2H на Итоговом, изоляция ATP 250', () => {
+  // 1. Инверсия победителя при отказе (RET):
+  // Игрок 1 взял 1-й сет (6-4), но во 2-м уступал 2-5 и снялся из-за травмы -> побеждает Игрок 2
+  const retP2TrailingP1 = parseAndValidateScoreString('6-4 2-5 RET', 3);
+  assert.equal(retP2TrailingP1.valid, true);
+  assert.equal(retP2TrailingP1.p1WinsMatch, false, 'При счете 6-4 2-5 RET снялся Игрок 1, победа присуждается Игроку 2');
+
+  // Игрок 1 проиграл 1-й сет (4-6), но во 2-м вел 5-2, когда Игрок 2 снялся -> побеждает Игрок 1
+  const retP1LeadingP2 = parseAndValidateScoreString('4-6 5-2 RET', 3);
+  assert.equal(retP1LeadingP2.valid, true);
+  assert.equal(retP1LeadingP2.p1WinsMatch, true, 'При счете 4-6 5-2 RET снялся Игрок 2, победа присуждается Игроку 1');
+
+  // 2. Регламент ATP на Итоговом турнире (H2H решает при равенстве побед 2 игроков):
+  const pA = { id: 'p_a', name: 'Player A', rank: 1 };
+  const pB = { id: 'p_b', name: 'Player B', rank: 2 };
+  const pC = { id: 'p_c', name: 'Player C', rank: 3 };
+
+  // Матчи группы:
+  // Match 1: Player A beats Player B 7-6 7-6 (H2H: A победил B)
+  // Match 2: Player B beats Player C 6-0 6-0 (B имеет супер-разницу сетов и геймов)
+  // Match 3: Player C beats Player A 6-4 6-4
+  // Итог побед: A: 1 победа, B: 1 победа, C: 1 победа (3 игрока равны)
+  // Теперь моделируем случай ДВУХ игроков с равным числом побед (2 победы у обоих, у третьего 0):
+  const matchesTwoTied = [
+    { p1: pA, p2: pB, winner: pA, score: ['7-6', '7-6'] }, // A beat B
+    { p1: pA, p2: pC, winner: pA, score: ['6-4', '4-6', '7-6'] }, // A beat C in 3 sets (+1 set diff for A)
+    { p1: pB, p2: pC, winner: pB, score: ['6-1', '6-1'] }  // B beat C in 2 sets (+2 set diff for B)
+  ];
+  // Player A: 2 победы (разница сетов: 2-0 + 2-1 = 4-1 = +3)
+  // Player B: 1 победа... постойте, сделаем ровно по 2 победы:
+  // Пусть в группе 4 игрока (как на Итоговом в каждой группе по 4 игрока):
+  const pD = { id: 'p_d', name: 'Player D', rank: 4 };
+  const finalsGroupMatches = [
+    { p1: pA, p2: pB, winner: pA, score: ['7-6', '7-6'] }, // A beat B (2-0 sets)
+    { p1: pA, p2: pC, winner: pA, score: ['6-4', '6-4'] }, // A beat C (2-0 sets)
+    { p1: pA, p2: pD, winner: pD, score: ['6-4', '6-4'] }, // A lost to D (0-2 sets) -> A: 2 победы, сеты 4-2 (+2)
+
+    { p1: pB, p2: pC, winner: pB, score: ['6-0', '6-0'] }, // B beat C (2-0 sets)
+    { p1: pB, p2: pD, winner: pB, score: ['6-0', '6-0'] }, // B beat D (2-0 sets) -> B: 2 победы, сеты 4-2 (+2), геймы +24!
+
+    { p1: pC, p2: pD, winner: pC, score: ['6-4', '6-4'] }  // C: 1 победа, D: 1 победа
+  ];
+  // У Player A и Player B ровно по 2 победы.
+  // Разница геймов у Player B намного выше, чем у Player A!
+  // Но по регламенту ATP при равенстве 2 игроков очная встреча Player A vs Player B (где победил A)
+  // ОБЯЗАНА ставить Player A на 1-е место, а Player B — на 2-е место!
+  const standings = calculateGroupStandings(finalsGroupMatches);
+  assert.equal(standings[0].player.id, 'p_a', 'Победитель очной встречи Player A должен занять 1-е место');
+  assert.equal(standings[1].player.id, 'p_b', 'Player B должен занять 2-е место, несмотря на лучшую разницу геймов');
+
+  // 3. Изоляция очков параллельного турнира ATP 250:
+  const testPlayers = [
+    { id: 'main_star', name: 'Main Star', rank: 1, points: 5000, racePoints: 4000, tournamentPoints: {} },
+    { id: 'bg_champ', name: 'BG Champ', rank: 35, points: 1200, racePoints: 1000, tournamentPoints: {} }
+  ];
+  const mainParticipants = [{ id: 'main_star' }];
+  const tourneyObj = { id: 'm_5', name: 'Милан Masters', type: 'Мастерс', size: 32 };
+
+  runBackgroundATP250Tournaments(testPlayers, mainParticipants, 2024, 9, tourneyObj);
+
+  // Игрок основного турнира main_star категорически не должен получить очков параллельного тура под ID m_5
+  assert.equal(testPlayers[0].tournamentPoints?.['m_5']?.['2024'] || 0, 0, 'Игрок основы недели не получает очков фонового турнира');
+});
+
 

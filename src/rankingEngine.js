@@ -1126,23 +1126,21 @@ export function runBackgroundATP250Tournaments(players, mainTourneyParticipants,
 
     Object.entries(parallelEarnedMap).forEach(([pid, pts]) => {
       const pl = players.find(x => String(x.id) === String(pid));
-      if (!pl || pts <= 0) return;
+      // Игроки основного турнира недели категорически защищены от параллельного начисления
+      if (!pl || pts <= 0 || participantIds.has(String(pid))) return;
       const safeEarned = Math.max(0, pts);
 
       if (hasRealTourney) {
-        // Защита за эту неделю уже была списана в applyTournamentPointsToPlayers, поэтому добавляем набранные очки параллельного тура
-        const prevMainPts = pl.tournamentPoints?.[tourney.id]?.[viewingYear] || 0;
         pl.points = Math.max(0, (pl.points || 0) + safeEarned);
         pl.racePoints = Math.max(pl.racePoints || 0, (pl.racePoints || 0) + safeEarned);
         pl.lastPointsDelta = (pl.lastPointsDelta || 0) + safeEarned;
-        pl.lastRaceDelta = prevMainPts + safeEarned;
-        pl.lastTourneyEarned = prevMainPts + safeEarned;
-        pl.lastTourneyName = prevMainPts > 0
-          ? `${tourney.name} + ${leadTourneyName} (ATP 250)`
-          : `${leadTourneyName} (ATP 250 / Challenger)`;
+        pl.lastRaceDelta = safeEarned;
+        pl.lastTourneyEarned = safeEarned;
+        pl.lastTourneyName = `${leadTourneyName} (ATP 250 / Challenger)`;
         if (!pl.tournamentPoints) pl.tournamentPoints = {};
         if (!pl.tournamentPoints[tourney.id]) pl.tournamentPoints[tourney.id] = {};
-        pl.tournamentPoints[tourney.id][viewingYear] = prevMainPts + safeEarned;
+        // Записываем очки за параллельный турнир на этой неделе календаря
+        pl.tournamentPoints[tourney.id][viewingYear] = safeEarned;
       } else {
         const prevPoints = pl.points;
         const defending = getDefendingPoints(pl, `bg250_${leadTourneyName}`, viewingYear);

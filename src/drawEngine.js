@@ -304,12 +304,18 @@ export function buildOlympicQuarterSeparatedBracket(qualified) {
 
 export function calculateGroupStandings(groupMatches) {
   const stats = {};
+  const h2hMap = {};
+
   (groupMatches || []).forEach(m => {
     if (m.p1 && !stats[m.p1.id]) {
       stats[m.p1.id] = { player: m.p1, wins: 0, losses: 0, setsW: 0, setsL: 0, gamesW: 0, gamesL: 0 };
     }
     if (m.p2 && !stats[m.p2.id]) {
       stats[m.p2.id] = { player: m.p2, wins: 0, losses: 0, setsW: 0, setsL: 0, gamesW: 0, gamesL: 0 };
+    }
+    if (m.winner && m.p1 && m.p2) {
+      h2hMap[`${m.p1.id}_vs_${m.p2.id}`] = m.winner.id;
+      h2hMap[`${m.p2.id}_vs_${m.p1.id}`] = m.winner.id;
     }
 
     if (m.winner && m.score && m.score.length > 0 && m.p1 && m.p2) {
@@ -349,12 +355,35 @@ export function calculateGroupStandings(groupMatches) {
     }
   });
 
-  return Object.values(stats).sort((a, b) => {
+  const list = Object.values(stats);
+  return list.sort((a, b) => {
+    // 1. Количество побед в группе
     if (b.wins !== a.wins) return b.wins - a.wins;
+
+    // 2. Если 2 игрока имеют одинаковое число побед — решает очная встреча (H2H по регламенту ATP)
+    const tiedWithSameWins = list.filter(x => x.wins === a.wins);
+    if (tiedWithSameWins.length === 2) {
+      const directWinner = h2hMap[`${a.player.id}_vs_${b.player.id}`];
+      if (directWinner === a.player.id) return -1;
+      if (directWinner === b.player.id) return 1;
+    }
+
+    // 3. При равенстве побед у 3 игроков — разница сетов, затем разница геймов
     const setDiffB = b.setsW - b.setsL;
     const setDiffA = a.setsW - a.setsL;
     if (setDiffB !== setDiffA) return setDiffB - setDiffA;
-    return (b.gamesW - b.gamesL) - (a.gamesW - a.gamesL);
+
+    const gameDiffB = b.gamesW - b.gamesL;
+    const gameDiffA = a.gamesW - a.gamesL;
+    if (gameDiffB !== gameDiffA) return gameDiffB - gameDiffA;
+
+    // 4. Очная встреча между a и b при равенстве остальных показателей
+    const directWinner = h2hMap[`${a.player.id}_vs_${b.player.id}`];
+    if (directWinner === a.player.id) return -1;
+    if (directWinner === b.player.id) return 1;
+
+    // 5. Детерминированный фоллбэк по рейтингу ATP
+    return (Number(a.player.rank) || 999) - (Number(b.player.rank) || 999);
   });
 }
 

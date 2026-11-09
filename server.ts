@@ -88,8 +88,11 @@ async function startServer() {
   app.post("/api/canon-snapshot", (req, res) => {
     try {
       const body = req.body;
-      if (body && Array.isArray(body.players) && body.players.length === 300) {
-        const canonPath = path.join(__dirname, "public", "canon.json");
+      if (!body || !Array.isArray(body.players) || body.players.length < 250) {
+        res.status(400).json({ ok: false, error: "Некорректный массив игроков (ожидается >= 250)" });
+        return;
+      }
+      const canonPath = path.join(__dirname, "public", "canon.json");
         const masterBackupPath = path.join(__dirname, "public", "canon.backup.nov15.json");
         let existingCanon: any = {};
         if (fs.existsSync(canonPath)) {
@@ -196,7 +199,6 @@ async function startServer() {
         };
 
         fs.writeFileSync(canonPath, JSON.stringify(mergedCanon, null, 2), "utf8");
-      }
       res.json({ ok: true });
     } catch (e) {
       console.warn("canon-snapshot err:", e);
