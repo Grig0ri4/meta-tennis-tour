@@ -6834,14 +6834,16 @@ function ensureInitialSeasonCheckpoint() {
   }
 
   if (changed) {
-    // Сортируем чекпоинты от самых новых к старым, а стартовый чекпоинт 02.01 всегда фиксируем в конце списка
+    // Сохраняем все ручные чекпоинты пользователя (они никогда не вытесняются!)
+    const manualItems = list.filter(x => x && (x.isManual || String(x.id).startsWith('cp_manual_')));
     const startItem = list.find(x => x.id === startId);
     const others = list
-      .filter(x => x.id !== startId)
+      .filter(x => x.id !== startId && !x.isManual && !String(x.id).startsWith('cp_manual_'))
       .sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')))
-      .slice(0, 7);
-    if (startItem) others.push(startItem);
-    list = others;
+      .slice(0, 6);
+    const finalList = [...manualItems, ...others];
+    if (startItem && !finalList.some(x => x.id === startId)) finalList.push(startItem);
+    list = finalList;
     memoryCheckpointsByUniverse[activeUniverseId] = list;
     universeStorage.setItem(CHECKPOINTS_STORAGE_KEY, JSON.stringify(list));
   }
@@ -7288,7 +7290,8 @@ if (typeof window !== 'undefined') {
         retiredLegends,
         draws: drawsBackup,
         withdrawals: withdrawalsBackup,
-        bg250: bg250Backup
+        bg250: bg250Backup,
+        checkpoints: getSavedCheckpointsList()
       };
       fetch('/api/canon-snapshot', {
         method: 'POST',
@@ -7397,42 +7400,72 @@ if (typeof window !== 'undefined') {
         memoryUniverseStore['draw_olympics_2024'] = str;
       }
 
-      // 3. Синхронизируем турниры (гарантируем completed: true для 1..16, а Олимпиада 17 остается completed: false):
-      const pastWinnersMap = {
-        '500_5': { name: 'Ussistian Shifter', score: '6-4 7-6(4)' },
-        '500_6': { name: 'Ussistian Shifter', score: '7-6(5) 6-3' },
-        'm_6': { name: 'Gary Riffay', score: '6-3 6-4' },
-        'tbsh_3': { name: 'Max Kyupan', score: '6-4 4-6 7-6(3) 6-3' },
-        '500_7': { name: 'Will Wentra', score: '6-3 7-5' }
-      };
+      // 3. Синхронизируем турниры из canonData (гарантируем completed: true для всех завершенных турниров сезона):
+      if (Array.isArray(canonData?.tournaments) && canonData.tournaments.length >= 26) {
+        const existingTourneysRaw = localStorage.getItem('universe_1_meta_tournaments_v8');
+        let existingTourneys = null;
+        try {
+          if (existingTourneysRaw) existingTourneys = JSON.parse(existingTourneysRaw);
+        } catch {}
 
-      const existingTourneysRaw = localStorage.getItem('universe_1_meta_tournaments_v8');
-      let existingTourneys = null;
-      try {
-        if (existingTourneysRaw) existingTourneys = JSON.parse(existingTourneysRaw);
-      } catch {}
-
-      if (Array.isArray(existingTourneys) && existingTourneys.length >= 26) {
-        let modified = false;
-        existingTourneys.forEach(t => {
-          if (pastWinnersMap[t.id] && !t.completed) {
-            t.completed = true;
-            t.lastScore = pastWinnersMap[t.id].score;
-            modified = true;
-          }
-          if (t.id === 'olympics') {
-            t.completed = false;
-          }
-        });
-        if (modified) {
-          const str = JSON.stringify(existingTourneys);
+        if (!Array.isArray(existingTourneys) || existingTourneys.length < 26) {
+          const str = JSON.stringify(canonData.tournaments);
           localStorage.setItem('universe_1_meta_tournaments_v8', str);
           memoryUniverseStore['universe_1_meta_tournaments_v8'] = str;
+        } else {
+          let modified = false;
+          canonData.tournaments.forEach(ct => {
+            if (ct && ct.completed) {
+              const found = existingTourneys.find(t => t.id === ct.id);
+              if (found && !found.completed) {
+                found.completed = true;
+                if (ct.lastWinner) found.lastWinner = ct.lastWinner;
+                if (ct.lastRunnerUp) found.lastRunnerUp = ct.lastRunnerUp;
+                if (ct.lastScore) found.lastScore = ct.lastScore;
+                modified = true;
+              }
+            }
+          });
+          if (modified) {
+            const str = JSON.stringify(existingTourneys);
+            localStorage.setItem('universe_1_meta_tournaments_v8', str);
+            memoryUniverseStore['universe_1_meta_tournaments_v8'] = str;
+          }
         }
       }
 
-      localStorage.removeItem('universe_1_meta_checkpoints_det_v6');
-      localStorage.removeItem('meta_checkpoints_det_v6');
+      // 4. Синхронизируем дату и активный турнир:
+      if (canonData?.universe?.currentTourDateStr) {
+        localStorage.setItem('universe_1_meta_tour_date_v8', canonData.universe.currentTourDateStr);
+        memoryUniverseStore['universe_1_meta_tour_date_v8'] = canonData.universe.currentTourDateStr;
+      }
+      if (canonData?.universe?.activeTourneyId) {
+        localStorage.setItem('universe_1_meta_active_tourney_v8', canonData.universe.activeTourneyId);
+        memoryUniverseStore['universe_1_meta_active_tourney_v8'] = canonData.universe.activeTourneyId;
+      }
+
+      // 5. Синхронизируем чекпоинты (включая ручной чекпоинт от 15 ноября):
+      if (Array.isArray(canonData?.checkpoints) && canonData.checkpoints.length > 0) {
+        const rawCps = localStorage.getItem('universe_1_meta_checkpoints_v2') || localStorage.getItem('meta_checkpoints_v2');
+        let currentCps = [];
+        try {
+          if (rawCps) currentCps = JSON.parse(rawCps);
+        } catch {}
+        if (!Array.isArray(currentCps)) currentCps = [];
+        const map = new Map();
+        canonData.checkpoints.forEach(cp => { if (cp?.id) map.set(cp.id, cp); });
+        currentCps.forEach(cp => { if (cp?.id) map.set(cp.id, cp); });
+        const merged = Array.from(map.values()).sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
+        const str = JSON.stringify(merged);
+        localStorage.setItem('universe_1_meta_checkpoints_v2', str);
+        localStorage.setItem('meta_checkpoints_v2', str);
+        memoryUniverseStore['universe_1_meta_checkpoints_v2'] = str;
+        memoryUniverseStore['meta_checkpoints_v2'] = str;
+        memoryCheckpointsByUniverse['1'] = merged;
+      }
+
+      localStorage.setItem('universe_1_meta_checkpoints_det_v6', 'true');
+      localStorage.setItem('meta_checkpoints_det_v6', 'true');
     } catch {
       // ignore
     }

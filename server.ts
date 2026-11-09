@@ -121,10 +121,31 @@ async function startServer() {
           }
         }
 
+        // Объединяем турниры: завершенные турниры никогда не откатываются назад в completed: false!
+        const existingTourneys = Array.isArray(existingCanon.tournaments) ? existingCanon.tournaments : [];
+        const incomingTourneys = Array.isArray(body.tournaments) ? body.tournaments : [];
+        const mergedTournaments = existingTourneys.map((ext: any) => {
+          const inc = incomingTourneys.find((t: any) => t && t.id === ext.id);
+          if (ext.completed) {
+            return { ...(inc || {}), ...ext, completed: true };
+          }
+          return inc || ext;
+        });
+
+        // Объединяем чекпоинты (включая ручные):
+        const existingCps = Array.isArray(existingCanon.checkpoints) ? existingCanon.checkpoints : [];
+        const incomingCps = Array.isArray(body.checkpoints) ? body.checkpoints : [];
+        const cpMap = new Map();
+        existingCps.forEach((c: any) => { if (c && c.id) cpMap.set(c.id, c); });
+        incomingCps.forEach((c: any) => { if (c && c.id) cpMap.set(c.id, c); });
+        const mergedCheckpoints = Array.from(cpMap.values());
+
         const mergedCanon = {
           ...existingCanon,
           ...body,
+          tournaments: mergedTournaments.length >= 26 ? mergedTournaments : (incomingTourneys.length >= 26 ? incomingTourneys : existingTourneys),
           draws: mergedDraws,
+          checkpoints: mergedCheckpoints,
           exportedAt: new Date().toISOString()
         };
 
