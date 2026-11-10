@@ -5568,11 +5568,12 @@ export function initHistoryUI() {
   if (!select) return;
   const years = Object.keys(seasonsHistory).sort((a, b) => Number(b) - Number(a));
   if (years.length === 0) {
-    select.innerHTML = '<option value="2023">Сезон 2023</option>';
+    select.innerHTML = '<option value="2024">Сезон 2024</option>';
     return;
   }
-  // По умолчанию показываем сезон 2023, если выбранный год не задан, либо сохраняем текущий выбор
-  const defaultYear = years.includes('2023') ? '2023' : years[0];
+  // По умолчанию показываем последний завершенный сезон тура (например 2024 при старте 2025), либо сохраняем текущий выбор
+  const lastFinishedYear = String(currentTourYear - 1);
+  const defaultYear = years.includes(lastFinishedYear) ? lastFinishedYear : (years[0] || '2024');
   const currentSelected = select.value && years.includes(select.value) ? select.value : defaultYear;
   select.innerHTML = years.map(y => `<option value="${y}" ${y === currentSelected ? 'selected' : ''}>Сезон ${y}</option>`).join('');
   select.value = currentSelected;
@@ -5703,6 +5704,29 @@ export function renderHistoryYear() {
 
   const majorColumnsList = fullTourneysList.filter(t => t.winner && t.pressColumn && t.pressColumn.headline);
 
+  // 1. Главные турниры сезона (Мэйджоры: ТБШ, Олимпиада, Итоговый)
+  const majorsList = fullTourneysList.filter(t => ['ТБШ', 'Олимпиада', 'Итоговый'].includes(t.type));
+
+  // 2. Лидеры сезона по завоеванным титулам (нормализация по имени)
+  const titleCountsMap = {};
+  fullTourneysList.forEach(t => {
+    if (t && t.winner && t.winner.name) {
+      const key = (t.winner.name || '').trim().toLowerCase();
+      if (!titleCountsMap[key]) {
+        titleCountsMap[key] = { player: t.winner, count: 0, majors: 0, tourneys: [] };
+      }
+      titleCountsMap[key].count++;
+      if (['ТБШ', 'Олимпиада', 'Итоговый'].includes(t.type)) {
+        titleCountsMap[key].majors++;
+      }
+      titleCountsMap[key].tourneys.push(t.name);
+    }
+  });
+  const topTitleWinners = Object.values(titleCountsMap).sort((a, b) => b.count !== a.count ? b.count - a.count : b.majors - a.majors);
+
+  // 3. Участники, завершившие карьеру по итогам выбранного сезона
+  const seasonRetirees = (retiredLegends || []).filter(r => String(r.retiredYear) === String(year));
+
   const rawWorldNo1 = data.worldNumberOne || activeList[0] || players[0];
   const worldNo1 = rawWorldNo1 ? (players.find(x => String(x.id) === String(rawWorldNo1.id)) || rawWorldNo1) : players[0];
 
@@ -5783,6 +5807,116 @@ export function renderHistoryYear() {
         </table>
       </div>
     `}
+
+    <div class="history-card" style="margin-bottom: 24px; padding: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px;">
+        <div>
+          <h3 style="font-size: 17px; color: var(--gold); margin: 0 0 4px 0;">🏆 Главные итоги сезона ${year} года</h3>
+          <small style="color: var(--text-dim);">Триумфаторы турниров Большого Шлема, Олимпийских игр, Итогового турнира, лидеры по титулам и завершившие карьеру:</small>
+        </div>
+        <div style="font-size: 12px; background: rgba(245, 158, 11, 0.15); color: var(--gold); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 4px; padding: 3px 8px; font-weight: 700;">
+          Завершено турниров: ${fullTourneysList.filter(t => t.winner).length} из ${fullTourneysList.length}
+        </div>
+      </div>
+
+      <!-- Сетка главных триумфаторов (Мэйджоры) -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 18px;">
+        ${majorsList.map(m => {
+          const isOly = m.id === 'olympics';
+          const typeBadge = isOly ? '🏅 Олимпиада' : (m.type === 'Итоговый' ? '🛡️ Итоговый турнир' : '🏆 ТБШ');
+          const w = m.winner ? (players.find(x => String(x.id) === String(m.winner.id)) || m.winner) : null;
+          const ru = m.runnerUp ? (players.find(x => String(x.id) === String(m.runnerUp.id)) || m.runnerUp) : null;
+          const br = m.bronze ? (players.find(x => String(x.id) === String(m.bronze.id)) || m.bronze) : null;
+          return `
+            <div style="background: #0e1624; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px;">
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-bottom: 6px;">
+                  <span style="color: var(--gold); font-weight: 700;">${typeBadge}</span>
+                  <span class="${getSurfaceTextClass(m.surface)}">${m.surface}</span>
+                </div>
+                <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 8px;">${m.name}</div>
+                <div style="font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                  <span style="color: var(--gold); font-weight: 800;">${isOly ? '🥇 ' : '🏆 '}</span>
+                  ${w ? `${renderFlagBadge(w.flag, { compact: true })} <button type="button" class="player-profile-link" style="color: var(--primary); font-weight: 700;" onclick="openPlayerProfileModal('${w.id}')">${w.name}</button>` : '<span style="color:var(--text-dim);">—</span>'}
+                </div>
+                <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+                  <span>${isOly ? '🥈' : 'Финалист:'}</span>
+                  ${ru ? `${renderFlagBadge(ru.flag, { compact: true })} <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${ru.id}')">${ru.name}</button>` : '—'}
+                </div>
+                ${isOly && br ? `
+                  <div style="font-size: 12px; color: #fb923c; margin-top: 3px; display: flex; align-items: center; gap: 6px;">
+                    <span>🥉 Бронза:</span>
+                    ${renderFlagBadge(br.flag, { compact: true })} <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${br.id}')">${br.name}</button>
+                  </div>
+                ` : ''}
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px; margin-top: 4px;">
+                <span style="color: var(--text-dim);">Счет финала:</span>
+                <span class="match-score">${m.score && m.score !== '—' ? formatTennisScore(m.score.split(' ')) : '—'}</span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <!-- Лидеры по завоеванным титулам -->
+      <div style="background: #0e1624; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 18px;">
+        <div style="font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 10px;">🎾 Лидеры сезона ${year} года по завоеванным титулам:</div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          ${topTitleWinners.slice(0, 6).map(tw => `
+            <div style="background: #131c2e; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12.5px; display: flex; align-items: center; gap: 7px;">
+              ${renderFlagBadge(tw.player.flag, { compact: true })}
+              <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${tw.player.id}')" style="font-weight: 700;">${tw.player.name}</button>
+              <span style="background: var(--primary); color: #05080c; font-weight: 800; font-size: 11px; padding: 1px 6px; border-radius: 4px;">
+                ${tw.count} ${tw.count === 1 ? 'титул' : (tw.count < 5 ? 'титула' : 'титулов')}
+              </span>
+              ${tw.majors > 0 ? `<span style="color: var(--gold); font-size: 11px; font-weight: 700;">(${tw.majors} мэйдж.)</span>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Завершили карьеру по итогам сезона -->
+      <div style="background: #0e1624; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <div style="font-size: 14px; font-weight: 700; color: var(--gold);">
+              👋 Завершили карьеру по итогам ${year} года (${seasonRetirees.length} игр.)
+            </div>
+            <small style="color: var(--text-dim);">Ветераны тура, сыгравшие свой последний профессиональный сезон в ${year} году:</small>
+          </div>
+          <button type="button" class="btn-gold btn-compact" onclick="switchHallSubtab('legends')" style="font-size: 11.5px; padding: 3px 9px;">
+            📜 Все легенды Зала Славы →
+          </button>
+        </div>
+
+        ${seasonRetirees.length === 0 ? `
+          <div style="font-size: 12.5px; color: var(--text-dim); padding: 8px 0;">
+            В этом сезоне никто из игроков топ-пула не объявил о завершении карьеры.
+          </div>
+        ` : `
+          <div class="legends-grid" style="margin-top: 8px;">
+            ${seasonRetirees.map(leg => `
+              <div class="legend-card" style="background: #131c2e;">
+                <div class="legend-card-header">
+                  <span class="legend-name">${renderFlagBadge(leg.flag, { compact: true })} ${leg.name}</span>
+                  <span style="color: var(--gold); font-size: 11.5px; font-weight: 700;">Выпуск ${leg.retiredYear}</span>
+                </div>
+                <div class="legend-meta">
+                  Возраст ухода: <b style="color: var(--text-main);">${leg.retiredAge} лет</b> (${leg.birthDate || '—'})
+                </div>
+                <div class="legend-meta">
+                  Наивысший рейтинг: <b style="color: var(--primary);">#${leg.bestRank}</b> · Финальный ранг: <b>#${leg.finalRank}</b>
+                </div>
+                <div class="legend-meta">
+                  Сыграно сезонов: <b>${leg.seasonsPlayed || 1}</b> · Очки: <b>${(leg.finalPoints || 0).toLocaleString()} pts</b>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      </div>
+    </div>
 
     <h3 style="margin: 18px 0 10px 0; font-size: 16px;">🏆 Таблица чемпионов всех ${fullTourneysList.length} турниров сезона ${year}</h3>
     <div style="margin-bottom: 24px;">
@@ -5912,7 +6046,7 @@ export function renderLegendsTab() {
       ${retiredLegends.map(leg => `
         <div class="legend-card">
           <div class="legend-card-header">
-            <span class="legend-name">${leg.flag} ${leg.name}</span>
+            <span class="legend-name">${renderFlagBadge(leg.flag, { compact: true })} ${leg.name}</span>
             <span style="color: var(--gold); font-size: 12px; font-weight: 700;">Выпуск ${leg.retiredYear}</span>
           </div>
           <div class="legend-meta">
@@ -7225,6 +7359,18 @@ if (typeof window !== 'undefined') {
         memoryUniverseStore['universe_1_meta_seasons_history'] = strHist;
         memoryUniverseStore['meta_seasons_history'] = strHist;
         seasonsHistory = JSON.parse(strHist);
+      }
+
+      // Синхронизируем ветеранов, завершивших карьеру:
+      if (Array.isArray(canonData.retiredLegends)) {
+        const strRet = JSON.stringify(canonData.retiredLegends);
+        try {
+          localStorage.setItem('universe_1_meta_retired_legends', strRet);
+          localStorage.setItem('meta_retired_legends', strRet);
+        } catch {}
+        memoryUniverseStore['universe_1_meta_retired_legends'] = strRet;
+        memoryUniverseStore['meta_retired_legends'] = strRet;
+        retiredLegends = JSON.parse(strRet);
       }
 
       // 4. Синхронизируем чекпоинты (включая ручной чекпоинт от 15 ноября и чекпоинт после Океанского шлема):

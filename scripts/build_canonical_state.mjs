@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { processEndOfSeasonRetirements } from '../src/retirementEngine.js';
-import { syncPlayers52WeekDiagnostics, sortAndRankPlayers } from '../src/rankingEngine.js';
+import { syncPlayers52WeekDiagnostics, sortAndRankPlayers, createTop50Snapshot } from '../src/rankingEngine.js';
 import { getSeasonTournaments } from '../data/tournaments.js';
 
 console.log('Extracting git commit 80bd1b2 canon...');
@@ -64,12 +64,30 @@ hist2024.tournamentsData = t2024.map(t => {
     }
   };
 });
-seasonsHistory['2024'] = hist2024;
+
+// Создаем срезы Топ-50 для 2024 года
+const tbsh4Top50 = hist2024.slamSnapshots?.tbsh_4?.top50;
+hist2024.yearEndTop50 = createTop50Snapshot(players2024End, '2024-11-22', tbsh4Top50);
+hist2024.seasonStartTop50 = seasonsHistory['2023']?.yearEndTop50 || [];
 
 // 4. Процесс перехода в 2025 год (завершение карьеры + ньюгены + очки на 02.01.2025)
-const retRes = processEndOfSeasonRetirements(players2024End, 2024, git80.retiredLegends || []);
+const retRes = processEndOfSeasonRetirements(players2024End, 2024, []);
+// Корректируем исторические пики рангов ветеранов
+const PEAK_CAREER_RANKS = {
+  p_39: 39,
+  p_26: 26,
+  p_90: 90,
+  p_97: 97
+};
+retRes.retiredThisYear.forEach(r => {
+  if (PEAK_CAREER_RANKS[r.id]) r.bestRank = PEAK_CAREER_RANKS[r.id];
+});
+
+hist2024.retiredLegends = retRes.retiredThisYear;
+seasonsHistory['2024'] = hist2024;
+
 let players2025 = retRes.updatedPlayers;
-const retiredLegends2025 = [...retRes.retiredThisYear, ...(git80.retiredLegends || [])];
+const retiredLegends2025 = [...retRes.retiredThisYear];
 
 const t2025 = getSeasonTournaments(2025, t2024).map(t => ({
   ...t,
@@ -140,7 +158,7 @@ const cpFinals2024 = {
   players: players2024End,
   tournaments: t2024,
   seasonsHistory: seasonsHistory,
-  retiredLegends: git80.retiredLegends || []
+  retiredLegends: retRes.retiredThisYear
 };
 
 // Объединяем чекпоинты без дубликатов, упорядочивая по дате от новых к старым
