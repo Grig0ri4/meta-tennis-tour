@@ -6309,10 +6309,13 @@ export function applyStateSnapshot(stateObj) {
       : (stateObj.tournaments || []).filter(t => t && t.completed).map(t => t.id)
   );
 
-  // Очищаем сетки будущих/незавершенных на момент чекпоинта турниров
-  for (let yr = 2024; yr <= maxYr; yr++) {
+  // Очищаем сетки ТОЛЬКО будущих турниров текущего сезона и будущих сезонов.
+  // Завершенные сетки прошлых сезонов (2023, 2024) и завершенные турниры текущего сезона НИКОГДА не удаляются!
+  for (let yr = currentTourYear; yr <= maxYr; yr++) {
     allTourneys.forEach(t => {
-      if (hasExplicitDrawsMap || yr > currentTourYear || !completedSetAtSnapshot.has(t.id)) {
+      const isFutureInCurrentYear = (yr === currentTourYear && !completedSetAtSnapshot.has(t.id));
+      const isFutureYear = (yr > currentTourYear);
+      if (isFutureInCurrentYear || isFutureYear) {
         universeStorage.removeItem(`draw_${t.id}_${yr}`);
         universeStorage.removeItem(`withdrawals_${t.id}_${yr}`);
         universeStorage.removeItem(`bg250_${t.id}_${yr}`);
@@ -6783,9 +6786,9 @@ export function restoreSeasonCheckpoint(cpId) {
     universeStorage.setItem(CHECKPOINTS_STORAGE_KEY, JSON.stringify(list));
   }
 
-  // Если откатились к старту сезона, удаляем более поздние авто-чекпоинты этого сезона, которые были после этой даты
+  // Если откатились к старту сезона, сохраняем ручные чекпоинты пользователя и мастер-точки канона
   if (found.id === `cp_start_${currentTourYear}`) {
-    const filteredCps = list.filter(c => c.id === found.id);
+    const filteredCps = list.filter(c => c && (c.id === found.id || c.isManual || String(c.id).startsWith('cp_manual_') || String(c.id).startsWith('cp_finals_') || String(c.id).startsWith('cp_tbsh_')));
     memoryCheckpointsByUniverse[activeUniverseId] = filteredCps;
     universeStorage.setItem(CHECKPOINTS_STORAGE_KEY, JSON.stringify(filteredCps));
   }
@@ -7188,24 +7191,41 @@ if (typeof window !== 'undefined') {
         players = JSON.parse(str);
       }
 
-      // 3. Синхронизируем дату и активный турнир (турнир #27 World Tour Finals на 15 Ноября 2024):
-      const targetDate = canonData.universe?.currentTourDateStr || '2024-11-15';
-      const targetTourneyId = canonData.universe?.activeTourneyId || 'finals';
+      // 3. Синхронизируем дату и активный турнир (по умолчанию старт Сезона 2025 на 02.01.2025):
+      const savedYear = parseInt(localStorage.getItem('universe_1_meta_tour_year') || localStorage.getItem('meta_tour_year'), 10);
+      const savedDate = localStorage.getItem('universe_1_meta_tour_date') || localStorage.getItem('meta_tour_date');
+      const shouldInitTo2025 = !savedYear || savedYear >= 2025 || (savedYear === 2024 && savedDate && savedDate < '2024-11-15');
+      const targetYear = shouldInitTo2025 ? (canonData.universe?.currentTourYear || 2025) : savedYear;
+      const targetDate = shouldInitTo2025 ? (canonData.universe?.currentTourDateStr || '2025-01-02') : (savedDate || '2025-01-02');
+      const targetTourneyId = shouldInitTo2025 ? (canonData.universe?.activeTourneyId || 'm_1') : (localStorage.getItem('universe_1_meta_active_tourney') || 'm_1');
+
       try {
-        localStorage.setItem('universe_1_meta_tour_year', '2024');
+        localStorage.setItem('universe_1_meta_tour_year', String(targetYear));
         localStorage.setItem('universe_1_meta_tour_date', targetDate);
         localStorage.setItem('universe_1_meta_active_tourney', targetTourneyId);
       } catch {}
-      memoryUniverseStore['universe_1_meta_tour_year'] = '2024';
+      memoryUniverseStore['universe_1_meta_tour_year'] = String(targetYear);
       memoryUniverseStore['universe_1_meta_tour_date'] = targetDate;
       memoryUniverseStore['universe_1_meta_active_tourney'] = targetTourneyId;
-      memoryUniverseStore['universe_1_meta_tour_year_v8'] = '2024';
+      memoryUniverseStore['universe_1_meta_tour_year_v8'] = String(targetYear);
       memoryUniverseStore['universe_1_meta_tour_date_v8'] = targetDate;
       memoryUniverseStore['universe_1_meta_active_tourney_v8'] = targetTourneyId;
-      currentTourYear = 2024;
+      currentTourYear = targetYear;
       currentTourDateStr = targetDate;
       activeTourneyId = targetTourneyId;
-      viewingYear = 2024;
+      viewingYear = targetYear;
+
+      // Синхронизируем историю сезонов (включая 2023 и завершенный 2024):
+      if (canonData.seasonsHistory && typeof canonData.seasonsHistory === 'object') {
+        const strHist = JSON.stringify(canonData.seasonsHistory);
+        try {
+          localStorage.setItem('universe_1_meta_seasons_history', strHist);
+          localStorage.setItem('meta_seasons_history', strHist);
+        } catch {}
+        memoryUniverseStore['universe_1_meta_seasons_history'] = strHist;
+        memoryUniverseStore['meta_seasons_history'] = strHist;
+        seasonsHistory = JSON.parse(strHist);
+      }
 
       // 4. Синхронизируем чекпоинты (включая ручной чекпоинт от 15 ноября и чекпоинт после Океанского шлема):
       if (Array.isArray(canonData.checkpoints) && canonData.checkpoints.length > 0) {

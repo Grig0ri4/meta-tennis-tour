@@ -34,12 +34,10 @@ async function startServer() {
   app.use(express.json({ limit: "10mb" }));
 
   app.get("/canon.json", (_req, res) => {
-    const backupPath = path.join(__dirname, "public", "canon.backup.nov15.json");
     const canonPath = path.join(__dirname, "public", "canon.json");
-    const filePathToServe = fs.existsSync(backupPath) ? backupPath : canonPath;
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-    res.sendFile(filePathToServe);
+    res.sendFile(canonPath);
   });
 
   app.get("/api/player-overrides", (_req, res) => {
@@ -151,19 +149,28 @@ async function startServer() {
           }
         }
 
-        // Объединяем турниры: завершенные турниры НИКОГДА не откатываются назад в completed: false!
-        const baseTourneys = Array.isArray(masterBackup.tournaments) && masterBackup.tournaments.length >= 26
-          ? masterBackup.tournaments
-          : (Array.isArray(existingCanon.tournaments) ? existingCanon.tournaments : []);
-        const incomingTourneys = Array.isArray(body.tournaments) ? body.tournaments : [];
+        // Объединяем турниры:
+        const incomingYear = Number(body.universe?.currentTourYear || body.currentTourYear || existingCanon.universe?.currentTourYear || 2025);
+        let mergedTournaments: any[];
+        if (incomingYear >= 2025) {
+          mergedTournaments = Array.isArray(body.tournaments) && body.tournaments.length >= 26
+            ? body.tournaments
+            : (Array.isArray(existingCanon.tournaments) ? existingCanon.tournaments : (masterBackup.tournaments || []));
+        } else {
+          // 2024: завершенные турниры НИКОГДА не откатываются назад в completed: false!
+          const baseTourneys = Array.isArray(masterBackup.tournaments) && masterBackup.tournaments.length >= 26
+            ? masterBackup.tournaments
+            : (Array.isArray(existingCanon.tournaments) ? existingCanon.tournaments : []);
+          const incomingTourneys = Array.isArray(body.tournaments) ? body.tournaments : [];
 
-        const mergedTournaments = baseTourneys.map((ext: any) => {
-          const inc = incomingTourneys.find((t: any) => t && t.id === ext.id);
-          if (ext.completed) {
-            return { ...(inc || {}), ...ext, completed: true };
-          }
-          return inc || ext;
-        });
+          mergedTournaments = baseTourneys.map((ext: any) => {
+            const inc = incomingTourneys.find((t: any) => t && t.id === ext.id);
+            if (ext.completed) {
+              return { ...(inc || {}), ...ext, completed: true };
+            }
+            return inc || ext;
+          });
+        }
 
         // Объединяем чекпоинты (включая ручной чекпоинт от 15 ноября):
         const masterCps = Array.isArray(masterBackup.checkpoints) ? masterBackup.checkpoints : [];
@@ -178,13 +185,9 @@ async function startServer() {
         const mergedUniverse = {
           id: "1",
           name: "Вселенная Автора (Канон)",
-          currentTourYear: 2024,
-          currentTourDateStr: (body.universe?.currentTourDateStr && String(body.universe.currentTourDateStr) >= "2024-11-15")
-            ? body.universe.currentTourDateStr
-            : (masterBackup.universe?.currentTourDateStr || "2024-11-15"),
-          activeTourneyId: (body.universe?.activeTourneyId === "finals" || !body.universe?.activeTourneyId)
-            ? (masterBackup.universe?.activeTourneyId || "finals")
-            : body.universe.activeTourneyId
+          currentTourYear: incomingYear,
+          currentTourDateStr: body.universe?.currentTourDateStr || body.currentTourDateStr || existingCanon.universe?.currentTourDateStr || masterBackup.universe?.currentTourDateStr || (incomingYear >= 2025 ? "2025-01-02" : "2024-11-15"),
+          activeTourneyId: body.universe?.activeTourneyId || body.activeTourneyId || existingCanon.universe?.activeTourneyId || masterBackup.universe?.activeTourneyId || (incomingYear >= 2025 ? "m_1" : "finals")
         };
 
         const mergedCanon = {
