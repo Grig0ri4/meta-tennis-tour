@@ -331,7 +331,7 @@ button:disabled {
 
 .matches-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(335px, 1fr));
     gap: 12px;
     padding-right: 4px;
 }
@@ -394,14 +394,20 @@ button:disabled {
 .player-info {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     overflow: hidden;
+    width: 100%;
+    min-width: 0;
 }
 
 .player-name {
+    font-size: 13.5px;
+    font-weight: 600;
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .player-age-tag {
@@ -411,6 +417,14 @@ button:disabled {
     white-space: nowrap;
     margin-left: 2px;
     font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+
+.match-player .seed-tag,
+.match-player .entry-tag,
+.match-player .stamina-badge-inline {
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .player-medals-inline {
@@ -942,7 +956,10 @@ button:disabled {
 }
 
 .match-center-modal {
-    width: 840px;
+    width: min(980px, 96vw) !important;
+    max-width: 96vw !important;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 .modal-header-row {
@@ -1305,11 +1322,18 @@ button:disabled {
     perspective: 750px;
     display: flex;
     justify-content: center;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
 }
 
 .ut-card {
     position: relative;
-    width: 100%;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
     border-radius: 14px;
     padding: 14px 15px;
     background: linear-gradient(145deg, #131d2e 0%, #0b111c 65%, #162236 100%);
@@ -1416,8 +1440,8 @@ button:disabled {
 }
 
 .ut-player-identity {
-    flex: 1;
     min-width: 0;
+    flex: 1;
 }
 
 .ut-tier-ribbon {
@@ -1437,15 +1461,15 @@ button:disabled {
 }
 
 .ut-player-title {
-    font-size: 15px;
-    font-weight: 800;
-    color: #fff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     display: flex;
     align-items: center;
     gap: 5px;
+    flex-wrap: wrap;
+    font-size: clamp(13px, 1.15vw, 15.5px);
+    line-height: 1.2;
+    word-break: break-word;
+    color: #fff;
+    font-weight: 800;
 }
 
 .ut-player-sub {
@@ -1505,10 +1529,9 @@ button:disabled {
 
 .ut-live-dossier-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    padding: 5px 8px;
+    flex-direction: column;
+    gap: 5px;
+    padding: 6px 9px;
     background: rgba(9, 13, 20, 0.65);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 6px;
@@ -1516,12 +1539,39 @@ button:disabled {
     font-size: 11px;
     position: relative;
     z-index: 2;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.ut-dossier-top-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 6px;
+}
+
+.ut-dossier-bottom-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    font-size: 11px;
+    gap: 6px;
+}
+
+.ut-dossier-bottom-line span b,
+.ut-dossier-spec b {
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
 }
 
 .ut-form-badges-wrap {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
 }
 
 .ut-dossier-label {
@@ -1540,13 +1590,14 @@ button:disabled {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 17px;
-    height: 17px;
+    width: 18px;
+    height: 18px;
     border-radius: 3px;
     font-size: 9.5px;
     font-weight: 800;
     cursor: help;
     user-select: none;
+    flex-shrink: 0;
 }
 
 .ut-form-badge.badge-win {
@@ -1565,19 +1616,6 @@ button:disabled {
     background: rgba(156, 163, 175, 0.08);
     color: #6b7280;
     border: 1px dashed rgba(156, 163, 175, 0.25);
-}
-
-.ut-clutch-summary {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 10px;
-    color: var(--text-main);
-    font-family: 'JetBrains Mono', monospace;
-}
-
-.ut-clutch-summary span b {
-    color: var(--accent);
 }
 
 .ut-archetype-badges {
@@ -1661,9 +1699,11 @@ button:disabled {
    ========================================================================== */
 .tv-prematch-showcase {
     display: grid;
-    grid-template-columns: 1fr 220px 1fr;
+    grid-template-columns: minmax(0, 1fr) 184px minmax(0, 1fr);
     gap: 10px;
     align-items: stretch;
+    width: 100%;
+    box-sizing: border-box;
     margin-bottom: 10px;
 }
 
@@ -1677,6 +1717,9 @@ button:disabled {
     align-items: center;
     justify-content: center;
     position: relative;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 .spider-chart-legend {

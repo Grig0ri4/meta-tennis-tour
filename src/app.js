@@ -3083,14 +3083,14 @@ export function renderATP250ModalContent() {
     const p2SeedTag = m.p2?.seed ? `<span class="seed-tag">(${m.p2.seed})</span>` : (m.p2 && !m.p2.isBye && p2Live?.rank ? `<span class="entry-tag">[#${p2Live.rank}]</span>` : '');
 
     const p1Html = m.p1 && !m.p1.isBye
-      ? `<span style="min-width: 48px; display: inline-flex; align-items: center;">${renderFlagBadge(p1Live?.flag || m.p1.flag, { compact: true })}</span>
+      ? `<span style="min-width: 38px; flex-shrink: 0; display: inline-flex; align-items: center;">${renderFlagBadge(p1Live?.flag || m.p1.flag, { compact: true })}</span>
          <span class="player-name player-profile-link" onclick="openPlayerProfileModal('${m.p1.id}')">${m.p1.name}${rIdx === 4 && p1Win ? ' 🏆' : ''}</span>
          <span class="player-age-tag">${calculateAge(p1Live?.birthDate || m.p1.birthDate, refDateStr)}</span>
          ${p1SeedTag}`
       : `<span class="player-name" style="color:var(--text-dim); font-style:italic;">BYE (Пропуск 1-го круга для Топ-4 посева)</span>`;
 
     const p2Html = m.p2 && !m.p2.isBye
-      ? `<span style="min-width: 48px; display: inline-flex; align-items: center;">${renderFlagBadge(p2Live?.flag || m.p2.flag, { compact: true })}</span>
+      ? `<span style="min-width: 38px; flex-shrink: 0; display: inline-flex; align-items: center;">${renderFlagBadge(p2Live?.flag || m.p2.flag, { compact: true })}</span>
          <span class="player-name player-profile-link" onclick="openPlayerProfileModal('${m.p2.id}')">${m.p2.name}${rIdx === 4 && p2Win ? ' 🏆' : ''}</span>
          <span class="player-age-tag">${calculateAge(p2Live?.birthDate || m.p2.birthDate, refDateStr)}</span>
          ${p2SeedTag}`
@@ -3389,7 +3389,7 @@ export function renderMatches() {
       </div>
       <div class="match-player ${p1Win ? 'winner' : ''}">
         <div class="player-info">
-          <span style="min-width: 48px; display: inline-flex; align-items: center;">${m.p1 ? renderFlagBadge(p1Live?.flag || m.p1.flag, { compact: true }) : ''}</span>
+          <span style="min-width: 38px; flex-shrink: 0; display: inline-flex; align-items: center;">${m.p1 ? renderFlagBadge(p1Live?.flag || m.p1.flag, { compact: true }) : ''}</span>
           ${p1NameHtml}
           ${p1Live ? renderPlayerMedalsHtml(p1Live) : ''}
           <span class="player-age-tag">${m.p1 ? calculateAge(m.p1.birthDate, refDateStr) : ''}</span>
@@ -3399,7 +3399,7 @@ export function renderMatches() {
       </div>
       <div class="match-player ${p2Win ? 'winner' : ''}">
         <div class="player-info">
-          <span style="min-width: 48px; display: inline-flex; align-items: center;">${m.p2 ? renderFlagBadge(p2Live?.flag || m.p2.flag, { compact: true }) : ''}</span>
+          <span style="min-width: 38px; flex-shrink: 0; display: inline-flex; align-items: center;">${m.p2 ? renderFlagBadge(p2Live?.flag || m.p2.flag, { compact: true }) : ''}</span>
           ${p2NameHtml}
           ${p2Live ? renderPlayerMedalsHtml(p2Live) : ''}
           <span class="player-age-tag">${m.p2 ? calculateAge(m.p2.birthDate, refDateStr) : ''}</span>
@@ -3757,16 +3757,20 @@ export function renderUltimateTeamCardHtml(player, surface = 'Хард', options
         </div>
 
         <div class="ut-live-dossier-row">
-          <div class="ut-form-badges-wrap">
-            <span class="ut-dossier-label">Форма:</span>
-            <div class="ut-form-badges">
-              ${formBadgesHtml}
+          <div class="ut-dossier-top-line">
+            <div class="ut-form-badges-wrap">
+              <span class="ut-dossier-label">ФОРМА:</span>
+              <div class="ut-form-badges">
+                ${formBadgesHtml}
+              </div>
+            </div>
+            <div class="ut-dossier-spec" style="white-space: nowrap; font-size: 11px;">
+              Спец: <b>${liveStats?.bestSurface || surface}</b>
             </div>
           </div>
-          <div class="ut-clutch-summary">
-            <span><b>${tbText}</b></span>
-            <span><b>${deciderText}</b></span>
-            <span><b>${specText}</b></span>
+          <div class="ut-dossier-bottom-line">
+            <span style="white-space: nowrap;">Тай-брейки: <b>${liveStats?.tbWins || 0}–${liveStats?.tbLosses || 0}</b></span>
+            <span style="white-space: nowrap;">Реш. сеты: <b>${liveStats?.deciderWins || 0}–${liveStats?.deciderLosses || 0}</b></span>
           </div>
         </div>
 
@@ -3847,7 +3851,7 @@ export function renderSpiderChartSvg(p1Skills, p2Skills, p1Name, p2Name) {
       <div style="font-size: 10.5px; font-weight: 800; color: var(--gold); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px;">
         🕸️ Радар навыков (55–98)
       </div>
-      <svg width="210" height="186" viewBox="0 0 210 186" aria-label="Spider Chart сравнения игроков">
+      <svg style="width: 100%; max-width: 172px; height: auto;" viewBox="0 0 210 186" aria-label="Spider Chart сравнения игроков">
         ${gridPolygons}
         ${axisLinesAndLabels}
         <polygon points="${p2Pts}" fill="rgba(249, 115, 22, 0.30)" stroke="#f97316" stroke-width="2" />
