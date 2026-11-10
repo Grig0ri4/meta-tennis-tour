@@ -659,6 +659,8 @@ function recordCustomPlayerOverride(player, canonicalName = null) {
 
 function propagatePlayerIdentityUpdate(updatedPlayer, oldNameLower = '') {
   if (!updatedPlayer) return;
+  const currentUnivMeta = (universesList || []).find(u => u.id === activeUniverseId);
+  const universeStartYear = currentUnivMeta?.startYear || currentUnivMeta?.year || 2024;
   const targetId = String(updatedPlayer.id);
   const targetNameLower = String(updatedPlayer.name || '').trim().toLowerCase();
 
@@ -696,8 +698,9 @@ function propagatePlayerIdentityUpdate(updatedPlayer, oldNameLower = '') {
   if (!allTourneyTemplates.some(t => t.id === 'olympics')) {
     allTourneyTemplates.push(OLYMPIC_TOURNAMENT_TEMPLATE);
   }
-  const maxYear = Math.max(2024, currentTourYear || 2024);
-  for (let yr = 2023; yr <= maxYear; yr++) {
+  const maxYear = Math.max(universeStartYear, currentTourYear || universeStartYear);
+  const minYear = Math.min(2023, universeStartYear - 1);
+  for (let yr = minYear; yr <= maxYear; yr++) {
     allTourneyTemplates.forEach(t => {
       const draw = readSavedDraw(t.id, yr);
       if (!draw || !Array.isArray(draw) || draw.length === 0) return;
@@ -819,7 +822,10 @@ function repairCanonicalPlayersAndDraws() {
   const repairedPlayers = [];
   const usedIds = new Set();
 
-  if (currentTourYear <= 2024 && newgensAndCustom.length === 0) {
+  const currentUnivMeta = (universesList || []).find(u => u.id === activeUniverseId);
+  const universeStartYear = currentUnivMeta?.startYear || currentUnivMeta?.year || 2024;
+
+  if (currentTourYear <= universeStartYear && newgensAndCustom.length === 0) {
     canonicalRoster.forEach(canon => {
       const normName = String(canon.name || '').trim().toLowerCase();
       const source = byIdMap.get(String(canon.id)) || byNameBest.get(normName) || canon;
@@ -861,8 +867,9 @@ function repairCanonicalPlayersAndDraws() {
   if (!allTourneyTemplates.some(t => t.id === 'olympics')) {
     allTourneyTemplates.push(OLYMPIC_TOURNAMENT_TEMPLATE);
   }
-  const maxYear = Math.max(2024, currentTourYear || 2024);
-  for (let yr = 2023; yr <= maxYear; yr++) {
+  const maxYear = Math.max(universeStartYear, currentTourYear || universeStartYear);
+  const minYear = Math.min(2023, universeStartYear - 1);
+  for (let yr = minYear; yr <= maxYear; yr++) {
     allTourneyTemplates.forEach(t => {
       const draw = readSavedDraw(t.id, yr);
       if (!draw || !Array.isArray(draw) || draw.length === 0) return;
@@ -1042,38 +1049,49 @@ export function initData() {
 
 export function resetCurrentSeasonToCleanJanuary() {
   if (guardCanonReadOnly()) return;
-  const currentUnivMeta = universesList.find(u => u.id === activeUniverseId);
-  const isCustomRandomUniverse = Boolean(currentUnivMeta?.rosterMode === 'random');
 
-  if (!isCustomRandomUniverse) {
-    currentTourYear = 2024;
-    viewingYear = 2024;
-    tournaments = getSeasonTournaments(2024, FULL_CALENDAR_TEMPLATE);
-    ensureDefault2023SeasonArchive(tournaments, players, seasonsHistory, universeStorage);
-    ensureCleanJanuary2024StartState(tournaments, players, seasonsHistory, universeStorage);
-    backfill2023HistoryFromDraws();
-    repairOvercountedPoints();
-    currentTourDateStr = '2024-01-02';
-    activeTourneyId = 'm_1';
-    universeStorage.setItem('meta_jan2024_clean_start_v2', 'true');
-  } else {
-    tournaments = getSeasonTournaments(currentTourYear, FULL_CALENDAR_TEMPLATE);
-    tournaments.forEach(t => {
-      t.completed = false;
-      delete t.lastWinner;
-      delete t.lastRunnerUp;
-      delete t.lastBronze;
-      delete t.lastScore;
-      universeStorage.removeItem(`draw_${t.id}_${currentTourYear}`);
-    });
-    players.forEach(p => {
-      p.racePoints = 0;
-      p.rankChange = 0;
-    });
-    sortAndRankPlayers(players, false);
-    currentTourDateStr = `${currentTourYear}-01-02`;
-    activeTourneyId = 'm_1';
-  }
+  // Честный сброс ТЕКУЩЕГО сезона (год currentTourYear НЕ МЕНЯЕТСЯ):
+  viewingYear = currentTourYear;
+  tournaments = getSeasonTournaments(currentTourYear, FULL_CALENDAR_TEMPLATE).map(t => ({
+    ...t,
+    completed: false,
+    lastWinner: null,
+    lastRunnerUp: null,
+    lastBronze: null,
+    lastScore: null
+  }));
+
+  // Очищаются сетки и данные ТОЛЬКО текущего года
+  tournaments.forEach(t => {
+    universeStorage.removeItem(`draw_${t.id}_${currentTourYear}`);
+    universeStorage.removeItem(`withdrawals_${t.id}_${currentTourYear}`);
+    universeStorage.removeItem(`bg250_${t.id}_${currentTourYear}`);
+  });
+
+  // Очки гонки сбрасываются в 0, очки рейтинга фиксируются по защите текущего года
+  syncPlayers52WeekDiagnostics(players, tournaments, currentTourYear);
+  players.forEach(p => {
+    p.points = Math.max(0, p.remainingDefending || 0);
+    p.racePoints = 0;
+    p.finalsPoints = 0;
+    p.defendedSoFar = 0;
+    p.rankChange = 0;
+    p.raceRankChange = 0;
+    p.lastPointsDelta = 0;
+    p.lastRaceDelta = 0;
+    p.lastTourneyEarned = 0;
+    p.lastTourneyDefended = 0;
+    p.lastTourneyName = '';
+  });
+
+  sortAndRankPlayers(players, false);
+  players.forEach(p => {
+    p.seasonStartRank = p.rank;
+  });
+
+  currentTourDateStr = `${currentTourYear}-01-02`;
+  activeTourney = tournaments[0];
+  activeTourneyId = activeTourney ? activeTourney.id : 'm_1';
 
   if (typeof window !== 'undefined') {
     window._preSimSnapshot = null;
@@ -1090,7 +1108,43 @@ export function resetCurrentSeasonToCleanJanuary() {
   renderPlayersTable();
   renderRaceTable();
   renderCalendarTable();
-  showToast('🔄 <b>Сезон сброшен на 02 Января 2024!</b> Текущий турнир: #1 Хьюстон Masters, очки Гонки = 0, рейтинг 52 недель = итоги 2023.');
+  showToast(`🔄 <b>Сезон ${currentTourYear} сброшен на 02.01.${currentTourYear}!</b> Сетки очищены, очки зафиксированы по защите.`);
+}
+
+export function hardResetUniverseTo2024() {
+  if (guardCanonReadOnly()) return;
+  if (typeof window !== 'undefined' && !window.confirm('ВНИМАНИЕ! Это действие выполнит полный заводской сброс всей Вселенной к начальному 2024 году. Все последующие сезоны будут стерты. Продолжить?')) {
+    return;
+  }
+
+  currentTourYear = 2024;
+  viewingYear = 2024;
+  tournaments = getSeasonTournaments(2024, FULL_CALENDAR_TEMPLATE);
+  ensureDefault2023SeasonArchive(tournaments, players, seasonsHistory, universeStorage);
+  ensureCleanJanuary2024StartState(tournaments, players, seasonsHistory, universeStorage);
+  backfill2023HistoryFromDraws();
+  repairOvercountedPoints();
+  currentTourDateStr = '2024-01-02';
+  activeTourneyId = 'm_1';
+  activeTourney = tournaments[0];
+  universeStorage.setItem('meta_jan2024_clean_start_v2', 'true');
+
+  if (typeof window !== 'undefined') {
+    window._preSimSnapshot = null;
+  }
+  universeStorage.removeItem('meta_pre_sim_snapshot_v1');
+  universeStorage.removeItem('meta_test_sim_report_v1');
+
+  savePlayers(false);
+  saveTournaments();
+  saveHistory();
+  saveDate();
+  saveSeasonCheckpoint(`cp_start_2024`, `Старт сезона 2024 (02.01.2024)`);
+  initUI();
+  renderPlayersTable();
+  renderRaceTable();
+  renderCalendarTable();
+  showToast('⚠️ <b>Вселенная полностью сброшена к исходному канону 02.01.2024!</b>');
 }
 
 function recordPoints(playerId, tourneyId, year, pts) {
@@ -1208,6 +1262,8 @@ function repairOvercountedPoints() {
     }
   });
 
+  const currentUnivMeta = (universesList || []).find(u => u.id === activeUniverseId);
+  const universeStartYear = currentUnivMeta?.startYear || currentUnivMeta?.year || 2024;
   const { startRankMap, peakRankMap } = buildCanonical2023StartMap(players);
   const completedTourneys = seasonTourneys.filter(t => t.completed);
   const lastCompletedTourney = completedTourneys.length > 0 ? completedTourneys[completedTourneys.length - 1] : null;
@@ -1261,8 +1317,12 @@ function repairOvercountedPoints() {
       p.raceRankChange = 0;
     }
 
-    if (currentTourYear === 2024 && startRankMap[p.id]) {
-      p.seasonStartRank = startRankMap[p.id];
+    if (!p.seasonStartRank) {
+      if (currentTourYear === universeStartYear && startRankMap[p.id]) {
+        p.seasonStartRank = startRankMap[p.id];
+      } else {
+        p.seasonStartRank = p.rank || 300;
+      }
     }
     const histPeak = HISTORICAL_PEAK_RANK_BY_NAME[String(p.name || '').toLowerCase()];
     if (histPeak !== undefined) {
@@ -1987,6 +2047,12 @@ export function initUI(options = {}) {
   const raceHeaderEl = document.getElementById('raceYearHeader');
   if (raceHeaderEl) raceHeaderEl.innerText = String(currentTourYear);
 
+  const btnReset = document.getElementById('btnResetJan2024');
+  if (btnReset) {
+    btnReset.textContent = `🔄 Начать ${currentTourYear} с 02.01`;
+    btnReset.title = `Сбросить текущий сезон ${currentTourYear} на 02 января ${currentTourYear} года`;
+  }
+
   // 1) Гарантированно наполняем drawYearSelect (Сезон 2024, Сезон 2023 (Архив) и т.д.)
   const drawYearSel = document.getElementById('drawYearSelect');
   if (drawYearSel) {
@@ -2555,6 +2621,9 @@ export function openFinalsDefendingModal() {
   const body = document.getElementById('finalsDefendingModalBody');
   if (!modal || !body) return;
 
+  const curYear = Number(viewingYear || currentTourYear || 2024);
+  const prevYear = curYear - 1;
+
   const raceSorted = [...(players || [])].sort((a, b) => {
     const diff = (b.racePoints || 0) - (a.racePoints || 0);
     if (diff !== 0) return diff;
@@ -2562,40 +2631,114 @@ export function openFinalsDefendingModal() {
   });
   const getRaceRank = (id) => raceSorted.findIndex(p => p.id === id) + 1;
 
-  const roster2023 = [
-    { id: 'p_3', name: 'Max Kyupan', flag: 'GEO', res2023: '🏆 Чемпион', defPts: 1100, is2023: true, note: 'Защищает титул чемпиона 2023 года (+1100 pts)' },
-    { id: 'p_2', name: 'Will Wentra', flag: 'NOR', res2023: '🥈 Финалист', defPts: 600, is2023: true, note: 'Защищает очки за финал 2023 года (+600 pts)' },
-    { id: 'p_6', name: 'Gary Riffay', flag: 'SLO', res2023: '🥉 1/2 финала', defPts: 200, is2023: true, note: 'Защищает очки за полуфинал 2023 года (+200 pts)' },
-    { id: 'p_4', name: 'Puddy Mexalino', flag: 'CHI', res2023: '🥉 1/2 финала', defPts: 200, is2023: true, note: 'Не отобрался в Топ-8 2024 года, 200 очков сгорают без защиты' },
-    { id: 'p_22', name: 'Ussistian Shifter', flag: 'USA', res2023: '1/4 финала', defPts: 100, is2023: true, note: 'Защищает очки за 1/4 финала 2023 года (+100 pts)' },
-    { id: 'p_1', name: 'Istep Fofol', flag: 'SVK', res2023: '1/4 финала', defPts: 100, is2023: true, note: 'Защищает очки за 1/4 финала 2023 года (+100 pts)' },
-    { id: 'p_9', name: 'Omar Netigios', flag: 'AUS', res2023: '1/4 финала', defPts: 100, is2023: true, note: 'Защищает очки за 1/4 финала 2023 года (+100 pts)' },
-    { id: 'p_8', name: 'Fite Memsy Staprin', flag: 'NZL', res2023: '1/4 финала', defPts: 100, is2023: true, note: 'Не отобрался в Топ-8 2024 года, 100 очков сгорают без защиты' },
-    { id: 'p_33', name: 'Freddy Johnson', flag: 'SWE', res2023: '— (Дебют 2024)', defPts: 0, is2023: false, note: 'Дебютант Итогового турнира (0 очков к защите, чистый плюс)' },
-    { id: 'p_20', name: 'Tiago Logik', flag: 'GBR', res2023: '— (Дебют 2024)', defPts: 0, is2023: false, note: 'Дебютант Итогового турнира (0 очков к защите, чистый плюс)' }
-  ];
+  // 1. Находим игроков, у которых есть очки защиты за прошлый Итоговый турнир (prevYear)
+  const defendingPlayers = (players || []).filter(p => {
+    const pts = p.tournamentPoints?.['finals']?.[prevYear];
+    return typeof pts === 'number' && pts > 0;
+  });
 
-  const totalDefending2023 = roster2023.filter(r => r.is2023).reduce((sum, r) => sum + r.defPts, 0);
+  // 2. Получаем текущий Топ-8 Чемпионской Гонки текущего года viewingYear
+  const top8Race = raceSorted.slice(0, 8);
 
-  const rowsHtml = roster2023.map((item, idx) => {
-    const pl = (players || []).find(p => p.id === item.id);
+  // 3. Объединяем обе группы без дубликатов
+  const combinedMap = new Map();
+
+  defendingPlayers.forEach(p => {
+    const defPts = p.tournamentPoints?.['finals']?.[prevYear] || 0;
+    combinedMap.set(p.id, {
+      id: p.id,
+      player: p,
+      name: p.name,
+      flag: p.flag,
+      defPts,
+      playedPrevYear: true
+    });
+  });
+
+  top8Race.forEach(p => {
+    if (!combinedMap.has(p.id)) {
+      combinedMap.set(p.id, {
+        id: p.id,
+        player: p,
+        name: p.name,
+        flag: p.flag,
+        defPts: 0,
+        playedPrevYear: false
+      });
+    }
+  });
+
+  // Формируем динамический список участников и статусов защиты
+  const dynamicRoster = Array.from(combinedMap.values()).map(item => {
+    const pl = item.player || (players || []).find(p => p.id === item.id);
     const raceRank = getRaceRank(item.id);
     const isQualified = raceRank <= 8;
+    const defPts = item.defPts || 0;
     const racePoints = pl ? (pl.racePoints || 0) : 0;
     const livePoints = pl ? (pl.points || 0) : 0;
     const liveRank = pl ? (pl.rank || '—') : '—';
     const flagSvg = getCountryFlagSvg(item.flag, 20, 14);
 
-    let statusBadge = '';
-    if (isQualified && !item.is2023) {
-      statusBadge = `<span style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700;">🌟 ДЕБЮТАНТ (ТОП-8)</span>`;
-    } else if (isQualified) {
-      statusBadge = `<span style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700;">✅ ОТОБРАЛСЯ (ТОП-8)</span>`;
-    } else {
-      statusBadge = `<span style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700;">❌ НЕ ОТОБРАЛСЯ</span>`;
+    let resPrev = `— (Дебют ${curYear})`;
+    if (item.playedPrevYear) {
+      if (defPts >= 1100) resPrev = '🏆 Чемпион';
+      else if (defPts >= 600) resPrev = '🥈 Финалист';
+      else if (defPts >= 200) resPrev = '🥉 1/2 финала';
+      else if (defPts > 0) resPrev = 'Групповой этап';
     }
 
-    const rowBg = !isQualified
+    let statusBadge = '';
+    let note = '';
+
+    if (isQualified && !item.playedPrevYear) {
+      statusBadge = `<span style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700;">🌟 ДЕБЮТАНТ (ТОП-8)</span>`;
+      note = `Дебютант Итогового (+0 к защите, чистый плюс)`;
+    } else if (isQualified) {
+      statusBadge = `<span style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700;">✅ ОТОБРАЛСЯ (ТОП-8)</span>`;
+      note = `Квалифицировался (Защищает ${defPts.toLocaleString()} pts)`;
+    } else {
+      statusBadge = `<span style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700;">❌ НЕ ОТОБРАЛСЯ</span>`;
+      note = `Не отобрался (${defPts.toLocaleString()} pts сгорают без защиты)`;
+    }
+
+    return {
+      ...item,
+      pl,
+      raceRank,
+      isQualified,
+      defPts,
+      racePoints,
+      livePoints,
+      liveRank,
+      flagSvg,
+      resPrev,
+      statusBadge,
+      note
+    };
+  });
+
+  // Сортировка: квалифицировавшиеся по месту в Гонке (1..8), затем не отобравшиеся по убыванию защиты
+  dynamicRoster.sort((a, b) => {
+    if (a.isQualified && !b.isQualified) return -1;
+    if (!a.isQualified && b.isQualified) return 1;
+    if (a.isQualified && b.isQualified) return a.raceRank - b.raceRank;
+    return b.defPts - a.defPts;
+  });
+
+  const totalDefending = dynamicRoster.filter(r => r.playedPrevYear).reduce((sum, r) => sum + r.defPts, 0);
+  const defendingCount = dynamicRoster.filter(r => r.playedPrevYear).length;
+  const nonQualifiers = dynamicRoster.filter(r => !r.isQualified);
+  const debutants = dynamicRoster.filter(r => r.isQualified && !r.playedPrevYear);
+
+  const nonQualifiersText = nonQualifiers.length > 0
+    ? nonQualifiers.map(x => `<b>${x.name}</b> [#${x.raceRank} в гонке]`).join(', ')
+    : 'нет';
+  const debutantsText = debutants.length > 0
+    ? debutants.map(x => `<b>${x.name}</b>`).join(', ')
+    : 'нет';
+
+  const rowsHtml = dynamicRoster.map((item, idx) => {
+    const rowBg = !item.isQualified
       ? 'background: rgba(239, 68, 68, 0.05);'
       : (item.defPts >= 600 ? 'background: rgba(245, 158, 11, 0.05);' : '');
 
@@ -2604,7 +2747,7 @@ export function openFinalsDefendingModal() {
         <td style="padding: 10px 12px; font-weight: 600; text-align: center; color: var(--text-dim);">${idx + 1}</td>
         <td style="padding: 10px 12px;">
           <div style="display: flex; align-items: center; gap: 8px;">
-            ${flagSvg}
+            ${item.flagSvg}
             <div>
               <span style="font-weight: 700; color: var(--text-main); font-size: 13.5px;">${item.name}</span>
               <span style="color: var(--text-dim); font-size: 11.5px; margin-left: 4px;">(${item.flag})</span>
@@ -2612,21 +2755,21 @@ export function openFinalsDefendingModal() {
           </div>
         </td>
         <td style="padding: 10px 12px; font-size: 13px;">
-          <b>${item.res2023}</b>
+          <b>${item.resPrev}</b>
         </td>
         <td style="padding: 10px 12px; text-align: center; font-size: 13.5px; font-weight: 700; color: ${item.defPts > 0 ? 'var(--gold)' : 'var(--text-dim)'};">
           ${item.defPts > 0 ? `🛡️ ${item.defPts.toLocaleString()} pts` : '0 pts'}
         </td>
         <td style="padding: 10px 12px; text-align: center; font-size: 13px;">
-          <b style="color: ${raceRank <= 8 ? '#10b981' : 'var(--text-dim)'};">#${raceRank}</b>
-          <div style="font-size: 11.5px; color: var(--text-dim);">${racePoints.toLocaleString()} pts</div>
+          <b style="color: ${item.raceRank <= 8 ? '#10b981' : 'var(--text-dim)'};">#${item.raceRank}</b>
+          <div style="font-size: 11.5px; color: var(--text-dim);">${item.racePoints.toLocaleString()} pts</div>
         </td>
         <td style="padding: 10px 12px; text-align: center; font-size: 13px;">
-          #${liveRank}
-          <div style="font-size: 11.5px; color: var(--text-dim);">${livePoints.toLocaleString()} pts</div>
+          #${item.liveRank}
+          <div style="font-size: 11.5px; color: var(--text-dim);">${item.livePoints.toLocaleString()} pts</div>
         </td>
         <td style="padding: 10px 12px; text-align: center;">
-          ${statusBadge}
+          ${item.statusBadge}
         </td>
         <td style="padding: 10px 12px; font-size: 12px; color: var(--text-dim);">
           ${item.note}
@@ -2640,13 +2783,13 @@ export function openFinalsDefendingModal() {
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 16px; border-radius: 8px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3);">
         <div>
           <div style="font-weight: 700; color: var(--gold); font-size: 14.5px; margin-bottom: 4px;">
-            🏆 Регламент защиты очков на World Tour Finals
+            🏆 Регламент защиты очков на World Tour Finals (${curYear})
           </div>
           <div style="font-size: 12.5px; color: var(--text-main); line-height: 1.5;">
-            На Итоговом турнире 2023 года участвовало <b>8 игроков</b> (суммарно <b>${totalDefending2023.toLocaleString()} очков</b> к защите).
-            В сезоне 2024 года в турнир квалифицировались строго <b>Топ-8 Чемпионской гонки (Race 2024)</b>.
-            Очки игроков, не прошедших квалификацию (<b>Puddy Mexalino</b> [#10 в гонке] и <b>Fite Memsy Staprin</b> [#30 в гонке]), сгорают ровно через 52 недели.
-            Дебютанты турнира 2024 года (<b>Freddy Johnson</b> и <b>Tiago Logik</b>) защитных очков не имеют и получают чистый прирост мирового рейтинга.
+            На Итоговом турнире ${prevYear} года участвовало <b>${defendingCount} игроков</b> (суммарно <b>${totalDefending.toLocaleString()} очков</b> к защите).
+            В сезоне ${curYear} года в турнир квалифицировались строго <b>Топ-8 Чемпионской гонки (Race ${curYear})</b>.
+            Очки игроков, не прошедших квалификацию (${nonQualifiersText}), сгорают ровно через 52 недели.
+            Дебютанты турнира ${curYear} года (${debutantsText}) защитных очков не имеют и получают чистый прирост мирового рейтинга.
           </div>
         </div>
       </div>
@@ -2657,11 +2800,11 @@ export function openFinalsDefendingModal() {
             <tr>
               <th style="padding: 10px 12px; text-align: center; width: 40px;">#</th>
               <th style="padding: 10px 12px;">Игрок</th>
-              <th style="padding: 10px 12px;">Результат 2023</th>
-              <th style="padding: 10px 12px; text-align: center;">Защита 2024</th>
-              <th style="padding: 10px 12px; text-align: center;">Гонка 2024 (Race)</th>
+              <th style="padding: 10px 12px;">Результат ${prevYear}</th>
+              <th style="padding: 10px 12px; text-align: center;">Защита ${curYear}</th>
+              <th style="padding: 10px 12px; text-align: center;">Гонка ${curYear} (Race)</th>
               <th style="padding: 10px 12px; text-align: center;">Рейтинг 52 нед.</th>
-              <th style="padding: 10px 12px; text-align: center;">Статус 2024</th>
+              <th style="padding: 10px 12px; text-align: center;">Статус ${curYear}</th>
               <th style="padding: 10px 12px;">Примечание</th>
             </tr>
           </thead>
@@ -2672,7 +2815,7 @@ export function openFinalsDefendingModal() {
       </div>
 
       <div style="font-size: 12px; color: var(--text-dim); line-height: 1.45; padding: 0 4px;">
-        💡 <b>Справка начисления очков 2024:</b> Групповой этап (Round Robin) — <b>+200 pts</b> за каждую победу в матче. Выход в финал — <b>+400 pts</b>. Победа в финале — <b>+500 pts</b>. Чемпион без поражений (3 победы в группе + SF + F) набирает максимум <b>1 500 очков</b>.
+        💡 <b>Справка начисления очков ${curYear}:</b> Групповой этап (Round Robin) — <b>+200 pts</b> за каждую победу в матче. Выход в финал — <b>+400 pts</b>. Победа в финале — <b>+500 pts</b>. Чемпион без поражений (3 победы в группе + SF + F) набирает максимум <b>1 500 очков</b>.
       </div>
     </div>
   `;
@@ -7165,6 +7308,7 @@ if (typeof window !== 'undefined') {
   window.promptDeleteCurrentUniverse = promptDeleteCurrentUniverse;
   window.confirmDeleteCurrentUniverse = confirmDeleteCurrentUniverse;
   window.resetCurrentSeasonToCleanJanuary = resetCurrentSeasonToCleanJanuary;
+  window.hardResetUniverseTo2024 = hardResetUniverseTo2024;
   window.exportCurrentUniverse = exportCurrentUniverse;
   window.triggerImportUniverse = triggerImportUniverse;
   window.handleImportUniverseFile = handleImportUniverseFile;
@@ -7324,8 +7468,28 @@ if (typeof window !== 'undefined') {
         runStorageGarbageCollector();
       } catch {}
 
-      // 1. СНАЧАЛА гарантируем турниры (completed: true для всех 26 завершенных турниров 2024 года):
-      if (Array.isArray(canonData.tournaments) && canonData.tournaments.length >= 26) {
+      // 1. СНАЧАЛА гарантируем турниры (только если локальный прогресс автора не новее):
+      const savedYear = parseInt(localStorage.getItem('universe_1_meta_tour_year') || localStorage.getItem('meta_tour_year'), 10);
+      const savedDate = localStorage.getItem('universe_1_meta_tour_date') || localStorage.getItem('meta_tour_date');
+      const canonYear = Number(canonData.universe?.currentTourYear || 2025);
+      const canonDate = String(canonData.universe?.currentTourDateStr || `${canonYear}-01-02`);
+      const canonTourneyId = canonData.universe?.activeTourneyId || 'm_1';
+
+      // Прогресс автора в localStorage НИКОГДА не деградирует назад:
+      let isSavedProgressNewer = false;
+      if (savedYear && savedYear > canonYear) {
+        isSavedProgressNewer = true;
+      } else if (savedYear === canonYear && savedDate && savedDate > canonDate) {
+        isSavedProgressNewer = true;
+      }
+
+      const targetYear = isSavedProgressNewer ? savedYear : canonYear;
+      const targetDate = isSavedProgressNewer ? savedDate : canonDate;
+      const targetTourneyId = isSavedProgressNewer
+        ? (localStorage.getItem('universe_1_meta_active_tourney') || canonTourneyId)
+        : canonTourneyId;
+
+      if (!isSavedProgressNewer && Array.isArray(canonData.tournaments) && canonData.tournaments.length >= 26) {
         const str = JSON.stringify(canonData.tournaments);
         try {
           localStorage.setItem('universe_1_meta_tournaments', str);
@@ -7336,8 +7500,8 @@ if (typeof window !== 'undefined') {
         tournaments = JSON.parse(str);
       }
 
-      // 2. Гарантируем базу игроков с каноническими очками на 15 Ноября 2024 года:
-      if (Array.isArray(canonData.players) && canonData.players.length >= 300) {
+      // 2. Гарантируем базу игроков (только если локальный прогресс автора не новее):
+      if (!isSavedProgressNewer && Array.isArray(canonData.players) && canonData.players.length >= 250) {
         const str = JSON.stringify(canonData.players);
         try {
           localStorage.setItem('universe_1_meta_players', str);
@@ -7348,14 +7512,7 @@ if (typeof window !== 'undefined') {
         players = JSON.parse(str);
       }
 
-      // 3. Синхронизируем дату и активный турнир (по умолчанию старт Сезона 2025 на 02.01.2025):
-      const savedYear = parseInt(localStorage.getItem('universe_1_meta_tour_year') || localStorage.getItem('meta_tour_year'), 10);
-      const savedDate = localStorage.getItem('universe_1_meta_tour_date') || localStorage.getItem('meta_tour_date');
-      const shouldInitTo2025 = !savedYear || savedYear >= 2025 || (savedYear === 2024 && savedDate && savedDate < '2024-11-15');
-      const targetYear = shouldInitTo2025 ? (canonData.universe?.currentTourYear || 2025) : savedYear;
-      const targetDate = shouldInitTo2025 ? (canonData.universe?.currentTourDateStr || '2025-01-02') : (savedDate || '2025-01-02');
-      const targetTourneyId = shouldInitTo2025 ? (canonData.universe?.activeTourneyId || 'm_1') : (localStorage.getItem('universe_1_meta_active_tourney') || 'm_1');
-
+      // 3. Синхронизируем дату и активный турнир строго по targetYear/targetDate:
       try {
         localStorage.setItem('universe_1_meta_tour_year', String(targetYear));
         localStorage.setItem('universe_1_meta_tour_date', targetDate);
@@ -7442,8 +7599,8 @@ if (typeof window !== 'undefined') {
         memoryUniverseStore[`universe_1_${drawKey}`] = str;
         memoryUniverseStore[drawKey] = str;
 
-        // В localStorage сохраняем только 2024 год и только под единым ключом draw_1_*:
-        if (rest.endsWith('_2024')) {
+        // В localStorage сохраняем сетки активного и прошлого сезона (динамически targetYear и targetYear - 1):
+        if (rest.endsWith(`_${targetYear}`) || rest.endsWith(`_${targetYear - 1}`)) {
           try {
             localStorage.setItem(fullKey, str);
           } catch {}

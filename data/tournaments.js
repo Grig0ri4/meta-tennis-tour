@@ -24,15 +24,21 @@ export function isOlympicYear(year) {
   return !isNaN(y) && y >= 2024 && y % 4 === 0;
 }
 
+export const OLYMPIC_SURFACE_REGISTRY = {
+  2024: 'Грунт', // Париж (Ролан Гаррос)
+  2028: 'Хард',  // Лос-Анджелес
+  2032: 'Хард'   // Брисбен
+};
+
+export const OLYMPIC_DEFAULT_SURFACE_CYCLE = ['Хард', 'Грунт', 'Хард', 'Трава'];
+
 export function getOlympicSurface(year) {
   const y = Number(year) || 2024;
-  // В 2024 году (Париж) — Грунт, в 2028 (Лос-Анджелес) — Хард, в 2032 (Брисбен) — Хард, далее чередование цикла
-  if (y === 2024) return 'Грунт';
-  if (y === 2028 || y === 2032) return 'Хард';
-  const cycleIndex = Math.floor((y - 2024) / 4) % 3;
-  if (cycleIndex === 0) return 'Грунт';
-  if (cycleIndex === 1) return 'Хард';
-  return 'Трава';
+  if (OLYMPIC_SURFACE_REGISTRY[y]) {
+    return OLYMPIC_SURFACE_REGISTRY[y];
+  }
+  const olyIndex = Math.abs(Math.floor((y - 2024) / 4));
+  return OLYMPIC_DEFAULT_SURFACE_CYCLE[olyIndex % OLYMPIC_DEFAULT_SURFACE_CYCLE.length];
 }
 
 export const FULL_CALENDAR_TEMPLATE = [
@@ -125,6 +131,8 @@ export function getTourneyDateRange(t, year) {
 }
 
 if (typeof window !== 'undefined') {
+  window.OLYMPIC_SURFACE_REGISTRY = OLYMPIC_SURFACE_REGISTRY;
+  window.OLYMPIC_DEFAULT_SURFACE_CYCLE = OLYMPIC_DEFAULT_SURFACE_CYCLE;
   window.OLYMPIC_TOURNAMENT_TEMPLATE = OLYMPIC_TOURNAMENT_TEMPLATE;
   window.isOlympicYear = isOlympicYear;
   window.getOlympicSurface = getOlympicSurface;

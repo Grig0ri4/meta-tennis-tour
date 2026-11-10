@@ -149,30 +149,22 @@ async function startServer() {
           }
         }
 
-        // Объединяем турниры:
-        const incomingYear = Number(body.universe?.currentTourYear || body.currentTourYear || existingCanon.universe?.currentTourYear || 2025);
-        let mergedTournaments: any[];
-        if (incomingYear >= 2025) {
-          mergedTournaments = Array.isArray(body.tournaments) && body.tournaments.length >= 26
-            ? body.tournaments
-            : (Array.isArray(existingCanon.tournaments) ? existingCanon.tournaments : (masterBackup.tournaments || []));
-        } else {
-          // 2024: завершенные турниры НИКОГДА не откатываются назад в completed: false!
-          const baseTourneys = Array.isArray(masterBackup.tournaments) && masterBackup.tournaments.length >= 26
-            ? masterBackup.tournaments
-            : (Array.isArray(existingCanon.tournaments) ? existingCanon.tournaments : []);
-          const incomingTourneys = Array.isArray(body.tournaments) ? body.tournaments : [];
+        // Объединяем турниры динамически без привязки к конкретному году:
+        const incomingUniverse = body.universe || {};
+        const incomingYear = Number(incomingUniverse.currentTourYear || body.currentTourYear || existingCanon.universe?.currentTourYear || 2025);
+        const incomingDateStr = incomingUniverse.currentTourDateStr || body.currentTourDateStr || existingCanon.universe?.currentTourDateStr || `${incomingYear}-01-02`;
+        const incomingTourneyId = incomingUniverse.activeTourneyId || body.activeTourneyId || existingCanon.universe?.activeTourneyId || "m_1";
 
-          mergedTournaments = baseTourneys.map((ext: any) => {
-            const inc = incomingTourneys.find((t: any) => t && t.id === ext.id);
-            if (ext.completed) {
-              return { ...(inc || {}), ...ext, completed: true };
-            }
-            return inc || ext;
-          });
+        let mergedTournaments: any[];
+        if (Array.isArray(body.tournaments) && body.tournaments.length >= 26) {
+          mergedTournaments = body.tournaments;
+        } else if (Array.isArray(existingCanon.tournaments) && existingCanon.tournaments.length >= 26) {
+          mergedTournaments = existingCanon.tournaments;
+        } else {
+          mergedTournaments = masterBackup.tournaments || [];
         }
 
-        // Объединяем чекпоинты (включая ручной чекпоинт от 15 ноября):
+        // Объединяем чекпоинты:
         const masterCps = Array.isArray(masterBackup.checkpoints) ? masterBackup.checkpoints : [];
         const existingCps = Array.isArray(existingCanon.checkpoints) ? existingCanon.checkpoints : [];
         const incomingCps = Array.isArray(body.checkpoints) ? body.checkpoints : [];
@@ -186,15 +178,15 @@ async function startServer() {
           id: "1",
           name: "Вселенная Автора (Канон)",
           currentTourYear: incomingYear,
-          currentTourDateStr: body.universe?.currentTourDateStr || body.currentTourDateStr || existingCanon.universe?.currentTourDateStr || masterBackup.universe?.currentTourDateStr || (incomingYear >= 2025 ? "2025-01-02" : "2024-11-15"),
-          activeTourneyId: body.universe?.activeTourneyId || body.activeTourneyId || existingCanon.universe?.activeTourneyId || masterBackup.universe?.activeTourneyId || (incomingYear >= 2025 ? "m_1" : "finals")
+          currentTourDateStr: incomingDateStr,
+          activeTourneyId: incomingTourneyId
         };
 
         const mergedCanon = {
           ...existingCanon,
           ...body,
           universe: mergedUniverse,
-          tournaments: mergedTournaments.length >= 26 ? mergedTournaments : baseTourneys,
+          tournaments: mergedTournaments,
           draws: mergedDraws,
           checkpoints: mergedCheckpoints,
           exportedAt: new Date().toISOString()
