@@ -6,8 +6,23 @@
  */
 
 import { PRESERVED_BASE, CLEAN_UNIQUE_POOL, PROCEDURAL_FLAGS, buildInitial300Players, generateRandom300Players } from '../data/players.js';
-import RESTORED_2024_DRAWS from '../data/restored_halle_hamburg_draws.json' with { type: 'json' };
-import CANON_MASTER_SNAPSHOT from '../data/canon_nov15_master.json' with { type: 'json' };
+
+let RESTORED_2024_DRAWS = {};
+let CANON_MASTER_SNAPSHOT = null;
+
+async function ensureMasterArchivesLoaded() {
+  if (CANON_MASTER_SNAPSHOT) return;
+  try {
+    const [restoredMod, canonMod] = await Promise.all([
+      import('../data/restored_halle_hamburg_draws.json'),
+      import('../data/canon_nov15_master.json')
+    ]);
+    RESTORED_2024_DRAWS = restoredMod.default || restoredMod || {};
+    CANON_MASTER_SNAPSHOT = canonMod.default || canonMod || null;
+  } catch (e) {
+    console.warn('Master archives lazy load skipped:', e);
+  }
+}
 import {
   FULL_CALENDAR_TEMPLATE,
   OLYMPIC_TOURNAMENT_TEMPLATE,
@@ -7477,6 +7492,7 @@ if (typeof window !== 'undefined') {
 
   const restoreAuthorCanonPositionsOnce = async () => {
     try {
+      await ensureMasterArchivesLoaded();
       if (typeof window === 'undefined' || !window.location || typeof localStorage === 'undefined') return;
       const host = String(window.location.hostname || '').toLowerCase();
       if (host !== 'localhost' && host !== '127.0.0.1') return;
@@ -7512,10 +7528,18 @@ if (typeof window !== 'undefined') {
       const canonTourneyId = canonData.universe?.activeTourneyId || 'm_1';
 
       // Прогресс автора в localStorage НИКОГДА не деградирует назад:
+      const hasLocalPlayers = Boolean(
+        localStorage.getItem('universe_1_meta_players_v8') ||
+        localStorage.getItem('universe_1_meta_players')
+      );
       let isSavedProgressNewer = false;
       if (savedYear && savedYear > canonYear) {
         isSavedProgressNewer = true;
-      } else if (savedYear === canonYear && savedDate && savedDate > canonDate) {
+      } else if (
+        savedYear === canonYear &&
+        savedDate &&
+        (savedDate > canonDate || (hasLocalPlayers && savedDate === canonDate))
+      ) {
         isSavedProgressNewer = true;
       }
 
@@ -7633,6 +7657,15 @@ if (typeof window !== 'undefined') {
         if (!canonDraw || !Array.isArray(canonDraw) || canonDraw.length === 0) return;
         const rest = String(drawKey).startsWith('draw_') ? String(drawKey).slice(5) : String(drawKey);
         const fullKey = `draw_1_${rest}`;
+        const existingLocalDraw = localStorage.getItem(fullKey) || localStorage.getItem(`universe_1_${drawKey}`) || localStorage.getItem(drawKey);
+
+        if (isSavedProgressNewer && existingLocalDraw) {
+          memoryUniverseStore[fullKey] = existingLocalDraw;
+          memoryUniverseStore[`universe_1_${drawKey}`] = existingLocalDraw;
+          memoryUniverseStore[drawKey] = existingLocalDraw;
+          return;
+        }
+
         const str = typeof canonDraw === 'string' ? canonDraw : JSON.stringify(canonDraw);
         memoryUniverseStore[fullKey] = str;
         memoryUniverseStore[`universe_1_${drawKey}`] = str;
@@ -7652,6 +7685,7 @@ if (typeof window !== 'undefined') {
 
   const bootstrapApp = async () => {
     runStorageGarbageCollector();
+    await ensureMasterArchivesLoaded();
     await fetchOverridesFromLocalServer();
     await restoreAuthorCanonPositionsOnce();
     await loadPublishedCanonSnapshot();
