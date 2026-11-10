@@ -43,6 +43,7 @@ import {
 } from './drawEngine.js';
 import {
   formatTennisScore,
+  flipTennisScoreSets,
   computeSimMatchScores,
   parseAndValidateScoreString,
   advanceWinnerInDraw,
@@ -3451,10 +3452,217 @@ export function handleUtCardMouseLeave(cardEl) {
   cardEl.style.transform = 'perspective(600px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)';
 }
 
+const playerCardAnalyticsCache = new Map();
+let cardAnalyticsCacheVersion = 0;
+
+export function invalidatePlayerCardAnalyticsCache() {
+  playerCardAnalyticsCache.clear();
+  cardAnalyticsCacheVersion++;
+}
+
+/**
+ * ШАГ 2: Быстрый сбор реальной клатч-статистики, формы и титулов игрока из сохраненных сеток тура
+ */
+export function getPlayerLiveCardAnalytics(player) {
+  if (!player || (!player.id && !player.name)) {
+    return {
+      surfaceRecord: { 'Хард': { w: 0, l: 0 }, 'Грунт': { w: 0, l: 0 }, 'Трава': { w: 0, l: 0 }, 'Зал': { w: 0, l: 0 } },
+      tbWins: 0,
+      tbLosses: 0,
+      deciderWins: 0,
+      deciderLosses: 0,
+      last5Matches: [],
+      winStreak: 0,
+      bestSurface: 'Хард',
+      hasGiantKill: false,
+      titlesBySurface: { 'Хард': 0, 'Грунт': 0, 'Трава': 0, 'Зал': 0 }
+    };
+  }
+
+  const pIdStr = String(player.id || '');
+  const pNameLower = String(player.name || '').trim().toLowerCase();
+  const targetYear = viewingYear || currentTourYear || 2024;
+  const cacheKey = `${pIdStr || pNameLower}_${targetYear}_v${cardAnalyticsCacheVersion}`;
+  if (playerCardAnalyticsCache.has(cacheKey)) {
+    return playerCardAnalyticsCache.get(cacheKey);
+  }
+
+  const surfaceRecord = {
+    'Хард': { w: 0, l: 0 },
+    'Грунт': { w: 0, l: 0 },
+    'Трава': { w: 0, l: 0 },
+    'Зал': { w: 0, l: 0 }
+  };
+  const titlesBySurface = {
+    'Хард': 0,
+    'Грунт': 0,
+    'Трава': 0,
+    'Зал': 0
+  };
+  let tbWins = 0;
+  let tbLosses = 0;
+  let deciderWins = 0;
+  let deciderLosses = 0;
+  let hasGiantKill = false;
+
+  const isPlayerMatch = (m) => {
+    if (!m || !m.p1 || !m.p2 || !m.winner) return null;
+    const isP1 = (pIdStr && String(m.p1.id) === pIdStr) || (pNameLower && m.p1.name && m.p1.name.trim().toLowerCase() === pNameLower);
+    const isP2 = (pIdStr && String(m.p2.id) === pIdStr) || (pNameLower && m.p2.name && m.p2.name.trim().toLowerCase() === pNameLower);
+    if (!isP1 && !isP2) return null;
+    return { isP1, isP2 };
+  };
+
+  const scanYear = (yr) => {
+    const seasonTourneys = getSeasonTournaments(yr, FULL_CALENDAR_TEMPLATE);
+    const matches = [];
+    seasonTourneys.forEach(t => {
+      const d = readSavedDraw(t.id, yr);
+      if (!Array.isArray(d) || d.length === 0) return;
+      const surf = surfaceRecord[t.surface] ? t.surface : 'Хард';
+
+      d.forEach((round, rIdx) => {
+        if (!Array.isArray(round)) return;
+        const isFinalRound = rIdx === d.length - 1;
+
+        round.forEach((m, mIdx) => {
+          const matchCheck = isPlayerMatch(m);
+          if (!matchCheck) return;
+
+          const { isP1 } = matchCheck;
+          const mySlot = isP1 ? m.p1 : m.p2;
+          const oppSlot = isP1 ? m.p2 : m.p1;
+          const won = (pIdStr && String(m.winner.id) === pIdStr) ||
+                      (pNameLower && m.winner.name && m.winner.name.trim().toLowerCase() === pNameLower);
+
+          const myRank = Number(mySlot?.rank || player.rank) || 100;
+          const oppRank = Number(oppSlot?.rank) || 100;
+
+          const rawSets = Array.isArray(m.score)
+            ? m.score
+            : (typeof m.score === 'string' ? m.score.trim().split(/\s+/).filter(Boolean) : []);
+          const mySets = isP1 ? rawSets : flipTennisScoreSets(rawSets);
+
+          matches.push({
+            year: yr,
+            tourneyId: t.id,
+            tourneyName: t.name,
+            surface: surf,
+            won,
+            myRank,
+            oppRank,
+            opponentName: oppSlot?.name || 'Соперник',
+            mySets,
+            score: mySets.join(' '),
+            isFinalMatch: isFinalRound && mIdx === 0,
+            bestOf: t.bestOf || (t.isGrandSlam ? 5 : 3)
+          });
+        });
+      });
+    });
+    return matches;
+  };
+
+  let allMatches = scanYear(targetYear);
+  if (allMatches.length < 5 && targetYear > 2023) {
+    const prevMatches = scanYear(targetYear - 1);
+    allMatches = [...prevMatches, ...allMatches];
+  }
+
+  allMatches.forEach(m => {
+    if (m.won) {
+      surfaceRecord[m.surface].w++;
+      if (m.isFinalMatch) {
+        titlesBySurface[m.surface] = (titlesBySurface[m.surface] || 0) + 1;
+      }
+      if (m.myRank >= m.oppRank + 15) {
+        hasGiantKill = true;
+      }
+    } else {
+      surfaceRecord[m.surface].l++;
+    }
+
+    (m.mySets || []).forEach(setStr => {
+      const trimmed = String(setStr).trim();
+      if (trimmed.startsWith('7-6')) {
+        tbWins++;
+      } else if (trimmed.startsWith('6-7')) {
+        tbLosses++;
+      }
+    });
+
+    const finishedSetsCount = (m.mySets || []).filter(s => !String(s).toUpperCase().includes('RET')).length;
+    if (m.bestOf === 3 && finishedSetsCount >= 3) {
+      if (m.won) deciderWins++;
+      else deciderLosses++;
+    } else if (m.bestOf === 5 && finishedSetsCount >= 5) {
+      if (m.won) deciderWins++;
+      else deciderLosses++;
+    }
+  });
+
+  let winStreak = 0;
+  for (let i = allMatches.length - 1; i >= 0; i--) {
+    if (allMatches[i].won) {
+      winStreak++;
+    } else {
+      break;
+    }
+  }
+
+  const last5Matches = allMatches.slice(-5);
+
+  let bestSurface = 'Хард';
+  let bestWinRate = -1;
+  let maxWins = -1;
+
+  for (const [sName, rec] of Object.entries(surfaceRecord)) {
+    const total = rec.w + rec.l;
+    if (total >= 3) {
+      const rate = rec.w / total;
+      if (rate > bestWinRate || (rate === bestWinRate && rec.w > maxWins)) {
+        bestWinRate = rate;
+        maxWins = rec.w;
+        bestSurface = sName;
+      }
+    }
+  }
+
+  if (bestWinRate < 0) {
+    let topW = -1;
+    for (const [sName, rec] of Object.entries(surfaceRecord)) {
+      if (rec.w > topW) {
+        topW = rec.w;
+        bestSurface = sName;
+      }
+    }
+  }
+
+  const result = {
+    surfaceRecord,
+    tbWins,
+    tbLosses,
+    deciderWins,
+    deciderLosses,
+    last5Matches,
+    winStreak,
+    bestSurface,
+    hasGiantKill,
+    titlesBySurface
+  };
+
+  playerCardAnalyticsCache.set(cacheKey, result);
+  return result;
+}
+
+/**
+ * ШАГ 3: Карточка теннисиста с 5 реальными покрытиями/клатчем, бейджами формы и клатч-досье
+ */
 export function renderUltimateTeamCardHtml(player, surface = 'Хард', options = {}) {
   if (!player) return '';
   const refDateStr = options.refDateStr || (viewingYear < currentTourYear ? `${viewingYear}-06-15` : currentTourDateStr);
-  const skills = getPlayerSkills(player, surface, refDateStr);
+  const liveStats = options.liveStats || getPlayerLiveCardAnalytics(player);
+  const skills = getPlayerSkills(player, surface, refDateStr, liveStats);
   const rank = Number(player.rank) || 150;
   const isTop20 = rank <= 20;
 
@@ -3478,12 +3686,27 @@ export function renderUltimateTeamCardHtml(player, surface = 'Хард', options
     const label = arch.titleRu || arch.title || arch.enTitle || 'Мастер корта';
     const desc = arch.description || arch.desc || label;
     return `
-      <span class="ut-archetype-pill" title="${desc}">
+      <span class="ut-archetype-pill" title="${String(desc).replace(/"/g, '&quot;')}">
         <span>${arch.icon || '⚡'}</span>
         <span>${label}</span>
       </span>
     `;
   }).join('');
+
+  const formBadgesHtml = [0, 1, 2, 3, 4].map(idx => {
+    const m = liveStats?.last5Matches?.[idx];
+    if (m) {
+      const cls = m.won ? 'badge-win' : 'badge-loss';
+      const char = m.won ? 'В' : 'П';
+      const tip = `${m.won ? 'Победа' : 'Поражение'} vs ${m.opponentName || 'Соперник'} (${m.score || ''}) · ${m.tourneyName || ''} [${m.surface || ''}]`;
+      return `<span class="ut-form-badge ${cls}" title="${String(tip).replace(/"/g, '&quot;')}">${char}</span>`;
+    }
+    return `<span class="ut-form-badge badge-empty" title="Матч еще не сыгран">—</span>`;
+  }).join('');
+
+  const tbText = `ТБ: ${liveStats?.tbWins || 0}-${liveStats?.tbLosses || 0}`;
+  const deciderText = `Реш: ${liveStats?.deciderWins || 0}-${liveStats?.deciderLosses || 0}`;
+  const specText = `Спец: ${liveStats?.bestSurface || surface}`;
 
   return `
     <div class="ut-card-perspective-wrap">
@@ -3493,7 +3716,7 @@ export function renderUltimateTeamCardHtml(player, surface = 'Хард', options
            onmouseleave="handleUtCardMouseLeave(this)">
         <div class="ut-glare"></div>
         <div class="ut-card-top-row">
-          <div class="ut-ovr-box" title="Общий рейтинг Ultimate Team (OVR 65–99)">
+          <div class="ut-ovr-box" title="Общий рейтинг игрока (OVR 65–99)">
             <span class="ut-ovr-num">${skills.ovr}</span>
             <span class="ut-ovr-label">OVR</span>
           </div>
@@ -3511,25 +3734,39 @@ export function renderUltimateTeamCardHtml(player, surface = 'Хард', options
         </div>
 
         <div class="ut-stats-grid">
-          <div class="ut-stat-cell" title="Подача (Serve)">
-            <span class="ut-stat-lbl">SRV</span>
-            <span class="ut-stat-val" style="color: ${skills.serve >= 90 ? 'var(--gold)' : 'var(--text-main)'};">${skills.serve}</span>
+          <div class="ut-stat-cell ${surface === 'Хард' ? 'ut-stat-active-surface' : ''}" title="Хард (Hard Court)">
+            <span class="ut-stat-lbl">HRD</span>
+            <span class="ut-stat-val" style="color: ${skills.hard >= 90 ? 'var(--gold)' : 'var(--text-main)'};">${skills.hard}</span>
           </div>
-          <div class="ut-stat-cell" title="Форхенд (Forehand)">
-            <span class="ut-stat-lbl">FHD</span>
-            <span class="ut-stat-val" style="color: ${skills.forehand >= 90 ? 'var(--gold)' : 'var(--text-main)'};">${skills.forehand}</span>
+          <div class="ut-stat-cell ${surface === 'Грунт' ? 'ut-stat-active-surface' : ''}" title="Грунт (Clay Court)">
+            <span class="ut-stat-lbl">CLY</span>
+            <span class="ut-stat-val" style="color: ${skills.clay >= 90 ? 'var(--gold)' : 'var(--text-main)'};">${skills.clay}</span>
           </div>
-          <div class="ut-stat-cell" title="Бэкхенд (Backhand)">
-            <span class="ut-stat-lbl">BHD</span>
-            <span class="ut-stat-val" style="color: ${skills.backhand >= 90 ? 'var(--gold)' : 'var(--text-main)'};">${skills.backhand}</span>
+          <div class="ut-stat-cell ${surface === 'Трава' ? 'ut-stat-active-surface' : ''}" title="Трава (Grass Court)">
+            <span class="ut-stat-lbl">GRS</span>
+            <span class="ut-stat-val" style="color: ${skills.grass >= 90 ? 'var(--gold)' : 'var(--text-main)'};">${skills.grass}</span>
           </div>
-          <div class="ut-stat-cell" title="Выносливость (Stamina)">
-            <span class="ut-stat-lbl">STA</span>
-            <span class="ut-stat-val" style="color: ${skills.stamina >= 90 ? 'var(--primary)' : 'var(--text-main)'};">${skills.stamina}</span>
+          <div class="ut-stat-cell ${surface === 'Зал' ? 'ut-stat-active-surface' : ''}" title="Зал (Indoor Hard / Carpet)">
+            <span class="ut-stat-lbl">IND</span>
+            <span class="ut-stat-val" style="color: ${skills.indoor >= 90 ? 'var(--gold)' : 'var(--text-main)'};">${skills.indoor}</span>
           </div>
-          <div class="ut-stat-cell" title="Ментальная стойкость (Clutch)">
+          <div class="ut-stat-cell" title="Клатч: тай-брейки и решающие сеты (Clutch)">
             <span class="ut-stat-lbl">CLT</span>
             <span class="ut-stat-val" style="color: ${skills.clutch >= 90 ? 'var(--accent)' : 'var(--text-main)'};">${skills.clutch}</span>
+          </div>
+        </div>
+
+        <div class="ut-live-dossier-row">
+          <div class="ut-form-badges-wrap">
+            <span class="ut-dossier-label">Форма:</span>
+            <div class="ut-form-badges">
+              ${formBadgesHtml}
+            </div>
+          </div>
+          <div class="ut-clutch-summary">
+            <span><b>${tbText}</b></span>
+            <span><b>${deciderText}</b></span>
+            <span><b>${specText}</b></span>
           </div>
         </div>
 
@@ -3549,13 +3786,16 @@ export function renderUltimateTeamCardHtml(player, surface = 'Хард', options
   `;
 }
 
+/**
+ * ШАГ 3: Радар навыков со шкалами Hard, Clay, Grass, Indoor, Clutch
+ */
 export function renderSpiderChartSvg(p1Skills, p2Skills, p1Name, p2Name) {
   const axes = [
-    { key: 'serve', label: 'Подача' },
-    { key: 'forehand', label: 'Форхенд' },
-    { key: 'backhand', label: 'Бэкхенд' },
-    { key: 'stamina', label: 'Выносл.' },
-    { key: 'clutch', label: 'Менталка' }
+    { key: 'hard', label: 'Хард' },
+    { key: 'clay', label: 'Грунт' },
+    { key: 'grass', label: 'Трава' },
+    { key: 'indoor', label: 'Зал' },
+    { key: 'clutch', label: 'Клатч' }
   ];
   const cx = 105;
   const cy = 96;
@@ -3563,8 +3803,8 @@ export function renderSpiderChartSvg(p1Skills, p2Skills, p1Name, p2Name) {
 
   const angleForIdx = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / axes.length;
   const valToRadius = (val) => {
-    const clamped = Math.max(45, Math.min(99, Number(val) || 70));
-    return ((clamped - 40) / 60) * maxR;
+    const clamped = Math.max(50, Math.min(99, Number(val) || 75));
+    return ((clamped - 45) / 55) * maxR;
   };
 
   const gridLevels = [0.35, 0.68, 1.0];
@@ -3605,7 +3845,7 @@ export function renderSpiderChartSvg(p1Skills, p2Skills, p1Name, p2Name) {
   return `
     <div class="spider-chart-box">
       <div style="font-size: 10.5px; font-weight: 800; color: var(--gold); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px;">
-        🕸️ Радар навыков (50–99)
+        🕸️ Радар навыков (55–98)
       </div>
       <svg width="210" height="186" viewBox="0 0 210 186" aria-label="Spider Chart сравнения игроков">
         ${gridPolygons}
@@ -3775,16 +4015,18 @@ export function openScoreModal(rIdx, mIdx) {
   const p1Live = { ...p1Base, stamina: typeof match.p1?.stamina === 'number' ? match.p1.stamina : (p1Base.stamina ?? 100) };
   const p2Live = { ...p2Base, stamina: typeof match.p2?.stamina === 'number' ? match.p2.stamina : (p2Base.stamina ?? 100) };
   const currentSurface = activeTourney ? activeTourney.surface : 'Хард';
-  const p1Skills = getPlayerSkills(p1Live, currentSurface, refDateStr);
-  const p2Skills = getPlayerSkills(p2Live, currentSurface, refDateStr);
+  const p1LiveStats = getPlayerLiveCardAnalytics(p1Live);
+  const p2LiveStats = getPlayerLiveCardAnalytics(p2Live);
+  const p1Skills = getPlayerSkills(p1Live, currentSurface, refDateStr, p1LiveStats);
+  const p2Skills = getPlayerSkills(p2Live, currentSurface, refDateStr, p2LiveStats);
   const totalH2H = (h2h.p1Wins || 0) + (h2h.p2Wins || 0);
   const isRivalry = totalH2H >= 2;
 
   let h2hHtml = `
     <div class="tv-prematch-showcase">
-      ${renderUltimateTeamCardHtml(p1Live, currentSurface, { refDateStr })}
+      ${renderUltimateTeamCardHtml(p1Live, currentSurface, { refDateStr, liveStats: p1LiveStats })}
       ${renderSpiderChartSvg(p1Skills, p2Skills, p1Live.name, p2Live.name)}
-      ${renderUltimateTeamCardHtml(p2Live, currentSurface, { refDateStr })}
+      ${renderUltimateTeamCardHtml(p2Live, currentSurface, { refDateStr, liveStats: p2LiveStats })}
     </div>
 
     <div class="h2h-players-banner" style="margin-top: 6px;">
@@ -3948,6 +4190,7 @@ export function confirmResetMatchResult() {
   handleLiveScoreInputForMomentum();
   saveDraw();
   savePlayers(false);
+  invalidatePlayerCardAnalyticsCache();
   renderPlayersTable();
   if (viewingYear < currentTourYear) {
     backfill2023HistoryFromDraws();
@@ -4344,6 +4587,7 @@ export function commitMatchOutcome({
   if (closePopup) {
     closeModal('scoreModal');
   }
+  invalidatePlayerCardAnalyticsCache();
   renderMatches();
 }
 
@@ -4703,6 +4947,7 @@ export function finishTournamentAndAwardPoints(options = {}) {
   }
 
   syncSeasonHistoryWithActualDraws(viewingYear);
+  invalidatePlayerCardAnalyticsCache();
 
   // Сохраняем выбранный завершенный турнир на экране сразу после клика «Завершить турнир», чтобы сетка не исчезала перед глазами
   initUI({ preserveSelectedTourney: true });
@@ -5505,7 +5750,8 @@ export function openPlayerProfileModal(playerId) {
   const bodyEl = document.getElementById('playerProfileBody');
   if (bodyEl) {
     const profileSurf = activeTourney ? activeTourney.surface : 'Хард';
-    const utCardHtml = renderUltimateTeamCardHtml(player, profileSurf, { refDateStr: currentTourDateStr });
+    const playerLiveStats = getPlayerLiveCardAnalytics(player);
+    const utCardHtml = renderUltimateTeamCardHtml(player, profileSurf, { refDateStr: currentTourDateStr, liveStats: playerLiveStats });
     bodyEl.innerHTML = `
       <div style="display: grid; grid-template-columns: minmax(290px, 340px) 1fr; gap: 14px; margin-bottom: 14px; align-items: stretch;">
         ${utCardHtml}
@@ -7600,6 +7846,10 @@ if (typeof window !== 'undefined') {
   window.restoreSeasonCheckpoint = restoreSeasonCheckpoint;
   window.handleUtCardMouseMove = handleUtCardMouseMove;
   window.handleUtCardMouseLeave = handleUtCardMouseLeave;
+  window.renderUltimateTeamCardHtml = renderUltimateTeamCardHtml;
+  window.renderSpiderChartSvg = renderSpiderChartSvg;
+  window.getPlayerLiveCardAnalytics = getPlayerLiveCardAnalytics;
+  window.invalidatePlayerCardAnalyticsCache = invalidatePlayerCardAnalyticsCache;
   window.handleLiveScoreInputForMomentum = handleLiveScoreInputForMomentum;
   window.updateMomentumBarUI = updateMomentumBarUI;
   window.renderTennisFeed = renderTennisFeed;

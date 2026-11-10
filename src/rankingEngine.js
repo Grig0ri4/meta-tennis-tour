@@ -1255,6 +1255,81 @@ export const PLAYER_ARCHETYPES_CATALOG = {
   }
 };
 
+export const EARNED_BADGES_CATALOG = {
+  hard_master: {
+    id: 'hard_master',
+    icon: '👑',
+    title: 'Хозяин Харда',
+    titleRu: 'Хозяин Харда',
+    enTitle: 'Hard Court Master',
+    desc: 'Доминирует на кортах с твердым покрытием',
+    description: 'Доминирует на кортах с твердым покрытием'
+  },
+  clay_emperor: {
+    id: 'clay_emperor',
+    icon: '🧱',
+    title: 'Император Грунта',
+    titleRu: 'Император Грунта',
+    enTitle: 'Clay Emperor',
+    desc: 'Непревзойденный специалист затяжных баталий на грунте',
+    description: 'Непревзойденный специалист затяжных баталий на грунте'
+  },
+  grass_virtuoso: {
+    id: 'grass_virtuoso',
+    icon: '🌿',
+    title: 'Мастер Травы',
+    titleRu: 'Мастер Травы',
+    enTitle: 'Grass Virtuoso',
+    desc: 'Молниеносный теннис на быстрых травяных кортах',
+    description: 'Молниеносный теннис на быстрых травяных кортах'
+  },
+  indoor_king: {
+    id: 'indoor_king',
+    icon: '🏛️',
+    title: 'Король Зала',
+    titleRu: 'Король Зала',
+    enTitle: 'Indoor King',
+    desc: 'Превосходная статистика в помещениях на быстром харде и ковре',
+    description: 'Превосходная статистика в помещениях на быстром харде и ковре'
+  },
+  tb_king: {
+    id: 'tb_king',
+    icon: '🧊',
+    title: 'Король тай-брейков',
+    titleRu: 'Король тай-брейков',
+    enTitle: 'Tiebreak King',
+    desc: 'Ледяное хладнокровие и высокий процент выигранных тай-брейков (>= 60%)',
+    description: 'Ледяное хладнокровие и высокий процент выигранных тай-брейков (>= 60%)'
+  },
+  decider_iron: {
+    id: 'decider_iron',
+    icon: '🔥',
+    title: 'Железный в решающих сетах',
+    titleRu: 'Железный в решающих сетах',
+    enTitle: 'Deciding Set Warrior',
+    desc: 'Стальной характер в 3-х и 5-х сетах (>= 65% побед)',
+    description: 'Стальной характер в 3-х и 5-х сетах (>= 65% побед)'
+  },
+  on_fire: {
+    id: 'on_fire',
+    icon: '🚀',
+    title: 'На кураже',
+    titleRu: 'На кураже',
+    enTitle: 'On Fire Streak',
+    desc: 'Горячая победная серия',
+    description: 'Горячая победная серия'
+  },
+  giant_killer: {
+    id: 'giant_killer',
+    icon: '🎯',
+    title: 'Гроза фаворитов',
+    titleRu: 'Гроза фаворитов',
+    enTitle: 'Giant Killer',
+    desc: 'Регулярно обыгрывает соперников значительно выше себя в рейтинге',
+    description: 'Регулярно обыгрывает соперников значительно выше себя в рейтинге'
+  }
+};
+
 function hashPlayerSeed(player) {
   const str = String(player?.id || player?.name || 'p_1');
   let h = 2166136261;
@@ -1304,10 +1379,7 @@ export function calculatePlayerOVR(player) {
   return Math.min(74, Math.max(65, Math.round(65 + ratio * 9)));
 }
 
-/**
- * Определяет 1–2 сигнатурных архетипа (перка) игрока на основе его характеристик, страны и возраста
- */
-export function getPlayerArchetypes(player, currentDateStr = '2024-01-02') {
+function getBasePlayerArchetypes(player, currentDateStr = '2024-01-02') {
   if (!player) return [PLAYER_ARCHETYPES_CATALOG.baseline_wall];
   const seed = hashPlayerSeed(player);
   const rank = Number(player.rank) || 100;
@@ -1365,66 +1437,208 @@ export function getPlayerArchetypes(player, currentDateStr = '2024-01-02') {
 }
 
 /**
- * Рассчитывает 5 ключевых навыков теннисиста (50–99) для Spider Chart и карточки Ultimate Team:
- * Подача (serve), Форхенд (forehand), Бэкхенд (backhand), Выносливость (stamina), Ментальная стойкость (clutch)
+ * Определяет 1–3 архетипа игрока (динамические заработанные бейджи по статистике + базовые школы)
  */
-export function getPlayerSkills(player, surface = 'Хард', currentDateStr = '2024-01-02') {
+export function getPlayerArchetypes(player, currentDateStr = '2024-01-02', liveStats = null) {
+  if (!player) return [PLAYER_ARCHETYPES_CATALOG.baseline_wall];
+
+  const earned = [];
+  if (liveStats && typeof liveStats === 'object') {
+    // 1. Покрытие-специализация
+    if (liveStats.bestSurface) {
+      if (liveStats.bestSurface === 'Хард') earned.push(EARNED_BADGES_CATALOG.hard_master);
+      else if (liveStats.bestSurface === 'Грунт') earned.push(EARNED_BADGES_CATALOG.clay_emperor);
+      else if (liveStats.bestSurface === 'Трава') earned.push(EARNED_BADGES_CATALOG.grass_virtuoso);
+      else if (liveStats.bestSurface === 'Зал') earned.push(EARNED_BADGES_CATALOG.indoor_king);
+    }
+
+    // 2. Тай-брейки: tbWins >= 3 и winrate >= 60%
+    const totalTb = (liveStats.tbWins || 0) + (liveStats.tbLosses || 0);
+    if ((liveStats.tbWins || 0) >= 3 && totalTb > 0 && ((liveStats.tbWins / totalTb) >= 0.6)) {
+      earned.push(EARNED_BADGES_CATALOG.tb_king);
+    }
+
+    // 3. Решающие сеты: deciderWins >= 3 и winrate >= 65%
+    const totalDeciders = (liveStats.deciderWins || 0) + (liveStats.deciderLosses || 0);
+    if ((liveStats.deciderWins || 0) >= 3 && totalDeciders > 0 && ((liveStats.deciderWins / totalDeciders) >= 0.65)) {
+      earned.push(EARNED_BADGES_CATALOG.decider_iron);
+    }
+
+    // 4. Серия побед: winStreak >= 4
+    if ((liveStats.winStreak || 0) >= 4) {
+      earned.push({
+        ...EARNED_BADGES_CATALOG.on_fire,
+        title: `На кураже: ${liveStats.winStreak} побед подряд`,
+        titleRu: `На кураже: ${liveStats.winStreak} побед подряд`,
+        desc: `Текущая победная серия составляет ${liveStats.winStreak} матчей подряд`,
+        description: `Текущая победная серия составляет ${liveStats.winStreak} матчей подряд`
+      });
+    }
+
+    // 5. Гроза фаворитов: победа над оппонентом с рангом на 15+ выше
+    if (liveStats.hasGiantKill) {
+      earned.push(EARNED_BADGES_CATALOG.giant_killer);
+    }
+  }
+
+  const baseList = getBasePlayerArchetypes(player, currentDateStr);
+
+  if (earned.length > 0) {
+    const combined = [...earned];
+    for (const b of baseList) {
+      if (!combined.some(x => x.id === b.id)) {
+        combined.push(b);
+      }
+    }
+    return combined.slice(0, 3);
+  }
+
+  return baseList;
+}
+
+/**
+ * Рассчитывает 5 ключевых навыков теннисиста (55–98) для Живого досье и Spider Chart:
+ * Игра на Харде (hard), Игра на Грунте (clay), Игра на Траве (grass), Игра в Зале (indoor), Клатч (clutch)
+ */
+export function getPlayerSkills(player, surface = 'Хард', currentDateStr = '2024-01-02', liveStats = null) {
   const ovr = calculatePlayerOVR(player);
-  const seed = hashPlayerSeed(player);
+  const flag = String(player?.flag || '').toUpperCase();
   const age = calculateAgeNum(player?.birthDate, currentDateStr);
-  const archetypes = getPlayerArchetypes(player, currentDateStr);
+  const archetypes = getPlayerArchetypes(player, currentDateStr, liveStats);
   const archIds = new Set(archetypes.map(a => a.id));
 
-  const clampSkill = (val) => Math.min(99, Math.max(50, Math.round(val)));
+  // Национальные школы
+  const clayFlags = ['ESP', 'ARG', 'BRA', 'CHI', 'ITA', 'NOR', 'FRA', 'PER', 'COL'];
+  const hardFlags = ['USA', 'AUS', 'CAN', 'GEO', 'RUS', 'SLO', 'KAZ', 'CHN', 'JPN'];
+  const grassIndoorFlags = ['GBR', 'GER', 'NED', 'SUI', 'CRO', 'POL', 'CZE', 'AUT'];
 
-  let serve = ovr + ((seed % 7) - 3);
-  let forehand = ovr + (((seed >> 3) % 7) - 3);
-  let backhand = ovr + (((seed >> 6) % 7) - 3);
-  let stamina = ovr + (((seed >> 9) % 7) - 3);
-  let clutch = ovr + (((seed >> 12) % 7) - 3);
+  // Базовые атрибуты от OVR с реалистичным дифференциалом по покрытиям
+  let hard = ovr - 2;
+  let clay = ovr - 6;
+  let grass = ovr - 8;
+  let indoor = ovr - 4;
+  let clutch = ovr - 4;
 
-  // Возрастные модификаторы
+  if (clayFlags.includes(flag)) {
+    clay += 5;
+    hard -= 1;
+    indoor -= 2;
+    grass -= 1;
+  } else if (hardFlags.includes(flag)) {
+    hard += 2;
+    indoor += 1;
+    clay -= 2;
+    grass += 1;
+  } else if (grassIndoorFlags.includes(flag)) {
+    grass += 5;
+    indoor += 2;
+    hard -= 1;
+    clay -= 2;
+  }
+
+  // Возрастные модификаторы клатча
   if (age <= 22) {
-    stamina += 3;
     clutch -= 2;
   } else if (age >= 32) {
-    stamina -= 4;
-    clutch += 4;
+    clutch += 3;
   }
 
-  // Бонусы сигнатурных перков
-  if (archIds.has('serve_bot')) serve += 5;
-  if (archIds.has('baseline_wall')) {
-    backhand += 4;
-    stamina += 4;
-  }
-  if (archIds.has('clutch_king')) clutch += 5;
-  if (archIds.has('aggressive_returner')) {
-    forehand += 4;
-    backhand += 3;
-  }
+  // Бонусы перков
   if (archIds.has('clay_specialist') && surface === 'Грунт') {
-    serve += 4;
-    forehand += 4;
-    backhand += 4;
-    stamina += 4;
-    clutch += 4;
+    clay += 4;
+  }
+  if (archIds.has('clay_emperor')) {
+    clay += 3;
+  }
+  if (archIds.has('hard_master')) {
+    hard += 3;
+  }
+  if (archIds.has('grass_virtuoso')) {
+    grass += 3;
+  }
+  if (archIds.has('indoor_king')) {
+    indoor += 3;
+  }
+  if (archIds.has('clutch_king') || archIds.has('tb_king') || archIds.has('decider_iron')) {
+    clutch += 3;
   }
 
-  // Учет текущей усталости игрока в турнире (если stamina < 100%)
+  // Реальная статистика liveStats из сыгранных сеток
+  if (liveStats && typeof liveStats === 'object') {
+    const sRec = liveStats.surfaceRecord || {};
+
+    const applySurfaceStats = (surfName, currentVal) => {
+      const rec = sRec[surfName];
+      if (!rec) return currentVal;
+      const total = (rec.w || 0) + (rec.l || 0);
+      if (total < 2) return currentVal;
+      const winRate = rec.w / total;
+      let delta = 0;
+      if (winRate >= 0.75) delta = 5;
+      else if (winRate >= 0.65) delta = 3;
+      else if (winRate <= 0.30) delta = -4;
+      else if (winRate < 0.45) delta = -2;
+
+      if (liveStats.titlesBySurface && liveStats.titlesBySurface[surfName]) {
+        delta += Math.min(3, liveStats.titlesBySurface[surfName]);
+      }
+      return currentVal + delta;
+    };
+
+    hard = applySurfaceStats('Хард', hard);
+    clay = applySurfaceStats('Грунт', clay);
+    grass = applySurfaceStats('Трава', grass);
+    indoor = applySurfaceStats('Зал', indoor);
+
+    // Клатч из реального баланса тай-брейков и 3-х/5-х сетов
+    const tbWins = Number(liveStats.tbWins) || 0;
+    const tbLosses = Number(liveStats.tbLosses) || 0;
+    const deciderWins = Number(liveStats.deciderWins) || 0;
+    const deciderLosses = Number(liveStats.deciderLosses) || 0;
+
+    const tbDiff = tbWins - tbLosses;
+    const deciderDiff = deciderWins - deciderLosses;
+    const clutchDelta = Math.max(-5, Math.min(6, Math.round(tbDiff * 0.8 + deciderDiff * 1.2)));
+    clutch += clutchDelta;
+  }
+
+  // Учет текущей усталости игрока в турнире (если stamina < 75%)
   const liveStaminaPct = (player && typeof player.stamina === 'number') ? player.stamina : 100;
   if (liveStaminaPct < 75) {
     const fatiguePenalty = Math.round((75 - liveStaminaPct) / 8);
-    stamina -= fatiguePenalty;
+    clutch -= fatiguePenalty;
+    hard -= Math.round(fatiguePenalty / 2);
+    clay -= Math.round(fatiguePenalty / 2);
+    grass -= Math.round(fatiguePenalty / 2);
+    indoor -= Math.round(fatiguePenalty / 2);
+  }
+
+  const clampSkill = (val) => Math.min(98, Math.max(55, Math.round(val)));
+  hard = clampSkill(hard);
+  clay = clampSkill(clay);
+  grass = clampSkill(grass);
+  indoor = clampSkill(indoor);
+  clutch = clampSkill(clutch);
+
+  // Алиасы для обратной совместимости со старыми модулями и тестами
+  let forehand = clay;
+  let backhand = grass;
+  if (archIds.has('clay_specialist') && surface === 'Грунт') {
+    backhand = Math.min(98, grass + 4);
   }
 
   return {
-    ovr,
-    serve: clampSkill(serve),
-    forehand: clampSkill(forehand),
-    backhand: clampSkill(backhand),
-    stamina: clampSkill(stamina),
-    clutch: clampSkill(clutch),
+    ovr: Math.min(99, Math.max(65, Math.round(ovr))),
+    hard,
+    clay,
+    grass,
+    indoor,
+    clutch,
+    // Алиасы для старых тестов (тест #14)
+    serve: hard,
+    forehand,
+    backhand,
+    stamina: indoor,
     archetypes
   };
 }
@@ -1475,6 +1689,7 @@ if (typeof window !== 'undefined') {
   window.syncPlayers52WeekDiagnostics = syncPlayers52WeekDiagnostics;
   window.createTop50Snapshot = createTop50Snapshot;
   window.PLAYER_ARCHETYPES_CATALOG = PLAYER_ARCHETYPES_CATALOG;
+  window.EARNED_BADGES_CATALOG = EARNED_BADGES_CATALOG;
   window.calculatePlayerOVR = calculatePlayerOVR;
   window.getPlayerArchetypes = getPlayerArchetypes;
   window.getPlayerSkills = getPlayerSkills;

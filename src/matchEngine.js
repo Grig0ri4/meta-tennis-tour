@@ -8,6 +8,7 @@
 import { calculateGroupStandings } from './drawEngine.js';
 import { FULL_CALENDAR_TEMPLATE, rNames128, rNames64, rNamesOlympics, rNames32 } from '../data/tournaments.js';
 import { buildInitial300Players } from '../data/players.js';
+import { getPlayerSkills } from './rankingEngine.js';
 
 const CANONICAL_ID_BY_NAME = (() => {
   const map = new Map();
@@ -42,7 +43,7 @@ export function formatTennisScore(scoreArray) {
   return arr.map(setStr => setStr.replace(/\((\d+)\)/g, '<sup>$1</sup>')).join('  ');
 }
 
-export function generateRealisticTennisSet(p1Wins, isDecidingSetTB = false, rankDiff = 0, allowBagel = false) {
+export function generateRealisticTennisSet(p1Wins, isDecidingSetTB = false, rankDiff = 0, allowBagel = false, clutchAdvantage = 0) {
   const roll = Math.random();
   let score = "";
 
@@ -55,9 +56,10 @@ export function generateRealisticTennisSet(p1Wins, isDecidingSetTB = false, rank
     else if (roll < 0.72) score = "6-4";
     else if (roll < 0.85) score = "7-5";
     else {
+      const basePoints = clutchAdvantage > 3 ? (2 + Math.floor(Math.random() * 4)) : (2 + Math.floor(Math.random() * 6));
       const loserPoints = isDecidingSetTB
         ? (Math.random() < 0.5 ? 8 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 2))
-        : (2 + Math.floor(Math.random() * 6));
+        : basePoints;
       score = `7-6(${loserPoints})`;
     }
   } else {
@@ -68,9 +70,10 @@ export function generateRealisticTennisSet(p1Wins, isDecidingSetTB = false, rank
     else if (roll < 0.72) score = "4-6";
     else if (roll < 0.85) score = "5-7";
     else {
+      const basePoints = clutchAdvantage < -3 ? (2 + Math.floor(Math.random() * 4)) : (2 + Math.floor(Math.random() * 6));
       const loserPoints = isDecidingSetTB
         ? (Math.random() < 0.5 ? 8 + Math.floor(Math.random() * 3) : 6 + Math.floor(Math.random() * 2))
-        : (2 + Math.floor(Math.random() * 6));
+        : basePoints;
       score = `6-7(${loserPoints})`;
     }
   }
@@ -415,7 +418,21 @@ export function computeSimMatchScores(m, bestOf = 3, forcedWinnerNumber = 0, sur
   const p1Stamina = (m.p1 && typeof m.p1.stamina === 'number') ? m.p1.stamina : 100;
   const p2Stamina = (m.p2 && typeof m.p2.stamina === 'number') ? m.p2.stamina : 100;
 
-  // Определяем фаворита и аутсайдера (20% шанс апсета, если победитель не задан принудительно)
+  // Рассчитываем навыки игроков на покрытии и их клатч
+  const p1Skills = getPlayerSkills(m.p1, surface);
+  const p2Skills = getPlayerSkills(m.p2, surface);
+  const surfKey = surface === 'Грунт' ? 'clay' : (surface === 'Трава' ? 'grass' : (surface === 'Зал' ? 'indoor' : 'hard'));
+  const surf1 = p1Skills[surfKey] || 75;
+  const surf2 = p2Skills[surfKey] || 75;
+  const clutch1 = p1Skills.clutch || 75;
+  const clutch2 = p2Skills.clutch || 75;
+
+  const surfSkillDiff = (surf1 - surf2) * 0.005;
+  const clutchDiff = (clutch1 - clutch2);
+  const clutchEdge = clutchDiff * 0.003;
+  const staminaEdge = (p1Stamina - p2Stamina) * 0.0025;
+
+  // Определяем фаворита и аутсайдера с учетом навыков покрытия, клатча и выносливости
   const p1IsFavorite = r1 <= r2;
   let p1WinsMatch;
   if (forcedWinnerNumber === 1) {
@@ -423,10 +440,7 @@ export function computeSimMatchScores(m, bestOf = 3, forcedWinnerNumber = 0, sur
   } else if (forcedWinnerNumber === 2) {
     p1WinsMatch = false;
   } else {
-    const surfBonus1 = getSurfaceAffinityBonus(m.p1, surface);
-    const surfBonus2 = getSurfaceAffinityBonus(m.p2, surface);
-    const staminaEdge = (p1Stamina - p2Stamina) * 0.0025;
-    const upsetProb = Math.min(0.38, Math.max(0.15, 0.20 + (p1IsFavorite ? (surfBonus2 - surfBonus1 - staminaEdge) : (surfBonus1 - surfBonus2 + staminaEdge))));
+    const upsetProb = Math.min(0.42, Math.max(0.12, 0.20 + (p1IsFavorite ? (-surfSkillDiff - clutchEdge - staminaEdge) : (surfSkillDiff + clutchEdge + staminaEdge))));
     const isUpset = Math.random() < upsetProb;
     p1WinsMatch = p1IsFavorite ? !isUpset : isUpset;
   }
@@ -438,7 +452,8 @@ export function computeSimMatchScores(m, bestOf = 3, forcedWinnerNumber = 0, sur
   const retChance = criticalFatigue ? 0.22 : (options.allowRandomInjury ? 0.015 : 0);
 
   if (allowRet && retChance > 0 && Math.random() < retChance) {
-    const firstSet = generateRealisticTennisSet(p1WinsMatch, false, rankDiff);
+    const cAdv = p1WinsMatch ? clutchDiff : -clutchDiff;
+    const firstSet = generateRealisticTennisSet(p1WinsMatch, false, rankDiff, false, cAdv);
     const midGames = p1WinsMatch
       ? pickRandomItem(['3-1', '4-1', '2-0', '3-2', '1-0'])
       : pickRandomItem(['1-3', '1-4', '0-2', '2-3', '0-1']);
@@ -468,20 +483,33 @@ export function computeSimMatchScores(m, bestOf = 3, forcedWinnerNumber = 0, sur
 
   if (bestOf === 3) {
     if (isThriller) {
-      // 3-сетовый триллер: победитель берет 2 сета, проигравший — 1 сет (в 1-м или 2-м сете)
+      // 3-сетовый триллер: исход решающего 3-го сета существенно зависит от параметра клатча (clutch)
+      if (forcedWinnerNumber === 0) {
+        const deciderProb = Math.min(0.80, Math.max(0.20, 0.50 + clutchDiff * 0.015 + surfSkillDiff * 0.4));
+        p1WinsMatch = Math.random() < deciderProb;
+      }
       const loserTakesFirst = Math.random() < 0.5;
       const setWinners = loserTakesFirst
         ? [!p1WinsMatch, p1WinsMatch, p1WinsMatch]
         : [p1WinsMatch, !p1WinsMatch, p1WinsMatch];
-      scores = setWinners.map((w, idx) => generateRealisticTennisSet(w, idx === 2, rankDiff, false));
+      scores = setWinners.map((w, idx) => {
+        const isDecider = idx === 2;
+        const cAdv = w ? clutchDiff : -clutchDiff;
+        return generateRealisticTennisSet(w, isDecider, rankDiff, false, cAdv);
+      });
     } else {
-      const firstSet = generateRealisticTennisSet(p1WinsMatch, false, rankDiff, true);
+      const cAdv = p1WinsMatch ? clutchDiff : -clutchDiff;
+      const firstSet = generateRealisticTennisSet(p1WinsMatch, false, rankDiff, true, cAdv);
       const alreadyBagel = firstSet === '6-0' || firstSet === '0-6';
-      const secondSet = generateRealisticTennisSet(p1WinsMatch, false, rankDiff, !alreadyBagel);
+      const secondSet = generateRealisticTennisSet(p1WinsMatch, false, rankDiff, !alreadyBagel, cAdv);
       scores = [firstSet, secondSet];
     }
   } else {
     // best-of-5
+    if (isThriller && forcedWinnerNumber === 0) {
+      const deciderProb = Math.min(0.80, Math.max(0.20, 0.50 + clutchDiff * 0.018 + surfSkillDiff * 0.4));
+      p1WinsMatch = Math.random() < deciderProb;
+    }
     let p1W = 0;
     let p2W = 0;
     const targetLoserSets = isThriller ? (Math.random() < 0.55 ? 2 : 1) : 0;
@@ -500,7 +528,8 @@ export function computeSimMatchScores(m, bestOf = 3, forcedWinnerNumber = 0, sur
       else p2W++;
       const isFifthTB = idx === 4 && p1W + p2W === 5;
       const canBagel = !bagelUsed && w === p1WinsMatch && !isThriller;
-      const s = generateRealisticTennisSet(w, isFifthTB, rankDiff, canBagel);
+      const cAdv = w ? clutchDiff : -clutchDiff;
+      const s = generateRealisticTennisSet(w, isFifthTB, rankDiff, canBagel, cAdv);
       if (s === '6-0' || s === '0-6') bagelUsed = true;
       return s;
     });
