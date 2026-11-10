@@ -1571,6 +1571,12 @@ export function syncSeasonHistoryWithActualDraws(targetYear) {
   let changed = false;
 
   seasonTourneys.forEach(tmpl => {
+    const liveT = (y === currentTourYear && Array.isArray(tournaments))
+      ? tournaments.find(x => x && x.id === tmpl.id)
+      : null;
+    // В текущем сезоне не трогаем турнир, пока пользователь не нажал «Завершить турнир»
+    if (y === currentTourYear && (!liveT || !liveT.completed)) return;
+
     const d = readSavedDraw(tmpl.id, y);
     if (!Array.isArray(d) || d.length === 0) return;
 
@@ -1638,16 +1644,11 @@ export function syncSeasonHistoryWithActualDraws(targetYear) {
       }
     }
 
-    if (y === currentTourYear) {
-      const liveT = Array.isArray(tournaments) ? tournaments.find(x => x && x.id === tmpl.id) : null;
-      if (liveT) {
-        liveT.completed = true;
-        liveT.lastWinner = w;
-        liveT.lastRunnerUp = ru;
-        liveT.lastScore = scoreStr;
-        if (tmpl.id === 'olympics') liveT.lastBronze = bronze;
-      }
-      tmpl.completed = true;
+    if (y === currentTourYear && liveT && liveT.completed) {
+      liveT.lastWinner = w;
+      liveT.lastRunnerUp = ru;
+      liveT.lastScore = scoreStr;
+      if (tmpl.id === 'olympics') liveT.lastBronze = bronze;
       tmpl.lastWinner = w;
       tmpl.lastRunnerUp = ru;
       tmpl.lastScore = scoreStr;
@@ -5189,7 +5190,7 @@ export function renderCalendarTable() {
     }
 
     const isDone = (selectedYear < currentTourYear && (histEntry?.winner || drawExists)) ||
-                   (selectedYear === currentTourYear && (Boolean(t.completed) || drawExists));
+                   (selectedYear === currentTourYear && Boolean(t.completed));
 
     const champObj = drawWinner || (selectedYear === currentTourYear ? t.lastWinner : null) || histEntry?.winner || null;
     const liveChamp = champObj ? (players.find(x => String(x.id) === String(champObj.id)) || champObj) : null;
