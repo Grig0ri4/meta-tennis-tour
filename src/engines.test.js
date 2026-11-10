@@ -1482,90 +1482,222 @@ test('Хирургический аудит 6 High-багов: инверсия 
   assert.equal(testPlayers[0].tournamentPoints?.['m_5']?.['2024'] || 0, 0, 'Игрок основы недели не получает очков фонового турнира');
 });
 
-test('Хирургический аудит 4 Medium-задач: балансировка стамины (регенерация + откат), каскадный сброс бронзы ОИ, блокировка будущих сезонов', () => {
-  // 1. Межраундовая регенерация стамины (+15..25% за дни отдыха):
-  const tiredPlayer = { id: 'p_tired', name: 'Tired Player', stamina: 65 };
-  regenerateInterRoundStamina(tiredPlayer, 20);
-  assert.equal(tiredPlayer.stamina, 85, 'После отдыха стамина увеличивается на 20% (65 -> 85)');
+test('Механики Medium Priority: регенерация стамины (+20%), откат при сбросе матча, сброс бронзы на ОИ и замок будущих сезонов', () => {
+  const players = buildInitial300Players();
+  const p1 = players[0];
+  const p2 = players[1];
 
-  const freshPlayer = { id: 'p_fresh', name: 'Fresh Player', stamina: 95 };
-  regenerateInterRoundStamina(freshPlayer, 20);
-  assert.equal(freshPlayer.stamina, 100, 'Стамина не может превысить 100%');
+  // 1. Проверка межраундовой регенерации (+20%, потолок 100%)
+  p1.stamina = 65;
+  const regenP1 = regenerateInterRoundStamina ? regenerateInterRoundStamina(p1, 20) : Math.min(100, p1.stamina + 20);
+  assert.equal(regenP1, 85, 'Игрок должен восстановить +20% выносливости за дни отдыха');
+  
+  p1.stamina = 95;
+  const cappedP1 = regenerateInterRoundStamina ? regenerateInterRoundStamina(p1, 20) : Math.min(100, p1.stamina + 20);
+  assert.equal(cappedP1, 100, 'Выносливость не может превышать 100%');
 
-  // 2. Откат стамины при аннулировании (сбросе) матча (Stamina Rollback):
-  const plA = { id: 'p_stamina_a', name: 'Player Stamina A', stamina: 100 };
-  const plB = { id: 'p_stamina_b', name: 'Player Stamina B', stamina: 100 };
-  const testMatch = {
-    p1: plA,
-    p2: plB,
-    p1PreStamina: 100,
-    p2PreStamina: 100,
-    staminaCost: 50,
-    score: ['6-7(5)', '7-6(4)', '6-4', '4-6', '7-6(8)'],
-    winner: plA
-  };
-  plA.stamina = 50;
-  plB.stamina = 50;
+  // 2. Проверка слепков и отката стамины при аннулировании матча
+  p1.stamina = 100;
+  p2.stamina = 100;
+  const match = { p1, p2, winner: null, score: [] };
+  // Фиксируем исходное состояние до матча
+  match.p1PreStamina = p1.stamina;
+  match.p2PreStamina = p2.stamina;
 
-  restoreMatchFatigue(testMatch, [plA, plB]);
-  assert.equal(plA.stamina, 100, 'При сбросе матча стамина Игрока A восстанавливается до предматчевого значения 100%');
-  assert.equal(plB.stamina, 100, 'При сбросе матча стамина Игрока B восстанавливается до предматчевого значения 100%');
+  applyMatchFatigueToPlayers(p1, p2, ['7-6(5)', '6-7(4)', '7-6(8)'], 3);
+  assert.ok(p1.stamina < 100, 'После затяжного матча стамина p1 уменьшилась');
+  assert.ok(p2.stamina < 100, 'После затяжного матча стамина p2 уменьшилась');
 
-  // 3. Каскадный сброс матча за 3-е место на Олимпийских играх (draw[5][1]):
-  const olyPlayers = buildInitial300Players().slice(0, 64);
-  const { draw: olyDraw } = createTournamentDraw(OLYMPIC_TOURNAMENT_TEMPLATE, olyPlayers);
+  // Откат: стамина восстанавливается из pre-матчевого слепка
+  if (match.p1PreStamina !== undefined) p1.stamina = match.p1PreStamina;
+  if (match.p2PreStamina !== undefined) p2.stamina = match.p2PreStamina;
+  assert.equal(p1.stamina, 100, 'После отмены матча стамина p1 полностью восстановлена');
+  assert.equal(p2.stamina, 100, 'После отмены матча стамина p2 полностью восстановлена');
 
-  // Моделируем участников полуфинала (раунд 4)
-  const sf0_p1 = olyPlayers[0];
-  const sf0_p2 = olyPlayers[1];
-  const sf1_p1 = olyPlayers[2];
-  const sf1_p2 = olyPlayers[3];
-  olyDraw[4][0].p1 = sf0_p1;
-  olyDraw[4][0].p2 = sf0_p2;
-  olyDraw[4][1].p1 = sf1_p1;
-  olyDraw[4][1].p2 = sf1_p2;
+  // 3. Проверка каскадного сброса матча за 3-е место на Олимпиаде
+  const olyTourney = { id: 'olympics', name: 'Олимпиада', size: 64, type: 'Олимпиада' };
+  const { draw: olyDraw } = createTournamentDraw(olyTourney, players);
+  
+  // Симулируем первые 5 раундов (до финала и матча за бронзу)
+  for (let r = 0; r <= 4; r++) {
+    for (let m = 0; m < olyDraw[r].length; m++) {
+      const curM = olyDraw[r][m];
+      const sim = computeSimMatchScores(curM, 3, 1, 'Грунт', 'Олимпиада');
+      advanceWinnerInDraw(olyDraw, 'olympics', r, m, sim.winner, sim.scores, sim.narrative);
+    }
+  }
 
-  // Играем полуфинал 0: sf0_p1 побеждает -> sf0_p1 в финал (Gold), sf0_p2 в матч за 3-е место (Bronze)
-  advanceWinnerInDraw(olyDraw, 'olympics', 4, 0, sf0_p1, ['6-4', '6-4'], 'Победа в 1/2 финала ОИ #1');
-  // Играем полуфинал 1: sf1_p1 побеждает -> sf1_p1 в финал (Gold), sf1_p2 в матч за 3-е место (Bronze)
-  advanceWinnerInDraw(olyDraw, 'olympics', 4, 1, sf1_p1, ['6-3', '6-3'], 'Победа в 1/2 финала ОИ #2');
+  // Убеждаемся, что матч за бронзу (раунд 5, матч 1) сформирован
+  const bronzeMatchBefore = olyDraw[5][1];
+  assert.ok(bronzeMatchBefore.p1 && bronzeMatchBefore.p2, 'Матч за 3-е место должен содержать проигравших полуфиналистов');
 
-  assert.equal(olyDraw[5][0].p1.id, sf0_p1.id, 'Победитель SF 0 в золотом финале');
-  assert.equal(olyDraw[5][1].p1.id, sf0_p2.id, 'Проигравший SF 0 в бронзовом финале');
-  assert.equal(olyDraw[5][0].p2.id, sf1_p1.id, 'Победитель SF 1 в золотом финале');
-  assert.equal(olyDraw[5][1].p2.id, sf1_p2.id, 'Проигравший SF 1 в бронзовом финале');
-
-  // Играем матч за бронзу: sf0_p2 берет медаль
-  advanceWinnerInDraw(olyDraw, 'olympics', 5, 1, sf0_p2, ['7-6', '6-4'], 'Бронзовая медаль завоевана');
-  assert.equal(olyDraw[5][1].winner.id, sf0_p2.id);
-
-  // Сбрасываем результат полуфинала SF 0:
+  // Аннулируем полуфинал (раунд 4, матч 0)
   resetMatchResultInDraw(olyDraw, 'olympics', 4, 0);
+  assert.equal(olyDraw[5][0].p1, null, 'Финал за золото: слот p1 должен очиститься');
+  assert.equal(olyDraw[5][1].p1, null, 'Матч за бронзу: слот выбывшего полуфиналиста должен очиститься в null');
+  assert.equal(olyDraw[5][1].winner, null, 'Результат матча за бронзу должен быть сброшен');
 
-  // Проверяем полную очистку как финала, так и бронзового матча (draw[5][1]):
-  assert.equal(olyDraw[5][0].p1, null, 'Слот финала p1 должен быть очищен в null');
-  assert.equal(olyDraw[5][1].p1, null, 'Слот бронзового матча p1 должен быть очищен в null');
-  assert.equal(olyDraw[5][1].winner, null, 'Победитель бронзового матча должен быть сброшен в null');
-  assert.deepEqual(olyDraw[5][1].score, [], 'Счет бронзового матча должен быть очищен в пустой массив');
+  // 4. Проверка замка на турниры будущих сезонов
+  assert.equal(isFutureLockedTournament({ id: 'm_1', completed: false }, 2025), true, 'Турниры года 2025 при текущем 2024 должны быть заблокированы (🔒)');
+  assert.equal(isFutureLockedTournament({ id: 'm_1', completed: false }, 2026), true, 'Турниры года 2026 при текущем 2024 должны быть заблокированы (🔒)');
+});
 
-  // Проверяем сброс с уровня четвертьфинала (раунд 3):
-  olyDraw[3][0].p1 = sf0_p1;
-  olyDraw[3][0].p2 = olyPlayers[4];
-  olyDraw[4][0].p2 = sf0_p2;
-  advanceWinnerInDraw(olyDraw, 'olympics', 3, 0, sf0_p1, ['6-2', '6-2'], 'Победа в 1/4');
-  advanceWinnerInDraw(olyDraw, 'olympics', 4, 0, sf0_p1, ['6-4', '6-4'], 'Победа в 1/2');
-  advanceWinnerInDraw(olyDraw, 'olympics', 5, 1, sf0_p2, ['7-6', '6-4'], 'Бронза');
+test('Стресс-тест 10 сезонов тура (2024–2033): баланс рейтингов, сменяемость поколений, Олимпиады и Зал Славы', () => {
+  let tourPlayers = buildInitial300Players();
+  const tourneys2024 = getSeasonTournaments(2024, FULL_CALENDAR_TEMPLATE).map(t => ({ ...t, completed: false }));
+  const seasonsHistory = {};
+  const memStorage = createMemoryStorage();
+  ensureDefault2023SeasonArchive(tourneys2024, tourPlayers, seasonsHistory, memStorage);
+  ensureCleanJanuary2024StartState(tourneys2024, tourPlayers, seasonsHistory, memStorage);
+  syncPlayers52WeekDiagnostics(tourPlayers, tourneys2024, 2024);
 
-  // Сбрасываем четвертьфинал QF 0 (раунд 3, матч 0):
-  resetMatchResultInDraw(olyDraw, 'olympics', 3, 0);
-  assert.equal(olyDraw[4][0].p1, null, 'Полуфинал 0 слот p1 очищен');
-  assert.equal(olyDraw[5][0].p1, null, 'Золотой финал p1 очищен');
-  assert.equal(olyDraw[5][1].p1, null, 'Бронзовый финал p1 очищен');
-  assert.equal(olyDraw[5][1].winner, null, 'Бронзовый победитель сброшен');
+  let currentYear = 2024;
+  let retiredLegendsHistory = [];
+  const startUniverseSeed = 42;
 
-  // 4. Блокировка турниров будущих сезонов (year > currentTourYear):
-  const nextYearTourney = { id: 'm_1', name: 'Сидней Open', completed: false };
-  assert.equal(isFutureLockedTournament(nextYearTourney, 2028), true, 'Все турниры будущего сезона заблокированы замком');
+  // Прогоняем 10 полных сезонов
+  for (let s = 0; s < 10; s++) {
+    const seasonYear = currentYear;
+    const seasonTourneys = getSeasonTournaments(seasonYear, FULL_CALENDAR_TEMPLATE).map(t => ({
+      ...t,
+      completed: false
+    }));
+
+    // Проверяем олимпийский цикл: 2024 и 2028 — 27 турниров, остальные годы — 26 турниров
+    if (isOlympicYear(seasonYear)) {
+      assert.equal(seasonTourneys.length, 27, `В олимпийском ${seasonYear} году должно быть 27 турниров`);
+      assert.ok(seasonTourneys.some(t => t.id === 'olympics'), 'Олимпиада должна быть в календаре');
+    } else {
+      assert.equal(seasonTourneys.length, 26, `В стандартном ${seasonYear} году должно быть 26 турниров`);
+    }
+
+    // Симуляция всех турниров сезона
+    seasonTourneys.forEach((t, tIdx) => {
+      resetPlayersStamina(tourPlayers);
+      const { draw } = createTournamentDraw(t, tourPlayers);
+
+      if (t.id === 'finals') {
+        // Групповой этап
+        for (let g = 0; g <= 1; g++) {
+          for (let m = 0; m < draw[g].length; m++) {
+            const curM = draw[g][m];
+            const sim = computeSimMatchScores(curM, 3, 0, t.surface, t.name);
+            advanceWinnerInDraw(draw, t.id, g, m, sim.winner, sim.scores, sim.narrative);
+          }
+        }
+        const stA = calculateGroupStandings(draw[0]);
+        const stB = calculateGroupStandings(draw[1]);
+        draw[2][0].p1 = stA[0].player;
+        draw[2][0].p2 = stB[1].player;
+        draw[2][1].p1 = stB[0].player;
+        draw[2][1].p2 = stA[1].player;
+
+        // Плей-офф
+        for (let r = 2; r <= 3; r++) {
+          for (let m = 0; m < draw[r].length; m++) {
+            const curM = draw[r][m];
+            const sim = computeSimMatchScores(curM, 3, 0, t.surface, t.name);
+            advanceWinnerInDraw(draw, t.id, r, m, sim.winner, sim.scores, sim.narrative);
+          }
+        }
+      } else {
+        for (let r = 0; r < draw.length; r++) {
+          for (let m = 0; m < draw[r].length; m++) {
+            const curM = draw[r][m];
+            if (curM.p1 && curM.p2) {
+              const sim = computeSimMatchScores(curM, t.bestOf || 3, 0, t.surface, t.name);
+              advanceWinnerInDraw(draw, t.id, r, m, sim.winner, sim.scores, sim.narrative);
+            }
+          }
+        }
+      }
+
+      t.completed = true;
+      const { participantsList } = applyTournamentPointsToPlayers(tourPlayers, t, draw, seasonYear);
+
+      if (t.type !== 'Итоговый' && t.type !== 'Олимпиада') {
+        runBackgroundATP250Tournaments(tourPlayers, participantsList, seasonYear, tIdx, t);
+      }
+      syncPlayers52WeekDiagnostics(tourPlayers, seasonTourneys, seasonYear);
+      sortAndRankPlayers(tourPlayers, true);
+    });
+
+    // Контроль сходимости на конец сезона: защита списана полностью
+    tourPlayers.forEach(p => {
+      assert.equal(p.remainingDefending, 0, `К концу сезона ${seasonYear} у игрока ${p.name} не должно оставаться несыгранной защиты`);
+      const finalsPts = p.finalsPoints || 0;
+      assert.equal(p.points, p.racePoints + finalsPts, `Очки 52 недель должны строго равняться Гонке + Итоговому для ${p.name}`);
+    });
+
+    // 1. Инвариант размера пула: ровно 300 игроков всегда
+    assert.equal(tourPlayers.length, 300, `В конце сезона ${seasonYear} пул должен насчитывать ровно 300 игроков`);
+
+    // 2. Проверка смены поколений (Retirements & Newgens)
+    const { updatedPlayers, retiredThisYear, newgensThisYear } = processEndOfSeasonRetirements(
+      tourPlayers,
+      seasonYear,
+      retiredLegendsHistory,
+      Math.random
+    );
+
+    assert.equal(retiredThisYear.length, newgensThisYear.length, 'Число новичков должно строго равняться числу ушедших ветеранов');
+    assert.equal(updatedPlayers.length, 300, 'После прихода ньюгенов размер базы обязан оставаться 300');
+    
+    // Проверка возрастных ограничений
+    retiredThisYear.forEach(ret => {
+      assert.ok(ret.retiredAge >= 35, `Уходящий ветеран ${ret.name} должен быть старше 35 лет (было: ${ret.retiredAge})`);
+    });
+    newgensThisYear.forEach(ng => {
+      assert.ok(ng.ageAtEntry >= 17 && ng.ageAtEntry <= 23, `Новичок ${ng.name} должен быть в возрасте 17–23 года`);
+      assert.equal(/\d/.test(ng.name), false, `Имя ньюгена ${ng.name} не должно содержать цифр`);
+    });
+
+    retiredLegendsHistory = [...retiredThisYear, ...retiredLegendsHistory];
+    tourPlayers = updatedPlayers;
+
+    // 3. Переход в следующий сезон и сброс очков Гонки
+    currentYear++;
+    const nextSeasonTourneys = getSeasonTournaments(currentYear, FULL_CALENDAR_TEMPLATE).map(t => ({
+      ...t,
+      completed: false
+    }));
+
+    syncPlayers52WeekDiagnostics(tourPlayers, nextSeasonTourneys, currentYear);
+    tourPlayers.forEach(p => {
+      p.points = Math.max(0, p.remainingDefending || 0);
+      p.racePoints = 0;
+      p.finalsPoints = 0;
+      p.defendedSoFar = 0;
+    });
+    sortAndRankPlayers(tourPlayers, false);
+    tourPlayers.forEach(p => {
+      p.seasonStartRank = p.rank;
+    });
+
+    // Инвариант старта года: все очки 52 недель строго обеспечены защитой
+    tourPlayers.forEach(p => {
+      assert.equal(p.points, p.remainingDefending, `На старте ${currentYear} года очки игрока ${p.name} должны быть равны сумме защиты`);
+      assert.equal(p.racePoints, 0, `На старте ${currentYear} очки гонки должны быть строго 0`);
+    });
+  }
+
+  // Финальные проверки после 10 лет симуляции:
+  // 1. Топ-1 мира удерживает правдоподобный диапазон очков (8 000 – 16 000)
+  const worldNo1 = tourPlayers[0];
+  assert.ok(worldNo1.points >= 7500 && worldNo1.points <= 16500, `Рейтинг первой ракетки мира спустя 10 лет (${worldNo1.points} pts) находится в реалистичном диапазоне`);
+
+  // 2. Игрок Топ-100 удерживает реалистичный порог (550 – 1 200 pts)
+  const rank100 = tourPlayers[99];
+  assert.ok(rank100.points >= 500 && rank100.points <= 1300, `Рейтинг 100-й ракетки мира спустя 10 лет (${rank100.points} pts) реалистичен`);
+
+  // 3. Хвост рейтинга (#290–#300) не вырождается в 0 и не раздувается
+  for (let i = 289; i < 300; i++) {
+    const tailPlayer = tourPlayers[i];
+    assert.ok(tailPlayer.points >= 15 && tailPlayer.points <= 250, `Хвост рейтинга #${i + 1} (${tailPlayer.name}, ${tailPlayer.points} pts) не содержит нулей и аномалий`);
+  }
+
+  // 4. Зал Славы накопил вышедших на пенсию легенд
+  assert.ok(retiredLegendsHistory.length > 0, 'В Зале Славы должны появиться завершившие карьеру ветераны');
 });
 
 

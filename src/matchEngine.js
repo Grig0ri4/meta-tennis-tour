@@ -325,10 +325,10 @@ export function resetPlayersStamina(playersList) {
  * Восстанавливает выносливость победителя матча (отдых между кругами турнира: +15..25% стамины)
  */
 export function regenerateInterRoundStamina(player, recoveryAmount = 20) {
-  if (!player || typeof player !== 'object') return player;
+  if (!player || typeof player !== 'object') return 100;
   const current = typeof player.stamina === 'number' ? player.stamina : 100;
   player.stamina = Math.min(100, Math.max(15, current + recoveryAmount));
-  return player;
+  return player.stamina;
 }
 
 /**
