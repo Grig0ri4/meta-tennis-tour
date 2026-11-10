@@ -262,16 +262,24 @@ function loadUniversesRegistry() {
     universesList = [];
   }
   if (!Array.isArray(universesList) || universesList.length === 0) {
-    universesList = [{ id: '1', name: 'Вселенная Автора (Канон)', year: 2024, isCanon: true }];
+    universesList = [{ id: '1', name: 'Вселенная Автора (Канон)', year: 2024, startYear: 2024, isCanon: true }];
     localStorage.setItem(UNIVERSES_LIST_KEY, JSON.stringify(universesList));
   } else {
     const canonUniv = universesList.find(u => u.id === '1');
     if (canonUniv) {
       canonUniv.name = 'Вселенная Автора (Канон)';
       canonUniv.isCanon = true;
+      canonUniv.startYear = 2024;
     } else {
-      universesList.unshift({ id: '1', name: 'Вселенная Автора (Канон)', year: 2024, isCanon: true });
+      universesList.unshift({ id: '1', name: 'Вселенная Автора (Канон)', year: 2024, startYear: 2024, isCanon: true });
     }
+    universesList.forEach(u => {
+      if (u.id === '1') {
+        u.startYear = 2024;
+      } else if (!u.startYear) {
+        u.startYear = u.year || 2024;
+      }
+    });
     localStorage.setItem(UNIVERSES_LIST_KEY, JSON.stringify(universesList));
   }
   const savedActive = localStorage.getItem(ACTIVE_UNIVERSE_KEY);
@@ -286,6 +294,7 @@ function loadUniversesRegistry() {
 function saveUniversesRegistry() {
   const currentUniv = universesList.find(u => u.id === activeUniverseId);
   if (currentUniv) {
+    if (!currentUniv.startYear) currentUniv.startYear = currentUniv.id === '1' ? 2024 : (currentUniv.year || 2024);
     currentUniv.year = currentTourYear;
   }
   try {
@@ -660,7 +669,7 @@ function recordCustomPlayerOverride(player, canonicalName = null) {
 function propagatePlayerIdentityUpdate(updatedPlayer, oldNameLower = '') {
   if (!updatedPlayer) return;
   const currentUnivMeta = (universesList || []).find(u => u.id === activeUniverseId);
-  const universeStartYear = currentUnivMeta?.startYear || currentUnivMeta?.year || 2024;
+  const universeStartYear = activeUniverseId === '1' ? 2024 : (currentUnivMeta?.startYear || 2024);
   const targetId = String(updatedPlayer.id);
   const targetNameLower = String(updatedPlayer.name || '').trim().toLowerCase();
 
@@ -823,7 +832,7 @@ function repairCanonicalPlayersAndDraws() {
   const usedIds = new Set();
 
   const currentUnivMeta = (universesList || []).find(u => u.id === activeUniverseId);
-  const universeStartYear = currentUnivMeta?.startYear || currentUnivMeta?.year || 2024;
+  const universeStartYear = activeUniverseId === '1' ? 2024 : (currentUnivMeta?.startYear || 2024);
 
   if (currentTourYear <= universeStartYear && newgensAndCustom.length === 0) {
     canonicalRoster.forEach(canon => {
@@ -1068,6 +1077,17 @@ export function resetCurrentSeasonToCleanJanuary() {
     universeStorage.removeItem(`bg250_${t.id}_${currentTourYear}`);
   });
 
+  // Очищаем турнирные очки сбрасываемого года у всех игроков:
+  players.forEach(p => {
+    if (p.tournamentPoints) {
+      tournaments.forEach(t => {
+        if (p.tournamentPoints[t.id]) {
+          delete p.tournamentPoints[t.id][currentTourYear];
+        }
+      });
+    }
+  });
+
   // Очки гонки сбрасываются в 0, очки рейтинга фиксируются по защите текущего года
   syncPlayers52WeekDiagnostics(players, tournaments, currentTourYear);
   players.forEach(p => {
@@ -1263,7 +1283,7 @@ function repairOvercountedPoints() {
   });
 
   const currentUnivMeta = (universesList || []).find(u => u.id === activeUniverseId);
-  const universeStartYear = currentUnivMeta?.startYear || currentUnivMeta?.year || 2024;
+  const universeStartYear = activeUniverseId === '1' ? 2024 : (currentUnivMeta?.startYear || 2024);
   const { startRankMap, peakRankMap } = buildCanonical2023StartMap(players);
   const completedTourneys = seasonTourneys.filter(t => t.completed);
   const lastCompletedTourney = completedTourneys.length > 0 ? completedTourneys[completedTourneys.length - 1] : null;
@@ -1599,6 +1619,7 @@ export function confirmCreateNewUniverse() {
     id: newId,
     name: rawName,
     year: startYear,
+    startYear: startYear,
     rosterMode,
     isCanon: false
   };
@@ -2677,7 +2698,7 @@ export function openFinalsDefendingModal() {
     const racePoints = pl ? (pl.racePoints || 0) : 0;
     const livePoints = pl ? (pl.points || 0) : 0;
     const liveRank = pl ? (pl.rank || '—') : '—';
-    const flagSvg = getCountryFlagSvg(item.flag, 20, 14);
+    const flagSvg = typeof getCountryFlagSvg === 'function' ? getCountryFlagSvg(item.flag, 20, 14) : renderFlagBadge(item.flag, { compact: true });
 
     let resPrev = `— (Дебют ${curYear})`;
     if (item.playedPrevYear) {
@@ -7469,8 +7490,23 @@ if (typeof window !== 'undefined') {
       } catch {}
 
       // 1. СНАЧАЛА гарантируем турниры (только если локальный прогресс автора не новее):
-      const savedYear = parseInt(localStorage.getItem('universe_1_meta_tour_year') || localStorage.getItem('meta_tour_year'), 10);
-      const savedDate = localStorage.getItem('universe_1_meta_tour_date') || localStorage.getItem('meta_tour_date');
+      const savedYear = parseInt(
+        localStorage.getItem('universe_1_meta_tour_year_v8') ||
+        localStorage.getItem('universe_1_meta_tour_year') ||
+        localStorage.getItem('meta_tour_year_v8') ||
+        localStorage.getItem('meta_tour_year'),
+        10
+      );
+      const savedDate =
+        localStorage.getItem('universe_1_meta_tour_date_v8') ||
+        localStorage.getItem('universe_1_meta_tour_date') ||
+        localStorage.getItem('meta_tour_date_v8') ||
+        localStorage.getItem('meta_tour_date');
+      const savedActiveTourney =
+        localStorage.getItem('universe_1_meta_active_tourney_v8') ||
+        localStorage.getItem('universe_1_meta_active_tourney') ||
+        localStorage.getItem('meta_active_tourney_v8');
+
       const canonYear = Number(canonData.universe?.currentTourYear || 2025);
       const canonDate = String(canonData.universe?.currentTourDateStr || `${canonYear}-01-02`);
       const canonTourneyId = canonData.universe?.activeTourneyId || 'm_1';
@@ -7486,7 +7522,7 @@ if (typeof window !== 'undefined') {
       const targetYear = isSavedProgressNewer ? savedYear : canonYear;
       const targetDate = isSavedProgressNewer ? savedDate : canonDate;
       const targetTourneyId = isSavedProgressNewer
-        ? (localStorage.getItem('universe_1_meta_active_tourney') || canonTourneyId)
+        ? (savedActiveTourney || canonTourneyId)
         : canonTourneyId;
 
       if (!isSavedProgressNewer && Array.isArray(canonData.tournaments) && canonData.tournaments.length >= 26) {
@@ -7512,8 +7548,11 @@ if (typeof window !== 'undefined') {
         players = JSON.parse(str);
       }
 
-      // 3. Синхронизируем дату и активный турнир строго по targetYear/targetDate:
+      // 3. Синхронизируем дату и активный турнир строго по targetYear/targetDate в ОБА варианта ключей:
       try {
+        localStorage.setItem('universe_1_meta_tour_year_v8', String(targetYear));
+        localStorage.setItem('universe_1_meta_tour_date_v8', targetDate);
+        localStorage.setItem('universe_1_meta_active_tourney_v8', targetTourneyId);
         localStorage.setItem('universe_1_meta_tour_year', String(targetYear));
         localStorage.setItem('universe_1_meta_tour_date', targetDate);
         localStorage.setItem('universe_1_meta_active_tourney', targetTourneyId);
