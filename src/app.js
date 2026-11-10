@@ -37,6 +37,8 @@ import {
   calculateMatchStaminaCost,
   applyMatchFatigueToPlayers,
   resetPlayersStamina,
+  regenerateInterRoundStamina,
+  restoreMatchFatigue,
   computeMatchMomentumPercent
 } from './matchEngine.js';
 import {
@@ -1921,6 +1923,7 @@ function getFirstUncompletedTourneyIndex(tourneyList) {
 
 export function isFutureLockedTournament(tourney, year, tourneyList = null) {
   if (!tourney || year < currentTourYear) return false;
+  if (year > currentTourYear) return true;
   if (tourney.completed) return false;
   const list = tourneyList || getSeasonTournaments(year, tournaments);
   const firstOpenIdx = getFirstUncompletedTourneyIndex(list);
@@ -3624,7 +3627,7 @@ export function confirmResetMatchResult() {
   if (!activeMatchScore || !activeMatchScore.match) return;
   const { rIdx, mIdx } = activeMatchScore;
 
-  resetMatchResultInDraw(currentDraw, activeTourney.id, rIdx, mIdx);
+  resetMatchResultInDraw(currentDraw, activeTourney.id, rIdx, mIdx, players);
 
   pendingAiNarrative = '';
   pendingWinnerQuote = '';
@@ -3641,6 +3644,8 @@ export function confirmResetMatchResult() {
   renderMatchAiReportBlock('', '', '');
   handleLiveScoreInputForMomentum();
   saveDraw();
+  savePlayers(false);
+  renderPlayersTable();
   if (viewingYear < currentTourYear) {
     backfill2023HistoryFromDraws();
     repairOvercountedPoints();
@@ -3648,7 +3653,7 @@ export function confirmResetMatchResult() {
     renderPlayersTable();
   }
   renderMatches();
-  showToast('🗑️ <b>Результат матча аннулирован.</b> Счет очищен, победитель удален из следующего раунда сетки.');
+  showToast('🗑️ <b>Результат матча аннулирован.</b> Счет очищен, выносливость восстановлена, победитель удален из следующего раунда.');
 }
 
 // Кнопка «🎲 Сгенерировать счет в поле» — локальный алгоритмический рандом с учетом рейтинга, покрытия, стадии и режима комментариев
@@ -3904,7 +3909,7 @@ export async function simulateMatchWithAI() {
 }
 
 /**
- * Единая точка фиксации исхода матча для всех режимов симулятора (DRY).
+ * Единый диспетчер фиксации исхода матча для всех контроллеров Матч-центра (DRY).
  */
 export function commitMatchOutcome({
   winner,
@@ -3912,9 +3917,19 @@ export function commitMatchOutcome({
   narrative = '',
   quotes = null,
   sourceTag = '',
-  closePopup = false
+  closePopup = false,
+  rIdx = null,
+  mIdx = null,
+  targetMatch = null
 } = {}) {
-  if (!activeMatchScore || !activeMatchScore.match || !winner || !scoreArray) return;
+  const roundIdx = rIdx !== null ? rIdx : activeMatchScore?.rIdx;
+  const matchIdx = mIdx !== null ? mIdx : activeMatchScore?.mIdx;
+  const match = targetMatch || activeMatchScore?.match || currentDraw?.[roundIdx]?.[matchIdx];
+
+  if (!match || !winner || !scoreArray || roundIdx === null || matchIdx === null) return;
+  if (viewingYear === currentTourYear && Boolean(activeTourney?.completed)) return;
+
+  const bestOf = activeTourney ? activeTourney.bestOf : 3;
   const useComments = includeMatchCommentaryMode && Boolean(narrative || quotes);
   const finalNarrative = useComments ? String(narrative || '').trim() : '';
   const finalQuotes = useComments && quotes
@@ -3926,33 +3941,81 @@ export function commitMatchOutcome({
 
   if (sourceTag) {
     pendingAiSourceLabel = sourceTag;
-    activeMatchScore.match.aiSourceLabel = sourceTag;
+    match.aiSourceLabel = sourceTag;
   }
 
-  applyMatchWinner(
-    activeMatchScore.rIdx,
-    activeMatchScore.mIdx,
-    winner,
-    scoreArray,
-    finalNarrative,
-    finalQuotes
-  );
+  // Обновляем выносливость участников текущего сезона и межраундовую регенерацию
+  if (viewingYear === currentTourYear && match.p1 && match.p2) {
+    const p1Live = players.find(x => x.id === match.p1.id) || match.p1;
+    const p2Live = players.find(x => x.id === match.p2.id) || match.p2;
+
+    match.p1.stamina = p1Live.stamina ?? 100;
+    match.p2.stamina = p2Live.stamina ?? 100;
+    match.p1PreStamina = p1Live.stamina ?? 100;
+    match.p2PreStamina = p2Live.stamina ?? 100;
+
+    const staminaCost = applyMatchFatigueToPlayers(p1Live, p2Live, scoreArray, bestOf);
+    match.staminaCost = staminaCost;
+
+    // Межраундовая регенерация победителя (+20% стамины к следующему кругу)
+    const winnerLive = String(winner.id) === String(p1Live.id) ? p1Live : p2Live;
+    regenerateInterRoundStamina(winnerLive, 20);
+
+    // На Олимпиаде в полуфинале проигравший тоже отдыхает перед матчем за 3-е место
+    if (activeTourney?.id === 'olympics' && roundIdx === 4) {
+      const loserLive = String(winner.id) === String(p1Live.id) ? p2Live : p1Live;
+      regenerateInterRoundStamina(loserLive, 20);
+    }
+
+    match.p1.stamina = p1Live.stamina;
+    match.p2.stamina = p2Live.stamina;
+    savePlayers(false);
+  }
+
+  advanceWinnerInDraw(currentDraw, activeTourney.id, roundIdx, matchIdx, winner, scoreArray, finalNarrative, finalQuotes);
+  if (pendingAiSourceLabel && finalNarrative) {
+    match.aiSourceLabel = pendingAiSourceLabel;
+  }
+  saveDraw();
+
+  // Если завершен финал турнира прошлых лет — синхронизируем историю
+  if (viewingYear < currentTourYear) {
+    const finalM = currentDraw[currentDraw.length - 1]?.[0];
+    if (finalM && finalM.winner && finalM.p1 && finalM.p2) {
+      if (!seasonsHistory[viewingYear]) seasonsHistory[viewingYear] = { tournaments: {} };
+      if (!seasonsHistory[viewingYear].tournaments) seasonsHistory[viewingYear].tournaments = {};
+      const loser = finalM.winner.id === finalM.p1.id ? finalM.p2 : finalM.p1;
+      seasonsHistory[viewingYear].tournaments[activeTourney.id] = {
+        ...(seasonsHistory[viewingYear].tournaments[activeTourney.id] || {}),
+        winner: finalM.winner,
+        runnerUp: loser,
+        score: Array.isArray(finalM.score) ? finalM.score.join(' ') : String(finalM.score || '')
+      };
+      saveHistory();
+    }
+    backfill2023HistoryFromDraws();
+    repairOvercountedPoints();
+    savePlayers(false);
+    renderPlayersTable();
+    renderCalendarTable();
+  }
 
   if (closePopup) {
     closeModal('scoreModal');
   }
+  renderMatches();
 }
 
-// Кнопка «⚡ Быстрый расчет (Оффлайн)» — моментально симулирует матч с учетом выбранного режима (с комментариями или только счет)
-export function instantSimulateMatch() {
+function executeOfflineSimulation(forcedWinner = 0) {
   if (guardCanonReadOnly()) return;
   if (viewingYear === currentTourYear && Boolean(activeTourney?.completed)) return;
   if (!activeMatchScore || !activeMatchScore.match) return;
-  const stageName = getStageNameForRound(activeTourney, activeMatchScore.rIdx, activeMatchScore.match);
+  const match = activeMatchScore.match;
+  const stageName = getStageNameForRound(activeTourney, activeMatchScore.rIdx, match);
   const sim = computeSimMatchScores(
-    activeMatchScore.match,
+    match,
     activeTourney ? activeTourney.bestOf : 3,
-    0,
+    forcedWinner,
     activeTourney ? activeTourney.surface : 'Хард',
     activeTourney ? activeTourney.name : 'Турнир ATP',
     stageName
@@ -3964,36 +4027,24 @@ export function instantSimulateMatch() {
     quotes: { winnerQuote: sim.winnerQuote, loserQuote: sim.loserQuote },
     closePopup: true
   });
+}
+
+// Кнопка «⚡ Быстрый расчет (Оффлайн)»
+export function instantSimulateMatch() {
+  executeOfflineSimulation(0);
 }
 
 export function quickApplyWinner(winnerId) {
-  if (guardCanonReadOnly()) return;
-  if (viewingYear === currentTourYear && Boolean(activeTourney?.completed)) return;
   if (!activeMatchScore || !activeMatchScore.match) return;
   const isP1 = activeMatchScore.match.p1.id === winnerId;
-  const stageName = getStageNameForRound(activeTourney, activeMatchScore.rIdx, activeMatchScore.match);
-  const sim = computeSimMatchScores(
-    activeMatchScore.match,
-    activeTourney ? activeTourney.bestOf : 3,
-    isP1 ? 1 : 2,
-    activeTourney ? activeTourney.surface : 'Хард',
-    activeTourney ? activeTourney.name : 'Турнир ATP',
-    stageName
-  );
-  commitMatchOutcome({
-    winner: sim.winner,
-    scoreArray: sim.scores,
-    narrative: sim.narrative,
-    quotes: { winnerQuote: sim.winnerQuote, loserQuote: sim.loserQuote },
-    closePopup: true
-  });
+  executeOfflineSimulation(isP1 ? 1 : 2);
 }
 
 export function saveQuickStringScore(forceScoreOnly = false) {
   if (guardCanonReadOnly()) return;
   if (viewingYear === currentTourYear && Boolean(activeTourney?.completed)) return;
   if (!activeMatchScore) return;
-  const str = document.getElementById('quickScoreStr').value;
+  const str = document.getElementById('quickScoreStr')?.value;
   const validation = parseAndValidateScoreString(str, activeTourney ? activeTourney.bestOf : 3);
   const errEl = document.getElementById('scoreInputError');
 
@@ -4025,49 +4076,15 @@ export function saveQuickStringScoreOnly() {
 }
 
 export function applyMatchWinner(rIdx, mIdx, winner, scoreArr, narrative = '', quotes = null) {
-  if (viewingYear === currentTourYear && Boolean(activeTourney?.completed)) return;
-  const match = currentDraw[rIdx]?.[mIdx];
-  if (match && !narrative && (!quotes || (!quotes.winnerQuote && !quotes.loserQuote))) {
-    delete match.narrative;
-    delete match.storyline;
-    delete match.winnerQuote;
-    delete match.loserQuote;
-    delete match.aiSourceLabel;
-  }
-  if (viewingYear === currentTourYear && match && match.p1 && match.p2) {
-    const p1Live = players.find(x => x.id === match.p1.id) || match.p1;
-    const p2Live = players.find(x => x.id === match.p2.id) || match.p2;
-    applyMatchFatigueToPlayers(p1Live, p2Live, scoreArr, activeTourney ? activeTourney.bestOf : 3);
-    match.p1.stamina = p1Live.stamina;
-    match.p2.stamina = p2Live.stamina;
-    savePlayers(false);
-  }
-  advanceWinnerInDraw(currentDraw, activeTourney.id, rIdx, mIdx, winner, scoreArr, narrative, quotes);
-  if (currentDraw[rIdx]?.[mIdx] && pendingAiSourceLabel && narrative) {
-    currentDraw[rIdx][mIdx].aiSourceLabel = pendingAiSourceLabel;
-  }
-  saveDraw();
-  if (viewingYear < currentTourYear) {
-    const finalM = currentDraw[currentDraw.length - 1]?.[0];
-    if (finalM && finalM.winner && finalM.p1 && finalM.p2) {
-      if (!seasonsHistory[viewingYear]) seasonsHistory[viewingYear] = { tournaments: {} };
-      if (!seasonsHistory[viewingYear].tournaments) seasonsHistory[viewingYear].tournaments = {};
-      const loser = finalM.winner.id === finalM.p1.id ? finalM.p2 : finalM.p1;
-      seasonsHistory[viewingYear].tournaments[activeTourney.id] = {
-        ...(seasonsHistory[viewingYear].tournaments[activeTourney.id] || {}),
-        winner: finalM.winner,
-        runnerUp: loser,
-        score: Array.isArray(finalM.score) ? finalM.score.join(' ') : String(finalM.score || '')
-      };
-      saveHistory();
-    }
-    backfill2023HistoryFromDraws();
-    repairOvercountedPoints();
-    savePlayers(false);
-    renderPlayersTable();
-    renderCalendarTable();
-  }
-  renderMatches();
+  commitMatchOutcome({
+    rIdx,
+    mIdx,
+    winner,
+    scoreArray: scoreArr,
+    narrative,
+    quotes,
+    closePopup: false
+  });
 }
 
 export function autoSimulateRound() {
@@ -4079,18 +4096,20 @@ export function autoSimulateRound() {
   const stageName = getStageNameForRound(activeTourney, activeRoundIdx);
   currentDraw[activeRoundIdx].forEach((m, idx) => {
     if (!m.winner && m.p1 && m.p2) {
-      const p1Live = players.find(x => x.id === m.p1.id) || m.p1;
-      const p2Live = players.find(x => x.id === m.p2.id) || m.p2;
-      m.p1.stamina = p1Live.stamina ?? 100;
-      m.p2.stamina = p2Live.stamina ?? 100;
       const mStage = getStageNameForRound(activeTourney, activeRoundIdx, m) || stageName;
       const sim = computeSimMatchScores(m, activeTourney.bestOf, 0, activeTourney.surface, activeTourney.name, mStage, { allowRandomInjury: true });
-      applyMatchFatigueToPlayers(p1Live, p2Live, sim.scores, activeTourney.bestOf);
-      m.p1.stamina = p1Live.stamina;
-      m.p2.stamina = p2Live.stamina;
       const narrative = includeMatchCommentaryMode ? sim.narrative : '';
-      const quotes = includeMatchCommentaryMode ? { winnerQuote: sim.winnerQuote, loserQuote: sim.loserQuote } : { winnerQuote: '', loserQuote: '' };
-      advanceWinnerInDraw(currentDraw, activeTourney.id, activeRoundIdx, idx, sim.winner, sim.scores, narrative, quotes);
+      const quotes = includeMatchCommentaryMode ? { winnerQuote: sim.winnerQuote, loserQuote: sim.loserQuote } : null;
+      commitMatchOutcome({
+        winner: sim.winner,
+        scoreArray: sim.scores,
+        narrative,
+        quotes,
+        rIdx: activeRoundIdx,
+        mIdx: idx,
+        targetMatch: m,
+        closePopup: false
+      });
     }
   });
   savePlayers(false);
@@ -4108,18 +4127,20 @@ export function autoSimulateEntireTournament() {
     const stageName = getStageNameForRound(activeTourney, r);
     currentDraw[r].forEach((m, idx) => {
       if (!m.winner && m.p1 && m.p2) {
-        const p1Live = players.find(x => x.id === m.p1.id) || m.p1;
-        const p2Live = players.find(x => x.id === m.p2.id) || m.p2;
-        m.p1.stamina = p1Live.stamina ?? 100;
-        m.p2.stamina = p2Live.stamina ?? 100;
         const mStage = getStageNameForRound(activeTourney, r, m) || stageName;
         const sim = computeSimMatchScores(m, activeTourney.bestOf, 0, activeTourney.surface, activeTourney.name, mStage, { allowRandomInjury: true });
-        applyMatchFatigueToPlayers(p1Live, p2Live, sim.scores, activeTourney.bestOf);
-        m.p1.stamina = p1Live.stamina;
-        m.p2.stamina = p2Live.stamina;
         const narrative = includeMatchCommentaryMode ? sim.narrative : '';
-        const quotes = includeMatchCommentaryMode ? { winnerQuote: sim.winnerQuote, loserQuote: sim.loserQuote } : { winnerQuote: '', loserQuote: '' };
-        advanceWinnerInDraw(currentDraw, activeTourney.id, r, idx, sim.winner, sim.scores, narrative, quotes);
+        const quotes = includeMatchCommentaryMode ? { winnerQuote: sim.winnerQuote, loserQuote: sim.loserQuote } : null;
+        commitMatchOutcome({
+          winner: sim.winner,
+          scoreArray: sim.scores,
+          narrative,
+          quotes,
+          rIdx: r,
+          mIdx: idx,
+          targetMatch: m,
+          closePopup: false
+        });
       }
     });
   }
@@ -4288,6 +4309,8 @@ export function finishTournamentAndAwardPoints(options = {}) {
           }
         }
       }
+    }).catch(err => {
+      console.warn('generateFinalPressColumn failed:', err);
     });
   }
 

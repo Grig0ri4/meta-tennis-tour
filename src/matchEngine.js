@@ -322,6 +322,54 @@ export function resetPlayersStamina(playersList) {
 }
 
 /**
+ * Восстанавливает выносливость победителя матча (отдых между кругами турнира: +15..25% стамины)
+ */
+export function regenerateInterRoundStamina(player, recoveryAmount = 20) {
+  if (!player || typeof player !== 'object') return player;
+  const current = typeof player.stamina === 'number' ? player.stamina : 100;
+  player.stamina = Math.min(100, Math.max(15, current + recoveryAmount));
+  return player;
+}
+
+/**
+ * Возвращает списанную за матч выносливость при аннулировании (сбросе) результата матча
+ */
+export function restoreMatchFatigue(match, playersList = null, bestOf = 3) {
+  if (!match) return 0;
+  const cost = match.staminaCost || (match.score && match.score.length > 0 ? calculateMatchStaminaCost(match.score, bestOf) : 0);
+
+  const restoreOne = (p, preVal) => {
+    if (!p || typeof p !== 'object') return;
+    if (typeof preVal === 'number') {
+      p.stamina = Math.min(100, Math.max(15, preVal));
+    } else if (cost > 0) {
+      const cur = typeof p.stamina === 'number' ? p.stamina : 100;
+      p.stamina = Math.min(100, cur + cost);
+    }
+  };
+
+  restoreOne(match.p1, match.p1PreStamina);
+  restoreOne(match.p2, match.p2PreStamina);
+
+  if (Array.isArray(playersList)) {
+    if (match.p1?.id) {
+      const p1Live = playersList.find(x => String(x.id) === String(match.p1.id));
+      restoreOne(p1Live, match.p1PreStamina);
+    }
+    if (match.p2?.id) {
+      const p2Live = playersList.find(x => String(x.id) === String(match.p2.id));
+      restoreOne(p2Live, match.p2PreStamina);
+    }
+  }
+
+  delete match.p1PreStamina;
+  delete match.p2PreStamina;
+  delete match.staminaCost;
+
+  return cost;
+}
+
+/**
  * Вычисляет процент доминирования Игрока 1 (Momentum Bar: 12..88%, 50% по умолчанию) по текущему счету
  */
 export function computeMatchMomentumPercent(scoresOrStr) {
@@ -622,15 +670,22 @@ function clearSingleMatchFields(match) {
   delete match.winnerQuote;
   delete match.loserQuote;
   delete match.aiSourceLabel;
+  delete match.staminaCost;
+  delete match.p1PreStamina;
+  delete match.p2PreStamina;
 }
 
 /**
  * Аннулирует результат сыгранного матча и каскадно очищает слоты в следующих раундах сетки,
  * куда уже успел пройти прежний победитель (или проигравший полуфинала Олимпиады).
+ * Восстанавливает выносливость участников матча (Stamina Rollback).
  */
-export function resetMatchResultInDraw(draw, tourneyId, rIdx, mIdx) {
+export function resetMatchResultInDraw(draw, tourneyId, rIdx, mIdx, playersList = null) {
   if (!draw || !draw[rIdx] || !draw[rIdx][mIdx]) return draw;
   const match = draw[rIdx][mIdx];
+
+  // Возвращаем списанную за матч выносливость участникам
+  restoreMatchFatigue(match, playersList);
   clearSingleMatchFields(match);
 
   if (tourneyId === 'finals') {
@@ -638,6 +693,7 @@ export function resetMatchResultInDraw(draw, tourneyId, rIdx, mIdx) {
       if (draw[2]) {
         draw[2].forEach(sf => {
           if (sf) {
+            restoreMatchFatigue(sf, playersList);
             sf.p1 = null;
             sf.p2 = null;
             clearSingleMatchFields(sf);
@@ -645,11 +701,13 @@ export function resetMatchResultInDraw(draw, tourneyId, rIdx, mIdx) {
         });
       }
       if (draw[3] && draw[3][0]) {
+        restoreMatchFatigue(draw[3][0], playersList);
         draw[3][0].p1 = null;
         draw[3][0].p2 = null;
         clearSingleMatchFields(draw[3][0]);
       }
     } else if (rIdx === 2 && draw[3] && draw[3][0]) {
+      restoreMatchFatigue(draw[3][0], playersList);
       if (mIdx === 0) draw[3][0].p1 = null;
       else draw[3][0].p2 = null;
       clearSingleMatchFields(draw[3][0]);
@@ -657,20 +715,39 @@ export function resetMatchResultInDraw(draw, tourneyId, rIdx, mIdx) {
     return draw;
   }
 
-  if (tourneyId === 'olympics' && rIdx === 4 && draw[5]) {
+  // Явная очистка финала и матча за 3-е место (бронзовый финал draw[5][1]) для Олимпийских игр
+  if (tourneyId === 'olympics' && draw[5]) {
     const goldMatch = draw[5][0];
     const bronzeMatch = draw[5][1];
-    if (goldMatch) {
-      if (mIdx === 0) goldMatch.p1 = null;
-      else goldMatch.p2 = null;
-      clearSingleMatchFields(goldMatch);
+
+    if (rIdx === 4) {
+      if (mIdx === 0) {
+        if (goldMatch) { restoreMatchFatigue(goldMatch, playersList); goldMatch.p1 = null; clearSingleMatchFields(goldMatch); }
+        if (bronzeMatch) { restoreMatchFatigue(bronzeMatch, playersList); bronzeMatch.p1 = null; clearSingleMatchFields(bronzeMatch); }
+      } else {
+        if (goldMatch) { restoreMatchFatigue(goldMatch, playersList); goldMatch.p2 = null; clearSingleMatchFields(goldMatch); }
+        if (bronzeMatch) { restoreMatchFatigue(bronzeMatch, playersList); bronzeMatch.p2 = null; clearSingleMatchFields(bronzeMatch); }
+      }
+      return draw;
     }
-    if (bronzeMatch) {
-      if (mIdx === 0) bronzeMatch.p1 = null;
-      else bronzeMatch.p2 = null;
-      clearSingleMatchFields(bronzeMatch);
+
+    if (rIdx === 3) {
+      const sfIdx = Math.floor(mIdx / 2);
+      if (draw[4] && draw[4][sfIdx]) {
+        restoreMatchFatigue(draw[4][sfIdx], playersList);
+        if (mIdx % 2 === 0) draw[4][sfIdx].p1 = null;
+        else draw[4][sfIdx].p2 = null;
+        clearSingleMatchFields(draw[4][sfIdx]);
+      }
+      if (sfIdx === 0) {
+        if (goldMatch) { restoreMatchFatigue(goldMatch, playersList); goldMatch.p1 = null; clearSingleMatchFields(goldMatch); }
+        if (bronzeMatch) { restoreMatchFatigue(bronzeMatch, playersList); bronzeMatch.p1 = null; clearSingleMatchFields(bronzeMatch); }
+      } else {
+        if (goldMatch) { restoreMatchFatigue(goldMatch, playersList); goldMatch.p2 = null; clearSingleMatchFields(goldMatch); }
+        if (bronzeMatch) { restoreMatchFatigue(bronzeMatch, playersList); bronzeMatch.p2 = null; clearSingleMatchFields(bronzeMatch); }
+      }
+      return draw;
     }
-    return draw;
   }
 
   let currR = rIdx;
@@ -681,11 +758,13 @@ export function resetMatchResultInDraw(draw, tourneyId, rIdx, mIdx) {
       const goldMatch = draw[5][0];
       const bronzeMatch = draw[5][1];
       if (goldMatch) {
+        restoreMatchFatigue(goldMatch, playersList);
         if (currM === 0) goldMatch.p1 = null;
         else goldMatch.p2 = null;
         clearSingleMatchFields(goldMatch);
       }
       if (bronzeMatch) {
+        restoreMatchFatigue(bronzeMatch, playersList);
         if (currM === 0) bronzeMatch.p1 = null;
         else bronzeMatch.p2 = null;
         clearSingleMatchFields(bronzeMatch);
@@ -697,6 +776,7 @@ export function resetMatchResultInDraw(draw, tourneyId, rIdx, mIdx) {
     const nextMatch = draw[nextR]?.[nextMIdx];
     if (!nextMatch) break;
 
+    restoreMatchFatigue(nextMatch, playersList);
     if (currM % 2 === 0) {
       nextMatch.p1 = null;
     } else {
@@ -948,5 +1028,7 @@ if (typeof window !== 'undefined') {
   window.calculateMatchStaminaCost = calculateMatchStaminaCost;
   window.applyMatchFatigueToPlayers = applyMatchFatigueToPlayers;
   window.resetPlayersStamina = resetPlayersStamina;
+  window.regenerateInterRoundStamina = regenerateInterRoundStamina;
+  window.restoreMatchFatigue = restoreMatchFatigue;
   window.computeMatchMomentumPercent = computeMatchMomentumPercent;
 }

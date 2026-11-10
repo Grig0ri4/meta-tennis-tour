@@ -28,8 +28,11 @@ import {
   calculateMatchStaminaCost,
   applyMatchFatigueToPlayers,
   resetPlayersStamina,
+  regenerateInterRoundStamina,
+  restoreMatchFatigue,
   computeMatchMomentumPercent
 } from './matchEngine.js';
+import { isFutureLockedTournament } from './app.js';
 import {
   POINTS_SCALE,
   OLYMPICS_POINTS_SCALE,
@@ -1477,6 +1480,92 @@ test('Хирургический аудит 6 High-багов: инверсия 
 
   // Игрок основного турнира main_star категорически не должен получить очков параллельного тура под ID m_5
   assert.equal(testPlayers[0].tournamentPoints?.['m_5']?.['2024'] || 0, 0, 'Игрок основы недели не получает очков фонового турнира');
+});
+
+test('Хирургический аудит 4 Medium-задач: балансировка стамины (регенерация + откат), каскадный сброс бронзы ОИ, блокировка будущих сезонов', () => {
+  // 1. Межраундовая регенерация стамины (+15..25% за дни отдыха):
+  const tiredPlayer = { id: 'p_tired', name: 'Tired Player', stamina: 65 };
+  regenerateInterRoundStamina(tiredPlayer, 20);
+  assert.equal(tiredPlayer.stamina, 85, 'После отдыха стамина увеличивается на 20% (65 -> 85)');
+
+  const freshPlayer = { id: 'p_fresh', name: 'Fresh Player', stamina: 95 };
+  regenerateInterRoundStamina(freshPlayer, 20);
+  assert.equal(freshPlayer.stamina, 100, 'Стамина не может превысить 100%');
+
+  // 2. Откат стамины при аннулировании (сбросе) матча (Stamina Rollback):
+  const plA = { id: 'p_stamina_a', name: 'Player Stamina A', stamina: 100 };
+  const plB = { id: 'p_stamina_b', name: 'Player Stamina B', stamina: 100 };
+  const testMatch = {
+    p1: plA,
+    p2: plB,
+    p1PreStamina: 100,
+    p2PreStamina: 100,
+    staminaCost: 50,
+    score: ['6-7(5)', '7-6(4)', '6-4', '4-6', '7-6(8)'],
+    winner: plA
+  };
+  plA.stamina = 50;
+  plB.stamina = 50;
+
+  restoreMatchFatigue(testMatch, [plA, plB]);
+  assert.equal(plA.stamina, 100, 'При сбросе матча стамина Игрока A восстанавливается до предматчевого значения 100%');
+  assert.equal(plB.stamina, 100, 'При сбросе матча стамина Игрока B восстанавливается до предматчевого значения 100%');
+
+  // 3. Каскадный сброс матча за 3-е место на Олимпийских играх (draw[5][1]):
+  const olyPlayers = buildInitial300Players().slice(0, 64);
+  const { draw: olyDraw } = createTournamentDraw(OLYMPIC_TOURNAMENT_TEMPLATE, olyPlayers);
+
+  // Моделируем участников полуфинала (раунд 4)
+  const sf0_p1 = olyPlayers[0];
+  const sf0_p2 = olyPlayers[1];
+  const sf1_p1 = olyPlayers[2];
+  const sf1_p2 = olyPlayers[3];
+  olyDraw[4][0].p1 = sf0_p1;
+  olyDraw[4][0].p2 = sf0_p2;
+  olyDraw[4][1].p1 = sf1_p1;
+  olyDraw[4][1].p2 = sf1_p2;
+
+  // Играем полуфинал 0: sf0_p1 побеждает -> sf0_p1 в финал (Gold), sf0_p2 в матч за 3-е место (Bronze)
+  advanceWinnerInDraw(olyDraw, 'olympics', 4, 0, sf0_p1, ['6-4', '6-4'], 'Победа в 1/2 финала ОИ #1');
+  // Играем полуфинал 1: sf1_p1 побеждает -> sf1_p1 в финал (Gold), sf1_p2 в матч за 3-е место (Bronze)
+  advanceWinnerInDraw(olyDraw, 'olympics', 4, 1, sf1_p1, ['6-3', '6-3'], 'Победа в 1/2 финала ОИ #2');
+
+  assert.equal(olyDraw[5][0].p1.id, sf0_p1.id, 'Победитель SF 0 в золотом финале');
+  assert.equal(olyDraw[5][1].p1.id, sf0_p2.id, 'Проигравший SF 0 в бронзовом финале');
+  assert.equal(olyDraw[5][0].p2.id, sf1_p1.id, 'Победитель SF 1 в золотом финале');
+  assert.equal(olyDraw[5][1].p2.id, sf1_p2.id, 'Проигравший SF 1 в бронзовом финале');
+
+  // Играем матч за бронзу: sf0_p2 берет медаль
+  advanceWinnerInDraw(olyDraw, 'olympics', 5, 1, sf0_p2, ['7-6', '6-4'], 'Бронзовая медаль завоевана');
+  assert.equal(olyDraw[5][1].winner.id, sf0_p2.id);
+
+  // Сбрасываем результат полуфинала SF 0:
+  resetMatchResultInDraw(olyDraw, 'olympics', 4, 0);
+
+  // Проверяем полную очистку как финала, так и бронзового матча (draw[5][1]):
+  assert.equal(olyDraw[5][0].p1, null, 'Слот финала p1 должен быть очищен в null');
+  assert.equal(olyDraw[5][1].p1, null, 'Слот бронзового матча p1 должен быть очищен в null');
+  assert.equal(olyDraw[5][1].winner, null, 'Победитель бронзового матча должен быть сброшен в null');
+  assert.deepEqual(olyDraw[5][1].score, [], 'Счет бронзового матча должен быть очищен в пустой массив');
+
+  // Проверяем сброс с уровня четвертьфинала (раунд 3):
+  olyDraw[3][0].p1 = sf0_p1;
+  olyDraw[3][0].p2 = olyPlayers[4];
+  olyDraw[4][0].p2 = sf0_p2;
+  advanceWinnerInDraw(olyDraw, 'olympics', 3, 0, sf0_p1, ['6-2', '6-2'], 'Победа в 1/4');
+  advanceWinnerInDraw(olyDraw, 'olympics', 4, 0, sf0_p1, ['6-4', '6-4'], 'Победа в 1/2');
+  advanceWinnerInDraw(olyDraw, 'olympics', 5, 1, sf0_p2, ['7-6', '6-4'], 'Бронза');
+
+  // Сбрасываем четвертьфинал QF 0 (раунд 3, матч 0):
+  resetMatchResultInDraw(olyDraw, 'olympics', 3, 0);
+  assert.equal(olyDraw[4][0].p1, null, 'Полуфинал 0 слот p1 очищен');
+  assert.equal(olyDraw[5][0].p1, null, 'Золотой финал p1 очищен');
+  assert.equal(olyDraw[5][1].p1, null, 'Бронзовый финал p1 очищен');
+  assert.equal(olyDraw[5][1].winner, null, 'Бронзовый победитель сброшен');
+
+  // 4. Блокировка турниров будущих сезонов (year > currentTourYear):
+  const nextYearTourney = { id: 'm_1', name: 'Сидней Open', completed: false };
+  assert.equal(isFutureLockedTournament(nextYearTourney, 2028), true, 'Все турниры будущего сезона заблокированы замком');
 });
 
 
