@@ -1104,7 +1104,7 @@ export function runBackgroundATP250Tournaments(players, mainTourneyParticipants,
     }
 
     const participantIds = new Set(
-      (mainTourneyParticipants || []).filter(p => p && p.id).map(p => p.id)
+      (mainTourneyParticipants || []).filter(p => p && p.id).map(p => String(p.id))
     );
     const hasRealTourney = Boolean(tourney && tourney.id);
     const mainEarnedMap = {};
