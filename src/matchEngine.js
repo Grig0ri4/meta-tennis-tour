@@ -24,6 +24,18 @@ const CANONICAL_ID_BY_NAME = (() => {
   return map;
 })();
 
+export function parseStageType(stage = '') {
+  const s = String(stage || '').toUpperCase();
+  const isFinal = (s.includes('ФИНАЛ') || s === 'F' || s === 'FINAL') &&
+    !s.includes('1/') && !s.includes('ПОЛУФИНАЛ') && !s.includes('ЧЕТВЕРТЬФИНАЛ');
+  const isSemi = s.includes('1/2') || s.includes('ПОЛУФИНАЛ') || s === 'SF' || s === 'SEMI';
+  const isBronze = s.includes('3-Е МЕСТО') || s.includes('БРОНЗ');
+  const isEarlyRound = s.includes('1/64') || s.includes('1/32') || s.includes('1/16') ||
+    s.includes('R128') || s.includes('R64') || s.includes('R32') || s.includes('R16') ||
+    s.includes('РАУНД 1') || s.includes('РАУНД 2') || s.includes('ГРУППА');
+  return { isFinal, isSemi, isBronze, isEarlyRound };
+}
+
 export function formatTennisScore(scoreArray) {
   if (!scoreArray || scoreArray.length === 0) return '';
   const arr = Array.isArray(scoreArray) ? scoreArray : String(scoreArray).split(/\s+/);
@@ -137,69 +149,33 @@ export function generateMatchNarrative(winner, loser, scores, surface = 'Хар�
   const isUpset = (winner.rank || 100) > (loser.rank || 100) + 15;
 
   if (isRetirement) {
-    return `Драма на корте («${tourneyName}»): ${loser.name} был вынужден досрочно сняться с матча из-за критической усталости и микротравмы при счете ${scoreText} — ${winner.name} шагает дальше!`;
+    return `Драматичный исход на «${tourneyName}»: ${loser.name} досрочно снялся с поединка при счете ${scoreText} из-за повреждения — ${winner.name} проходит дальше.`;
   }
 
-  const stageUpper = String(stage || '').toUpperCase();
-  const isFinal = (stageUpper.includes('ФИНАЛ') || stageUpper === 'F' || stageUpper === 'FINAL') &&
-    !stageUpper.includes('1/') && !stageUpper.includes('ПОЛУФИНАЛ') && !stageUpper.includes('ЧЕТВЕРТЬФИНАЛ');
-  const isSemi = stageUpper.includes('1/2') || stageUpper.includes('ПОЛУФИНАЛ') || stageUpper === 'SF';
+  const { isFinal, isSemi } = parseStageType(stage);
 
   if (isFinal) {
-    const finalNarratives = [
-      `Триумфальный финал на «${tourneyName}»: ${winner.name} выдержал колоссальное давление титульного матча и сломил сопротивление ${loser.name} (${scoreText}), завоевав долгожданный кубок!`,
-      `Чемпионская драма на «${tourneyName}» (${surface}): ${winner.name} переиграл ${loser.name} со счетом ${scoreText} и поднял главный трофей турнира над головой!`,
-      `Историческая развязка титульного поединка: ${winner.name} безупречно провел ключевые розыгрыши финала против ${loser.name} (${scoreText}) и стал новым чемпионом «${tourneyName}»!`,
-      `Битва за титул «${tourneyName}» осталась за ${winner.name}: в напряженном финале со счетом ${scoreText} он оказался крепче нервами, чем ${loser.name}!`
-    ];
-    return pickRandomItem(finalNarratives);
+    return `Триумф на «${tourneyName}» (${surface}): ${winner.name} выдержал напряжение титульного финала против ${loser.name} (${scoreText}) и завоевал главный трофей турнира!`;
   }
-
   if (isSemi) {
-    const semiNarratives = [
-      `Битва за путёвку в главный финал «${tourneyName}»: ${winner.name} на жилах вырвал победу у ${loser.name} (${scoreText}) и теперь сразится за титул!`,
-      `Электрический полуфинал на покрытии «${surface}»: ${winner.name} превзошел ${loser.name} (${scoreText}) в ключевых геймах и шагнул в титульный матч!`
-    ];
-    return pickRandomItem(semiNarratives);
+    return `Путевка в финал «${tourneyName}»: ${winner.name} переиграл ${loser.name} (${scoreText}) на покрытии «${surface}» и поборется за чемпионский кубок.`;
   }
-
   if (hasSuperTB) {
-    return pickRandomItem([
-      `Волевая победа ${winner.name} после отыгрыша матчболов на драматичном решающем супер-тайбрейке против ${loser.name} (${scoreText})!`,
-      `Нервы как канаты: ${winner.name} вытащил концовку на затяжном тайбрейке у ${loser.name} (${scoreText}) под рев трибун!`
-    ]);
+    return `Нервная концовка на «${tourneyName}»: ${winner.name} вырвал победу у ${loser.name} (${scoreText}) на затяжном супер-тай-брейке.`;
   }
   if (isUpset && isLongMatch) {
-    return pickRandomItem([
-      `Громкая сенсация тура: ${winner.name} (#${winner.rank || '—'}) сотворил апсет, сломив фаворита ${loser.name} (#${loser.rank || '—'}) в ${arr.length}-сетовом триллере (${scoreText})!`,
-      `Неожиданный поворот в сетке: андердог ${winner.name} (#${winner.rank || '—'}) перетерпел фаворита ${loser.name} (#${loser.rank || '—'}) в затяжной рубке (${scoreText})!`
-    ]);
-  }
-  if (hasBagel && isLongMatch) {
-    return `Матч резких контрастов с «баранкой» 6-0: ${winner.name} перехватил инициативу и дожал ${loser.name} со счетом ${scoreText}!`;
+    return `Сенсация в сетке: андердог ${winner.name} (#${winner.rank || '—'}) сломил сопротивление фаворита ${loser.name} (#${loser.rank || '—'}) в упорной трехсетовой дуэли (${scoreText}).`;
   }
   if (hasBagel) {
-    return `Тотальное доминирование на корте («${surface}»): ${winner.name} оформил «баранку» 6-0 и уверенно разобрался с ${loser.name} (${scoreText})!`;
+    return `Убедительное доминирование: ${winner.name} навязал свой темп на корте «${surface}» и обыграл ${loser.name} (${scoreText}).`;
   }
   if (isLongMatch && hasTiebreak) {
-    return pickRandomItem([
-      `${winner.name} вырвал победу в напряженном триллере из ${arr.length} сетов (${scoreText}), оказавшись точнее ${loser.name} на ключевом тайбрейке!`,
-      `Качельный марафон из ${arr.length} партий (${scoreText}): ${winner.name} выстоял на тайбрейке и оставил не у дел ${loser.name}!`
-    ]);
+    return `Затяжной трехсетовый триллер на «${tourneyName}»: ${winner.name} выстоял на тай-брейке и сломил сопротивление ${loser.name} (${scoreText}).`;
   }
   if (isLongMatch) {
-    return pickRandomItem([
-      `Затяжная битва характеров: ${winner.name} переломил ход встречи в решающей партии и сломил сопротивление ${loser.name} (${scoreText})!`,
-      `Трудовая победа в ${arr.length} сетах: ${winner.name} добавил агрессии на приёме в решающей партии и дожал ${loser.name} (${scoreText})!`
-    ]);
+    return `Волевая победа в борьбе за инициативу: ${winner.name} прибавил в точности в третьей партии и дожал ${loser.name} (${scoreText}).`;
   }
-  if (hasTiebreak) {
-    return `${winner.name} хладнокровно провел концовку на тайбрейке и закрыл матч против ${loser.name} (${scoreText}) без потери концентрации!`;
-  }
-  return pickRandomItem([
-    `${winner.name} доминировал на покрытии «${surface}», реализовал ключевые брейк-пойнты и переиграл ${loser.name} со счетом ${scoreText}!`,
-    `Уверенный класс от ${winner.name}: глубина ударов с задней линии и острая первая подача принесли победу над ${loser.name} (${scoreText})!`
-  ]);
+  return `Уверенная победа на корте «${surface}»: ${winner.name} контролировал розыгрыши на задней линии и переиграл ${loser.name} (${scoreText}).`;
 }
 
 export function generateMatchQuotes(winner, loser, scores, surface = 'Хард', tourneyName = 'Турнир ATP', stage = '') {
@@ -212,121 +188,54 @@ export function generateMatchQuotes(winner, loser, scores, surface = 'Хард',
   const hasTiebreak = arr.some(s => String(s).includes('7-6') || String(s).includes('6-7'));
   const hasBagel = arr.some(s => s === '6-0' || s === '0-6');
   const isLongMatch = arr.filter(s => String(s).toUpperCase() !== 'RET').length >= 3;
+  const { isFinal, isSemi, isBronze } = parseStageType(stage);
 
   if (isRetirement) {
     return {
-      winnerQuote: `«Никогда не хочется выигрывать матч из-за снятия соперника (${scoreText}). Желаю ${loser.name} скорейшего восстановления — сегодня на корте была колоссальная нагрузка.»`,
-      loserQuote: `«Организм просто сказал "стоп" при счете ${scoreText}: свело мышцы, забитые ноги больше не держали опору, и продолжать матч на ${tourneyName} было слишком опасно.»`
+      winnerQuote: `«Побеждать из-за отказа соперника всегда неприятно. Желаю ${loser.name} скорейшего восстановления, здоровье всегда на первом месте.»`,
+      loserQuote: `«К сожалению, спазм не позволил доиграть встречу при счете ${scoreText}. Пришлось поберечь себя, чтобы не усугубить травму.»`
     };
   }
 
-  const stageUpper = String(stage || '').toUpperCase();
-  const isFinal = (stageUpper.includes('ФИНАЛ') || stageUpper === 'F' || stageUpper === 'FINAL') &&
-    !stageUpper.includes('1/') && !stageUpper.includes('ПОЛУФИНАЛ') && !stageUpper.includes('ЧЕТВЕРТЬФИНАЛ');
-  const isBronze = stageUpper.includes('3-Е МЕСТО') || stageUpper.includes('БРОНЗ');
-  const isSemi = stageUpper.includes('1/2') || stageUpper.includes('ПОЛУФИНАЛ') || stageUpper === 'SF';
-  const isEarlyRound = stageUpper.includes('1/64') || stageUpper.includes('1/32') || stageUpper.includes('1/16') ||
-    stageUpper.includes('R128') || stageUpper.includes('R64') || stageUpper.includes('R32') || stageUpper.includes('R16') ||
-    stageUpper.includes('РАУНД 1') || stageUpper.includes('РАУНД 2') || stageUpper.includes('ГРУППА');
+  // Параметрический шаблонизатор цитат:
+  // [Контекст стадии / исхода] + [Тактический акцент покрытия]
+  const surfKey = surface.toLowerCase();
+  const winTactics = hasTiebreak
+    ? `На тай-брейке помогла концентрация на первой подаче и глубина под заднюю линию.`
+    : (hasBagel
+      ? `Удалось поймать ритм на приеме и диктовать свои условия на корте (${surfKey}).`
+      : (isLongMatch
+        ? `В решающей партии нащупал баланс между агрессией и надежностью в розыгрышах.`
+        : `План на игру сработал: плотный кросс и переводы по линии держали соперника под давлением.`));
+
+  const loseTactics = hasTiebreak
+    ? `Судьбу сета решили буквально два мяча на тай-брейке, где соперник сыграл безошибочно.`
+    : (isLongMatch
+      ? `В третьем сете немного просел процент первого мяча, а на второй подаче ${winner.name} сразу входил в корт.`
+      : `Не хватило чистоты попадания в ключевые моменты на корте (${surfKey}), соперник заслужил победу.`);
 
   if (isFinal) {
-    const finalWinnerQuotes = [
-      `«Я безумно счастлив, что мне наконец-то удалось победить на ${tourneyName}! Мы с командой шли к этому титулу долгие месяцы, в концовке (${scoreText}) ноги были просто забитые, но приём навылет на чемпионшип-пойнте подарил лучшую минуту в моей жизни!»`,
-      `«Не могу сдержать слёз радости — поднять над головой кубок ${tourneyName} было моей главной мечтой! Финал против ${loser.name} (${scoreText}) получился невероятно нервным, но в решающем гейме выручила первая подача и вера в себя.»`,
-      `«Наконец-то этот трофей наш! Столько раз я останавливался в шаге от титула, и сегодня на корте ${tourneyName} (${scoreText}) отдал всего себя без остатка — даже через сбитое дыхание и забитые ноги я знал, что не упущу этот кубок!»`,
-      `«Это чистая эйфория — выиграть титул ${tourneyName} после такой тяжелейшей недели! Спасибо трибунам за сумасшедшую энергетику: когда в финале (${scoreText}) прошёл мой последний приём навылет, я просто упал на корт от счастья!»`,
-      `«Победа в финале ${tourneyName} (${scoreText}) значит для меня абсолютно всё! ${loser.name} бился как лев на каждом мяче, но сегодня я поймал чемпионский кураж и невероятно рад наконец-то вписать своё имя в историю этого турнира!»`
-    ];
-    const finalLoserQuotes = [
-      `«Сердце разрывается остановиться в одном шаге от кубка ${tourneyName} (${scoreText}). В решающий момент меня подвёл сорванный форхенд по линии и мёртвая подача на брейк-пойнте, а ${winner.name} сыграл как настоящий чемпион и заслужил этот титул.»`,
-      `«Проигрывать в финале всегда больно до кома в горле (${scoreText}). Я оставил на этом корте все силы, но к концу матча забитые ноги не позволили чисто подойти к мячу, а ${winner.name} провёл выдающийся титульный поединок.»`,
-      `«Сейчас внутри пустота — титул ${tourneyName} был так близко (${scoreText}). Пара секунд потери концентрации, один сорванный форхенд на ключевом мяче решили судьбу трофея. Поздравляю ${winner.name} с заслуженной победой в турнире.»`,
-      `«Больно смотреть на главный кубок со второго места после такой битвы (${scoreText}). Сегодня у меня в решающем гейме вдруг пропала первая — пошла мёртвая подача, чем ${winner.name} воспользовался мгновенно.»`
-    ];
     return {
-      winnerQuote: pickRandomItem(finalWinnerQuotes),
-      loserQuote: pickRandomItem(finalLoserQuotes)
+      winnerQuote: `«Выиграть титул на ${tourneyName} (${scoreText}) — огромная честь и награда за работу всей недели. ${winTactics}»`,
+      loserQuote: `«Обидно уступать в финале (${scoreText}), но ${winner.name} провел выдающийся турнир. ${loseTactics}»`
     };
   }
-
   if (isBronze) {
     return {
-      winnerQuote: `«Уехать с Олимпиады с бронзовой медалью для своей страны после вчерашнего полуфинала — огромная гордость! Собрал волю в кулак (${scoreText}), перетерпел забитые ноги и выгрыз этот подиум!»`,
-      loserQuote: `«Обидно до слёз остаться на четвёртом месте в шаге от олимпийской медали (${scoreText}). После вчерашней битвы не хватило эмоций, подвёл сорванный форхенд в концовке.»`
+      winnerQuote: `«Завоевать олимпийскую медаль для своей страны (${scoreText}) — невероятные эмоции. ${winTactics}»`,
+      loserQuote: `«Остаться в шаге от подиума (${scoreText}) непросто. ${loseTactics}»`
     };
   }
-
   if (isSemi) {
-    const semiWinnerQuotes = [
-      `«Выход в главный финал ${tourneyName} — это чистая эйфория! Матч против ${loser.name} (${scoreText}) выжал меня эмоционально до предела, но на ключевых мячах выручили приём навылет и подача в корпус.»`,
-      `«Ещё один шаг до заветного титула ${tourneyName}! В полуфинале (${scoreText}) пришлось терпеть через забитые ноги и затяжные ралли, но мысль о завтрашнем финале дала второе дыхание.»`,
-      `«Невероятные эмоции — я в финале ${tourneyName}! ${loser.name} давил весь матч (${scoreText}), однако в решающие минуты мой бэкхенд по линии и приём навылет сработали безотказно.»`
-    ];
-    const semiLoserQuotes = [
-      `«Безумно больно проигрывать в полуфинале за шаг до титульного матча (${scoreText}). На покрытии «${surface}» сегодня не хватило свежести в затяжных перестрелках — забитые ноги не дали добежать до ключевых мячей.»`,
-      `«Остановиться в полуфинале ${tourneyName} (${scoreText}) — тяжёлый удар. В концовке меня подвёл сорванный форхенд и мёртвая подача на скрытом матчболе, а ${winner.name} заслужил путёвку в финал.»`
-    ];
     return {
-      winnerQuote: pickRandomItem(semiWinnerQuotes),
-      loserQuote: pickRandomItem(semiLoserQuotes)
+      winnerQuote: `«Выход в финал ${tourneyName} (${scoreText}) дает отличный заряд. ${winTactics} Теперь фокус на главном матче.»`,
+      loserQuote: `«Тяжело останавливаться в полуфинале (${scoreText}). ${loseTactics} Сделаю выводы перед следующим стартом.»`
     };
   }
 
-  if (isEarlyRound) {
-    const earlyWinnerQuotes = [
-      `«Для стартовых раундов (${stage || 'ранняя стадия'}) главное — пройти акклиматизацию и прибиться к скорости корта (${surface.toLowerCase()}). Счет ${scoreText} рабочий, хотя мозоли на ладонях дали о себе знать, двигаемся дальше по сетке.»`,
-      `«На ранних стадиях ${tourneyName} никто не дарит лёгких очков (${scoreText}). Рад, что вовремя нащупал приём навылет и сэкономил силы перед следующими кругами.»`,
-      `«Рабочая победа в стартовом раунде (${scoreText}): корт на ${tourneyName} довольно быстрый, пару геймов ушло на пристрелку, но дальше подача пошла по месту.»`
-    ];
-    const earlyLoserQuotes = [
-      `«Тяжело входить в турнир без должной пристрелки: не успел адаптироваться к отскоку мяча на ${tourneyName} (${scoreText}), пару раз подвёл сорванный форхенд, а ${winner.name} сразу поймал рабочий ритм.»`,
-      `«Сегодня с самого утра ощущались забитые ноги после перелёта и смены покрытия (${scoreText}). Мёртвая подача в ключевых геймах не оставила шансов зацепиться за этот раунд.»`
-    ];
-    return {
-      winnerQuote: pickRandomItem(earlyWinnerQuotes),
-      loserQuote: pickRandomItem(earlyLoserQuotes)
-    };
-  }
-
-  if (hasBagel) {
-    return {
-      winnerQuote: `«В партии со счетом 6-0 я поймал невероятный кураж: проходил каждый приём навылет, и мяч ложился точно в заднюю линию (${scoreText}).»`,
-      loserQuote: `«Тяжело объяснить провал в сете с баранкой — сегодня у меня была просто мёртвая подача, а ${winner.name} читал все направления атак.»`
-    };
-  }
-  if (isLongMatch && hasTiebreak) {
-    return {
-      winnerQuote: pickRandomItem([
-        `«Это была жесткая проверка на характер против ${loser.name} (${scoreText}) — несмотря на забитые ноги в концовке, на тайбрейке я доверился первой подаче и трибунам на ${tourneyName}.»`,
-        `«Такие трёхсетовые битвы с тайбрейком (${scoreText}) закаляют сильнее всего: в решающий момент прошёл чистый приём навылет по линии!»`
-      ]),
-      loserQuote: pickRandomItem([
-        `«Судьбу матча решил один сорванный форхенд на тайбрейке (${scoreText}); обидно уступать в такой равной рубке, но ${winner.name} сегодня отыграл чище в ключевых геймах.»`,
-        `«Матч шёл мяч в мяч (${scoreText}), но в концовке тайбрейка дали о себе знать забитые ноги и мёртвая вторая подача.»`
-      ])
-    };
-  }
-  if (isLongMatch) {
-    return {
-      winnerQuote: `«В решающем сете (${scoreText}) мне удалось перетерпеть усталость, включить острый приём навылет и забрать инициативу на задней линии (${surface.toLowerCase()}).»`,
-      loserQuote: `«К третьей партии дали о себе знать забитые ноги и мозоли, допустил пару срывов с форхенда на брейк-пойнтах (${scoreText}), чем ${winner.name} мгновенно воспользовался.»`
-    };
-  }
-  if (hasTiebreak) {
-    return {
-      winnerQuote: `«Ключевым моментом стал тайбрейк (${scoreText}): я сохранил холодную голову на приёме и не позволил ${loser.name} затянуть встречу в решающую партию.»`,
-      loserQuote: `«У меня были скрытые сетболы, но на тайбрейке подвела мёртвая вторая подача (${scoreText}), а ${winner.name} отподавал первый мяч без единого сбоя.»`
-    };
-  }
   return {
-    winnerQuote: pickRandomItem([
-      `«Сегодня с первого гейма отлично летела подача по углам и работал приём навылет (${scoreText}) — скорость корта («${surface}») идеально легла под мой удар.»`,
-      `«Чётко выполнил план на игру против ${loser.name} (${scoreText}): держал глубокую длину ударов и не давал сопернику времени на подготовку атаки.»`
-    ]),
-    loserQuote: pickRandomItem([
-      `«${winner.name} предложил запредельный темп с первых минут (${scoreText}), а меня в ключевых геймах подвёл сорванный форхенд по линии.»`,
-      `«Сегодня не сработала первая подача (${scoreText}), пришлось много бегать в обороне, и к середине второго сета уже сказались забитые ноги.»`
-    ])
+    winnerQuote: `«Доволен тем, как справился с задачей (${scoreText}). ${winTactics} Двигаемся дальше по сетке.»`,
+    loserQuote: `«Сегодня не удалось навязать свой теннис (${scoreText}). ${loseTactics} Буду готовиться к следующему турниру.»`
   };
 }
 
@@ -1023,10 +932,6 @@ export function getHeadToHeadAnalytics(p1Id, p2Id, tournaments, maxYear = 2024, 
   };
 }
 
-export function getHeadToHeadHistory(p1Id, p2Id, tournaments, maxYear = 2024, storageGetter = null, p1Name = '', p2Name = '') {
-  return getHeadToHeadAnalytics(p1Id, p2Id, tournaments, maxYear, storageGetter, p1Name, p2Name);
-}
-
 if (typeof window !== 'undefined') {
   window.formatTennisScore = formatTennisScore;
   window.generateRealisticTennisSet = generateRealisticTennisSet;
@@ -1040,7 +945,6 @@ if (typeof window !== 'undefined') {
   window.resetMatchResultInDraw = resetMatchResultInDraw;
   window.advanceWinnerInDraw = advanceWinnerInDraw;
   window.getHeadToHeadAnalytics = getHeadToHeadAnalytics;
-  window.getHeadToHeadHistory = getHeadToHeadHistory;
   window.calculateMatchStaminaCost = calculateMatchStaminaCost;
   window.applyMatchFatigueToPlayers = applyMatchFatigueToPlayers;
   window.resetPlayersStamina = resetPlayersStamina;

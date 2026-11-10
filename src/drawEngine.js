@@ -160,33 +160,18 @@ export function buildOlympicQuarterSeparatedBracket(qualified) {
   const slots58ByQ = [15, 16, 47, 48];
   const s58 = shuffleArray(seeds.slice(4, 8));
   if (s58.length === 4) {
-    const perms = [
-      [0, 1, 2, 3], [0, 1, 3, 2], [0, 2, 1, 3], [0, 2, 3, 1], [0, 3, 1, 2], [0, 3, 2, 1],
-      [1, 0, 2, 3], [1, 0, 3, 2], [1, 2, 0, 3], [1, 2, 3, 0], [1, 3, 0, 2], [1, 3, 2, 0],
-      [2, 0, 1, 3], [2, 0, 3, 1], [2, 1, 0, 3], [2, 1, 3, 0], [2, 3, 0, 1], [2, 3, 1, 0],
-      [3, 0, 1, 2], [3, 0, 2, 1], [3, 1, 0, 2], [3, 1, 2, 0], [3, 2, 0, 1], [3, 2, 1, 0]
-    ];
-    let bestPerm = perms[0];
-    let bestPenalty = Infinity;
-    for (const perm of shuffleArray(perms)) {
-      let penalty = 0;
-      for (let q = 0; q < 4; q++) {
-        const pl = s58[perm[q]];
-        if (pl && pl.flag && pl.flag !== '?') {
-          if (quarterCountries[q].has(pl.flag)) penalty += 100;
-          if (hasCountryInHalf(Math.floor(q / 2), pl.flag)) penalty += 5;
-        }
-      }
-      if (penalty < bestPenalty) {
-        bestPenalty = penalty;
-        bestPerm = perm;
-      }
-    }
-    for (let q = 0; q < 4; q++) {
-      const pl = s58[bestPerm[q]];
-      bracket[slots58ByQ[q]] = pl;
-      addCountryToQuarter(q, pl.flag);
-    }
+    const availableQuarters = [0, 1, 2, 3];
+    s58.forEach(pl => {
+      availableQuarters.sort((qA, qB) => {
+        const flag = pl.flag;
+        const penA = (flag && quarterCountries[qA].has(flag) ? 100 : 0) + (flag && hasCountryInHalf(Math.floor(qA / 2), flag) ? 5 : 0);
+        const penB = (flag && quarterCountries[qB].has(flag) ? 100 : 0) + (flag && hasCountryInHalf(Math.floor(qB / 2), flag) ? 5 : 0);
+        return penA - penB;
+      });
+      const chosenQ = availableQuarters.shift();
+      bracket[slots58ByQ[chosenQ]] = pl;
+      addCountryToQuarter(chosenQ, pl.flag);
+    });
   }
 
   // 4. Посев #9..#16 (по 2 слота в каждой четверти: Q0=[7,8], Q1=[23,24], Q2=[39,40], Q3=[55,56])

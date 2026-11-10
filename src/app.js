@@ -296,81 +296,36 @@ function saveUniversesRegistry() {
 
 const memoryUniverseStore = {};
 
-function pruneLegacyDuplicateStorageKeys(aggressive = false) {
+export function runStorageGarbageCollector() {
   if (typeof localStorage === 'undefined') return;
   try {
     const keysToRemove = [];
-    const checkpointsToCompact = [];
-    const obsoleteExactKeys = new Set([
-      'meta_players', 'meta_players_200', 'meta_players_v3', 'meta_players_v4', 'meta_players_v5', 'meta_players_v6',
-      'meta_tournaments_v3', 'meta_tournaments_v6', 'meta_tournaments_v7',
-      'meta_seasons_history_v6', 'meta_tour_date_v4', 'meta_tour_date_v5', 'meta_tour_date_v6',
-      'meta_tour_year_v4', 'meta_tour_year_v5', 'meta_tour_year_v6',
-      'meta_active_tourney_v4', 'meta_active_tourney_v5', 'meta_active_tourney_v6',
-      'draw_m_1', 'draw_m_1_2026'
-    ]);
-
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k) continue;
-      if (obsoleteExactKeys.has(k) || k.includes('meta_pre_sim_snapshot_v1')) {
-        keysToRemove.push(k);
-        continue;
-      }
-      // Если чекпоинты раздулись из-за дублирования полных сеток draws — сжимаем их на месте, НЕ удаляя сами чекпоинты!
-      if (k.includes('meta_checkpoints_v2')) {
-        const val = localStorage.getItem(k);
-        if (val && val.length > 450000) {
-          checkpointsToCompact.push(k);
-        }
-        continue;
-      }
-      // Удаляем раздутые дубликаты сеток:
-      if (k.startsWith('universe_1_draw_')) {
-        keysToRemove.push(k);
-        continue;
-      }
-      if (k.startsWith('draw_') && !k.startsWith('draw_1_')) {
-        const rest = k.slice(5);
-        if (localStorage.getItem(`draw_1_${rest}`) !== null) {
-          keysToRemove.push(k);
-          continue;
-        }
-      }
-      // Удаляем старые не-префиксированные дубликаты, если уже есть префиксированный ключ universe_1_*
-      if (
-        !k.startsWith('universe_') &&
-        !k.startsWith('draw_') &&
-        k !== UNIVERSES_LIST_KEY &&
-        k !== ACTIVE_UNIVERSE_KEY &&
-        k !== 'groq_api_key' &&
-        k !== 'groq_model' &&
-        k !== 'meta_include_match_comments_v1' &&
-        !k.startsWith('meta_custom_player_overrides_v1') &&
-        localStorage.getItem(`universe_1_${k}`) !== null
-      ) {
+      const isLegacySuffix = /_v[1-8]$/.test(k) || /_v[1-8]_/.test(k);
+      const isLegacyPrefix =
+        k.startsWith('meta_players_') ||
+        k.startsWith('meta_tournaments_') ||
+        k.startsWith('meta_tour_date_') ||
+        k.startsWith('meta_tour_year_') ||
+        k.startsWith('meta_active_tourney_') ||
+        k.startsWith('meta_checkpoints_') ||
+        k.startsWith('meta_seasons_history_') ||
+        k.startsWith('universe_1_draw_') ||
+        k.startsWith('draw_m_1') ||
+        k.startsWith('universe_1_meta_checkpoints_v') ||
+        k.startsWith('universe_1_meta_tournaments_v') ||
+        k.startsWith('universe_1_meta_players_v') ||
+        k.startsWith('universe_1_meta_seasons_history_v') ||
+        k.startsWith('universe_1_meta_tour_');
+      const isDuplicateUnprefixedDraw = k.startsWith('draw_') && !k.startsWith('draw_1_');
+      if (isLegacySuffix || isLegacyPrefix || isDuplicateUnprefixedDraw) {
         keysToRemove.push(k);
       }
     }
-    keysToRemove.forEach(k => localStorage.removeItem(k));
-    checkpointsToCompact.forEach(k => {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(k) || '[]');
-        if (Array.isArray(parsed)) {
-          const compacted = parsed.map(cp => {
-            if (!cp || typeof cp !== 'object') return cp;
-            const copy = { ...cp };
-            if (!Array.isArray(copy.completedTourneyIds) && Array.isArray(copy.tournaments)) {
-              copy.completedTourneyIds = copy.tournaments.filter(t => t && t.completed).map(t => t.id);
-            }
-            delete copy.draws;
-            return copy;
-          });
-          localStorage.setItem(k, JSON.stringify(compacted));
-        }
-      } catch {
-        // ignore
-      }
+    keysToRemove.forEach(k => {
+      try { localStorage.removeItem(k); } catch {}
     });
   } catch {
     // ignore
@@ -390,17 +345,24 @@ export const universeStorage = {
       return memoryUniverseStore[fullKey];
     }
     try {
-      const val = localStorage.getItem(fullKey);
+      let val = localStorage.getItem(fullKey);
       if (val !== null) {
         memoryUniverseStore[fullKey] = val;
         return val;
       }
-      if (String(k).startsWith('draw_')) {
-        const altUnivKey = `universe_${activeUniverseId}_${k}`;
-        const altVal = localStorage.getItem(altUnivKey);
-        if (altVal !== null) {
-          memoryUniverseStore[fullKey] = altVal;
-          return altVal;
+      // Фоллбэк на legacy-ключи с версиями (_v8, _v2)
+      if (!k.includes('_v8') && !k.includes('_v2')) {
+        const v8Key = this.key(`${k}_v8`);
+        val = localStorage.getItem(v8Key);
+        if (val !== null) {
+          memoryUniverseStore[fullKey] = val;
+          return val;
+        }
+        const v2Key = this.key(`${k}_v2`);
+        val = localStorage.getItem(v2Key);
+        if (val !== null) {
+          memoryUniverseStore[fullKey] = val;
+          return val;
         }
       }
       if (activeUniverseId === '1') {
@@ -419,38 +381,25 @@ export const universeStorage = {
     const strVal = String(v);
     const fullKey = this.key(k);
     memoryUniverseStore[fullKey] = strVal;
-    // Опубликованный канон у гостя живёт только в памяти: не тратим квоту localStorage гостя
     if (canonSnapshotInfo && activeUniverseId === '1') return;
     try {
       localStorage.setItem(fullKey, strVal);
-      if (String(k).startsWith('draw_')) {
-        const altUnivKey = `universe_${activeUniverseId}_${k}`;
-        if (localStorage.getItem(altUnivKey) !== null) {
-          localStorage.removeItem(altUnivKey);
-        }
-      }
-      if (activeUniverseId === '1' && localStorage.getItem(k) !== null) {
-        localStorage.removeItem(k);
-      }
     } catch {
-      pruneLegacyDuplicateStorageKeys(true);
+      runStorageGarbageCollector();
       try {
         localStorage.setItem(fullKey, strVal);
       } catch {
-        // В памяти memoryUniverseStore значение уже гарантированно сохранено
+        // Значение надежно сохранено в памяти memoryUniverseStore
       }
     }
   },
   removeItem(k) {
     const fullKey = this.key(k);
     delete memoryUniverseStore[fullKey];
-    if (String(k).startsWith('draw_')) {
-      delete memoryUniverseStore[`universe_${activeUniverseId}_${k}`];
-    }
     try {
       localStorage.removeItem(fullKey);
-      if (String(k).startsWith('draw_')) {
-        localStorage.removeItem(`universe_${activeUniverseId}_${k}`);
+      if (!k.includes('_v8')) {
+        localStorage.removeItem(this.key(`${k}_v8`));
       }
       if (activeUniverseId === '1') {
         localStorage.removeItem(k);
@@ -484,15 +433,30 @@ export function applyCanonSnapshotToMemory(data, store = memoryUniverseStore) {
   if (!data || !Array.isArray(data.players) || data.players.length === 0) return false;
   const uKey = (k) => `universe_1_${k}`;
   const u = data.universe || {};
-  store[uKey('meta_tour_year_v8')] = String(Number(u.currentTourYear) || 2024);
-  store[uKey('meta_tour_date_v8')] = String(u.currentTourDateStr || '2024-01-02');
-  store[uKey('meta_active_tourney_v8')] = String(u.activeTourneyId || 'm_1');
-  store[uKey('meta_players_v8')] = JSON.stringify(data.players);
-  store[uKey('meta_tournaments_v8')] = JSON.stringify(data.tournaments || []);
-  store[uKey('meta_seasons_history_v8')] = JSON.stringify(data.seasonsHistory || {});
-  store[uKey('meta_retired_legends_v8')] = JSON.stringify(data.retiredLegends || []);
-  ['meta_archive_2023_clean_v5', 'meta_archive_2023_real_user_draws_v6', 'meta_jan2024_clean_start_v2', 'meta_april2024_initialized_v2']
-    .forEach(flag => { store[uKey(flag)] = 'true'; });
+  const yearStr = String(Number(u.currentTourYear) || 2024);
+  const dateStr = String(u.currentTourDateStr || '2024-01-02');
+  const tourneyStr = String(u.activeTourneyId || 'm_1');
+  const playersJson = JSON.stringify(data.players);
+  const tourneysJson = JSON.stringify(data.tournaments || []);
+  const historyJson = JSON.stringify(data.seasonsHistory || {});
+  const legendsJson = JSON.stringify(data.retiredLegends || []);
+
+  store[uKey('meta_tour_year')] = yearStr;
+  store[uKey('meta_tour_year_v8')] = yearStr;
+  store[uKey('meta_tour_date')] = dateStr;
+  store[uKey('meta_tour_date_v8')] = dateStr;
+  store[uKey('meta_active_tourney')] = tourneyStr;
+  store[uKey('meta_active_tourney_v8')] = tourneyStr;
+  store[uKey('meta_players')] = playersJson;
+  store[uKey('meta_players_v8')] = playersJson;
+  store[uKey('meta_tournaments')] = tourneysJson;
+  store[uKey('meta_tournaments_v8')] = tourneysJson;
+  store[uKey('meta_seasons_history')] = historyJson;
+  store[uKey('meta_seasons_history_v8')] = historyJson;
+  store[uKey('meta_retired_legends')] = legendsJson;
+  store[uKey('meta_retired_legends_v8')] = legendsJson;
+  store[uKey('meta_jan2024_clean_start_v2')] = 'true';
+
   Object.entries(data.draws || {}).forEach(([k, v]) => {
     const rest = String(k).startsWith('draw_') ? String(k).slice(5) : String(k);
     store[`draw_1_${rest}`] = typeof v === 'string' ? v : JSON.stringify(v);
@@ -570,28 +534,28 @@ export function showToast(messageHtml, durationMs = 4200) {
 
 // --- 1. ИНИЦИАЛИЗАЦИЯ И СОХРАНЕНИЕ ДАННЫХ ВСЕЛЕННОЙ ---
 function loadUniverseStateFromStorage() {
-  currentTourYear = parseInt(universeStorage.getItem('meta_tour_year_v8'), 10) || 2024;
-  currentTourDateStr = universeStorage.getItem('meta_tour_date_v8') || `${currentTourYear}-01-02`;
-  activeTourneyId = universeStorage.getItem('meta_active_tourney_v8') || 'm_1';
+  currentTourYear = parseInt(universeStorage.getItem('meta_tour_year'), 10) || 2024;
+  currentTourDateStr = universeStorage.getItem('meta_tour_date') || `${currentTourYear}-01-02`;
+  activeTourneyId = universeStorage.getItem('meta_active_tourney') || 'm_1';
   viewingYear = currentTourYear;
 
   try {
-    tournaments = JSON.parse(universeStorage.getItem('meta_tournaments_v8')) || null;
+    tournaments = JSON.parse(universeStorage.getItem('meta_tournaments')) || null;
   } catch {
     tournaments = null;
   }
   try {
-    players = JSON.parse(universeStorage.getItem('meta_players_v8')) || [];
+    players = JSON.parse(universeStorage.getItem('meta_players')) || [];
   } catch {
     players = [];
   }
   try {
-    seasonsHistory = JSON.parse(universeStorage.getItem('meta_seasons_history_v8')) || {};
+    seasonsHistory = JSON.parse(universeStorage.getItem('meta_seasons_history')) || {};
   } catch {
     seasonsHistory = {};
   }
   try {
-    retiredLegends = JSON.parse(universeStorage.getItem('meta_retired_legends_v8')) || [];
+    retiredLegends = JSON.parse(universeStorage.getItem('meta_retired_legends')) || [];
   } catch {
     retiredLegends = [];
   }
@@ -665,7 +629,7 @@ function saveCustomPlayerOverridesMap(overridesMap) {
       try {
         localStorage.setItem(`${CUSTOM_PLAYER_OVERRIDES_KEY}_${activeUniverseId}`, json);
       } catch {
-        pruneLegacyDuplicateStorageKeys(true);
+        runStorageGarbageCollector();
         localStorage.setItem(`${CUSTOM_PLAYER_OVERRIDES_KEY}_${activeUniverseId}`, json);
       }
     }
@@ -780,110 +744,6 @@ function propagatePlayerIdentityUpdate(updatedPlayer, oldNameLower = '') {
   if (historyChanged) saveHistory();
 }
 
-const DUPLICATE_CLEAN_REPLACEMENTS = [
-  {
-    oldDupName: 'mihaeras pia-tako',
-    keepId: 'p_93',
-    replaceId: 'p_50',
-    cleanPlayer: {
-      id: 'p_50',
-      name: 'Mateo Valiente',
-      flag: 'ESP',
-      birthDate: '2003-04-18',
-      nickname: 'Матадор корта',
-      playStyle: 'Агрессивный бейслайнер с тяжелым топ-спином'
-    }
-  },
-  {
-    oldDupName: 'pleko yunt',
-    keepId: 'p_91',
-    replaceId: 'p_61',
-    cleanPlayer: {
-      id: 'p_61',
-      name: 'Lukas Vondracek',
-      flag: 'CZE',
-      birthDate: '2002-09-11',
-      nickname: 'Пражский метроном',
-      playStyle: 'Универсал с плоским бэкхендом по линии'
-    }
-  },
-  {
-    oldDupName: 'teddy fedesenen',
-    keepId: 'p_94',
-    replaceId: 'p_76',
-    cleanPlayer: {
-      id: 'p_76',
-      name: 'Thiago Monteiro-Silva',
-      flag: 'POR',
-      birthDate: '2003-07-22',
-      nickname: 'Лиссабонский вихрь',
-      playStyle: 'Цепкий грунтовый контрпанчер'
-    }
-  },
-  {
-    oldDupName: 'zonda zewy',
-    keepId: 'p_106',
-    replaceId: 'p_79',
-    cleanPlayer: {
-      id: 'p_79',
-      name: 'Filip Kovacevic',
-      flag: 'CRO',
-      birthDate: '2002-11-05',
-      nickname: 'Балканский гром',
-      playStyle: 'Мощная первая подача и выход к сетке'
-    }
-  },
-  {
-    oldDupName: 'nikola tortalo',
-    keepId: 'p_95',
-    replaceId: 'p_83',
-    cleanPlayer: {
-      id: 'p_83',
-      name: 'Kamil Kowalski',
-      flag: 'POL',
-      birthDate: '2003-02-14',
-      nickname: 'Железная стена',
-      playStyle: 'Скоростная оборона и острый прием'
-    }
-  }
-];
-
-const EXTRA_CLEAN_PLAYERS_POOL = [
-  { name: 'Alejandro Morales-Ruiz', flag: 'ESP', birthDate: '2003-05-19', nickname: 'Испанский вихрь', playStyle: 'Грунтовый универсал с крученым форхендом' },
-  { name: 'Tomasz Zielinski', flag: 'POL', birthDate: '2002-08-24', nickname: 'Варшавский молот', playStyle: 'Мощная подача и атака в два удара' },
-  { name: 'Matteo Ricci-Curbastro', flag: 'ITA', birthDate: '2003-11-12', nickname: 'Маэстро дроп-шотов', playStyle: 'Тактический теннис с рваным ритмом' },
-  { name: 'Nicolas Echeverria', flag: 'ARG', birthDate: '2002-03-07', nickname: 'Гладиатор Буэнос-Айреса', playStyle: 'Бетонная оборона на задней линии' },
-  { name: 'Jakub mensik-pro', flag: 'CZE', birthDate: '2004-01-30', nickname: 'Чешский экспресс', playStyle: 'Плоские удары на восходящем мяче' }
-];
-
-function createCleanReplacementPlayerObj(id, spec, rankFallback = 296) {
-  const defaultPts = 155;
-  return {
-    id: String(id),
-    rank: rankFallback,
-    name: spec.name,
-    flag: spec.flag || 'ESP',
-    points: defaultPts,
-    basePoints: defaultPts,
-    start2023Points: defaultPts,
-    remainingDefending: defaultPts,
-    defendedSoFar: 0,
-    finalsPoints: 0,
-    racePoints: 0,
-    birthDate: spec.birthDate || '2003-04-18',
-    nickname: spec.nickname || '',
-    playStyle: spec.playStyle || '',
-    isCleanReplacement: true,
-    tournamentPoints: {},
-    rankChange: 0,
-    bestRank: rankFallback,
-    historicalBestRank: rankFallback,
-    seasonStartRank: rankFallback,
-    seasonsPlayed: 1,
-    medals: { gold: 0, silver: 0, bronze: 0 }
-  };
-}
-
 function repairCanonicalPlayersAndDraws() {
   const canonicalRoster = buildInitial300Players();
   const canonByName = new Map();
@@ -896,104 +756,7 @@ function repairCanonicalPlayersAndDraws() {
   const customOverrides = loadCustomPlayerOverrides();
   let overridesModified = false;
 
-  // 0) Дедупликация 5 исторических дублей (p_50/p_93, p_61/p_91, p_76/p_94, p_79/p_106, p_83/p_95):
-  // Первый по рейтингу сохраняет свои очки и выставленный пользователем флаг (из любой из двух копий),
-  // а второй по рейтингу заменяется на нового чистого игрока (0 очков, без удаления пользовательских флагов!).
-  const cleanReplacementIds = new Set(DUPLICATE_CLEAN_REPLACEMENTS.map(d => d.replaceId));
-  if (Array.isArray(players) && players.length > 0) {
-    DUPLICATE_CLEAN_REPLACEMENTS.forEach(pair => {
-      const pKeepIdx = players.findIndex(x => x && String(x.id) === pair.keepId);
-      const pRepIdx = players.findIndex(x => x && String(x.id) === pair.replaceId);
-      const pKeep = pKeepIdx >= 0 ? players[pKeepIdx] : null;
-      const pRep = pRepIdx >= 0 ? players[pRepIdx] : null;
-
-      // Ищем флаг, который пользователь мог поставить либо первому, либо второму дублю
-      const ovByName = customOverrides[`name:${pair.oldDupName}`];
-      const ovKeep = customOverrides[`id:${pair.keepId}`];
-      const ovRep = customOverrides[`id:${pair.replaceId}`];
-      const repIsStillOldDup = pRep && String(pRep.name || '').trim().toLowerCase() === pair.oldDupName;
-      const ovRepIsOldDup = ovRep && String(ovRep.name || '').trim().toLowerCase() === pair.oldDupName;
-
-      const candidateFlags = [
-        ovKeep?.flag,
-        ovByName?.flag,
-        ovRepIsOldDup ? ovRep?.flag : null,
-        pKeep?.flag,
-        repIsStillOldDup ? pRep?.flag : null
-      ];
-      const bestUserFlag = candidateFlags.find(f => f && f !== '?') || pKeep?.flag || '?';
-
-      // Выбираем лучшие (первый по рейтингу) очки и статистику из пары дублей для основного игрока (keepId)
-      if (pKeep && pRep && repIsStillOldDup) {
-        const keepScore = (pKeep.points || 0) * 1000 + (pKeep.racePoints || 0);
-        const repScore = (pRep.points || 0) * 1000 + (pRep.racePoints || 0);
-        if (repScore > keepScore) {
-          pKeep.points = pRep.points;
-          pKeep.racePoints = pRep.racePoints;
-          pKeep.basePoints = pRep.basePoints || pKeep.basePoints;
-          pKeep.start2023Points = pRep.start2023Points || pKeep.start2023Points;
-          pKeep.remainingDefending = pRep.remainingDefending ?? pKeep.remainingDefending;
-          pKeep.defendedSoFar = pRep.defendedSoFar ?? pKeep.defendedSoFar;
-          if (pRep.tournamentPoints && Object.keys(pRep.tournamentPoints).length > 0) {
-            pKeep.tournamentPoints = JSON.parse(JSON.stringify(pRep.tournamentPoints));
-          }
-          pKeep.bestRank = Math.min(pKeep.bestRank || 300, pRep.bestRank || 300);
-        }
-      }
-
-      if (pKeep && bestUserFlag && bestUserFlag !== '?') {
-        pKeep.flag = bestUserFlag;
-        const entry = {
-          name: pKeep.name,
-          flag: bestUserFlag,
-          birthDate: pKeep.birthDate,
-          nickname: pKeep.nickname || '',
-          playStyle: pKeep.playStyle || ''
-        };
-        customOverrides[`id:${pair.keepId}`] = entry;
-        customOverrides[`name:${pair.oldDupName}`] = entry;
-        overridesModified = true;
-      }
-
-      // Если слот второго дубля (replaceId) еще носит старое дублирующееся имя — заменяем его на нового чистого игрока
-      if (ovRepIsOldDup) {
-        delete customOverrides[`id:${pair.replaceId}`];
-        overridesModified = true;
-      }
-      if (pRepIdx >= 0 && repIsStillOldDup) {
-        const existingCleanOv = customOverrides[`id:${pair.replaceId}`];
-        const cleanObj = createCleanReplacementPlayerObj(pair.replaceId, pair.cleanPlayer, 296);
-        if (existingCleanOv && String(existingCleanOv.name || '').trim().toLowerCase() !== pair.oldDupName) {
-          if (existingCleanOv.flag && existingCleanOv.flag !== '?') cleanObj.flag = existingCleanOv.flag;
-          if (existingCleanOv.name) cleanObj.name = existingCleanOv.name;
-          if (existingCleanOv.birthDate) cleanObj.birthDate = existingCleanOv.birthDate;
-        }
-        players[pRepIdx] = cleanObj;
-      } else if (pRepIdx >= 0 && pRep) {
-        pRep.isCleanReplacement = true;
-      }
-    });
-  }
-
-  // 1) Восстанавливаем строгое каноническое соответствие по ID, СОХРАНЯЯ все отредактированные пользователем страны (flag), имена и даты рождения
-  const newgensAndCustom = (players || []).filter(p => p && (p.isNewgen || p.isProcedural));
-  const byIdMap = new Map();
-  const byNameBest = new Map();
-
-  (players || []).forEach(p => {
-    if (!p || p.isNewgen || p.isProcedural) return;
-    if (p.id) {
-      byIdMap.set(String(p.id), p);
-    }
-    const normName = String(p.name || '').trim().toLowerCase();
-    const existing = byNameBest.get(normName);
-    if (!existing || (p.points || 0) > (existing.points || 0)) {
-      byNameBest.set(normName, p);
-    }
-  });
-
   const resolvePlayerFields = (source, canon) => {
-    const isCleanSlot = cleanReplacementIds.has(String(canon.id)) && source && source.isCleanReplacement;
     const normName = String((source && source.name) || canon.name || '').trim().toLowerCase();
     const canonNormName = String(canon.name || '').trim().toLowerCase();
     const ov = {
@@ -1032,11 +795,24 @@ function repairCanonicalPlayersAndDraws() {
       birthDate: resolvedBirth,
       nickname: resolvedNick,
       playStyle: resolvedStyle,
-      isCleanReplacement: Boolean(isCleanSlot),
-      basePoints: isCleanSlot ? (source.basePoints || 155) : canon.basePoints,
-      start2023Points: isCleanSlot ? (source.start2023Points || 155) : canon.start2023Points
+      basePoints: source.basePoints || canon.basePoints,
+      start2023Points: source.start2023Points || canon.start2023Points
     };
   };
+
+  const newgensAndCustom = (players || []).filter(p => p && (p.isNewgen || p.isProcedural));
+  const byIdMap = new Map();
+  const byNameBest = new Map();
+
+  (players || []).forEach(p => {
+    if (!p || p.isNewgen || p.isProcedural) return;
+    if (p.id) byIdMap.set(String(p.id), p);
+    const normName = String(p.name || '').trim().toLowerCase();
+    const existing = byNameBest.get(normName);
+    if (!existing || (p.points || 0) > (existing.points || 0)) {
+      byNameBest.set(normName, p);
+    }
+  });
 
   const repairedPlayers = [];
   const usedIds = new Set();
@@ -1066,46 +842,12 @@ function repairCanonicalPlayersAndDraws() {
         usedIds.add(String(p.id));
       }
     });
-  }
-
-  // Дополнительный общий проход: если в списке остались любые однофамильцы-тезки,
-  // оставляем первого по рейтингу (сохраняя его флаг), а второго по рейтингу заменяем на нового чистого игрока.
-  const byFullNameGroups = new Map();
-  repairedPlayers.forEach((p, idx) => {
-    const key = String(p.name || '').trim().toLowerCase();
-    if (!byFullNameGroups.has(key)) byFullNameGroups.set(key, []);
-    byFullNameGroups.get(key).push({ p, idx });
-  });
-  const allUsedNames = new Set(repairedPlayers.map(p => String(p.name || '').trim().toLowerCase()));
-  let extraPoolCursor = 0;
-  for (const [, group] of byFullNameGroups.entries()) {
-    if (group.length <= 1) continue;
-    group.sort((a, b) => {
-      const diff = (b.p.points || 0) - (a.p.points || 0);
-      if (diff !== 0) return diff;
-      return (b.p.racePoints || 0) - (a.p.racePoints || 0);
+    canonicalRoster.forEach(canon => {
+      if (!usedIds.has(String(canon.id)) && repairedPlayers.length < 300) {
+        repairedPlayers.push(resolvePlayerFields(canon, canon));
+        usedIds.add(String(canon.id));
+      }
     });
-    const primary = group[0].p;
-    const anyValidFlag = group.map(g => g.p.flag).find(f => f && f !== '?');
-    if ((!primary.flag || primary.flag === '?') && anyValidFlag) {
-      primary.flag = anyValidFlag;
-    }
-    for (let i = 1; i < group.length; i++) {
-      const dupTarget = group[i];
-      let spec = null;
-      while (extraPoolCursor < EXTRA_CLEAN_PLAYERS_POOL.length) {
-        const cand = EXTRA_CLEAN_PLAYERS_POOL[extraPoolCursor++];
-        if (!allUsedNames.has(cand.name.toLowerCase())) {
-          spec = cand;
-          break;
-        }
-      }
-      if (!spec) {
-        spec = { name: `Lucas Valiente`, flag: 'ESP', birthDate: '2003-06-15', nickname: '', playStyle: '' };
-      }
-      allUsedNames.add(spec.name.toLowerCase());
-      repairedPlayers[dupTarget.idx] = createCleanReplacementPlayerObj(dupTarget.p.id, spec, 300);
-    }
   }
 
   players = repairedPlayers;
@@ -1208,6 +950,15 @@ export function initData() {
     saveTournaments();
   }
 
+  // В канонической Вселенной Автора на 2024 год гарантируем 26 завершенных турниров (включая Океанский шлем #20 и Хельсинки #26)
+  if (isCanonUniverse && currentTourYear === 2024) {
+    const completedCount = tournaments ? tournaments.filter(t => t && t.completed).length : 0;
+    if (completedCount < 26 && CANON_MASTER_SNAPSHOT && Array.isArray(CANON_MASTER_SNAPSHOT.tournaments)) {
+      tournaments = JSON.parse(JSON.stringify(CANON_MASTER_SNAPSHOT.tournaments));
+      saveTournaments();
+    }
+  }
+
   if (!players || players.length < 300) {
     players = isCustomRandomUniverse
       ? generateRandom300Players(currentTourYear)
@@ -1252,24 +1003,8 @@ export function initData() {
     // 1) Гарантируем истинный архив 2023 года: World #1 GEO Max Kyupan (12 300 pts), Топ-10 и чемпионы 2023
     const archive2023Updated = ensureDefault2023SeasonArchive(tournaments, players, seasonsHistory, universeStorage);
 
-    // 2) РАЗДЕЛ 1: Канонический старт сезона 2024 с чистого листа (02 Января 2024 года, #1 Хьюстон Masters, racePoints = 0)
-    let janStartUpdated = false;
-    if (!universeStorage.getItem('meta_jan2024_clean_start_v2')) {
-      currentTourYear = 2024;
-      viewingYear = 2024;
-      janStartUpdated = ensureCleanJanuary2024StartState(tournaments, players, seasonsHistory, universeStorage);
-      currentTourDateStr = '2024-01-02';
-      activeTourneyId = 'm_1';
-      universeStorage.setItem('meta_jan2024_clean_start_v2', 'true');
-      saveTournaments();
-      saveDate();
-    }
-
     if (archive2023Updated) {
       repairCanonicalPlayersAndDraws();
-    }
-
-    if (archive2023Updated || janStartUpdated) {
       saveHistory();
     }
 
@@ -1610,26 +1345,26 @@ export function manualRepairPoints() {
 
 function savePlayers(updateRankChange = false) {
   sortAndRankPlayers(players, updateRankChange);
-  universeStorage.setItem('meta_players_v8', JSON.stringify(players));
+  universeStorage.setItem('meta_players', JSON.stringify(players));
 }
 
 function saveTournaments() {
-  universeStorage.setItem('meta_tournaments_v8', JSON.stringify(tournaments));
+  universeStorage.setItem('meta_tournaments', JSON.stringify(tournaments));
 }
 
 function saveHistory() {
-  universeStorage.setItem('meta_seasons_history_v8', JSON.stringify(seasonsHistory));
+  universeStorage.setItem('meta_seasons_history', JSON.stringify(seasonsHistory));
 }
 
 function saveRetiredLegends() {
-  universeStorage.setItem('meta_retired_legends_v8', JSON.stringify(retiredLegends));
+  universeStorage.setItem('meta_retired_legends', JSON.stringify(retiredLegends));
 }
 
 function saveDate() {
-  universeStorage.setItem('meta_tour_year_v8', String(currentTourYear));
-  universeStorage.setItem('meta_tour_date_v8', currentTourDateStr);
+  universeStorage.setItem('meta_tour_year', String(currentTourYear));
+  universeStorage.setItem('meta_tour_date', currentTourDateStr);
   if (activeTourney) {
-    universeStorage.setItem('meta_active_tourney_v8', activeTourney.id);
+    universeStorage.setItem('meta_active_tourney', activeTourney.id);
   }
   saveUniversesRegistry();
 }
@@ -1654,17 +1389,24 @@ function compactPlayerRefForDraw(p) {
 function readSavedDraw(tourneyId, year) {
   if (!tourneyId || !year) return [];
   const drawKey = `draw_${tourneyId}_${year}`;
-  const unifiedKey = `draw_${activeUniverseId}_${tourneyId}_${year}`;
   const hasCompletedWinner = (d) => Array.isArray(d) && d.length > 0 && d.some(r => Array.isArray(r) && r.some(m => m && (m.winner || (Array.isArray(m.score) && m.score.length > 0))));
 
   try {
-    let raw = universeStorage.getItem(drawKey);
-    if (!raw && typeof localStorage !== 'undefined') {
-      raw =
-        localStorage.getItem(unifiedKey) ||
-        localStorage.getItem(`universe_${activeUniverseId}_${drawKey}`) ||
-        (activeUniverseId === '1' ? localStorage.getItem(drawKey) : null);
+    const memKey = `draw_1_${tourneyId}_${year}`;
+    if (memoryUniverseStore[memKey]) {
+      try {
+        const parsed = JSON.parse(memoryUniverseStore[memKey]);
+        if (hasCompletedWinner(parsed)) return parsed;
+      } catch {}
     }
+    if (memoryUniverseStore[drawKey]) {
+      try {
+        const parsed = JSON.parse(memoryUniverseStore[drawKey]);
+        if (hasCompletedWinner(parsed)) return parsed;
+      } catch {}
+    }
+
+    const raw = universeStorage.getItem(drawKey);
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
@@ -1673,27 +1415,19 @@ function readSavedDraw(tourneyId, year) {
         }
       } catch {}
     }
-    // ЖЕЛЕЗНЫЙ ФОЛЛБЭК: Если для канонической вселенной сетка в localStorage отсутствует
-    // или не завершена — мгновенно отдаем и восстанавливаем каноническую сетку из CANON_MASTER_SNAPSHOT или RESTORED_2024_DRAWS!
-    if ((activeUniverseId === '1' || activeUniverseId === 1)) {
+    // ЖЕЛЕЗНЫЙ ФОЛЛБЭК: Если для канонической вселенной сетка отсутствует или не завершена — отдаем из CANON_MASTER_SNAPSHOT или RESTORED_2024_DRAWS
+    if (String(activeUniverseId) === '1') {
       const fallbackDraw =
         (CANON_MASTER_SNAPSHOT?.draws && CANON_MASTER_SNAPSHOT.draws[drawKey]) ||
         (RESTORED_2024_DRAWS && RESTORED_2024_DRAWS[drawKey]);
       if (Array.isArray(fallbackDraw) && fallbackDraw.length > 0) {
-        try {
-          const str = JSON.stringify(fallbackDraw);
-          universeStorage.setItem(drawKey, str);
-          if (typeof localStorage !== 'undefined') {
-            localStorage.setItem(unifiedKey, str);
-            localStorage.setItem(`draw_1_${tourneyId}_${year}`, str);
-          }
-          memoryUniverseStore[drawKey] = str;
-          memoryUniverseStore[`draw_1_${tourneyId}_${year}`] = str;
-        } catch {}
+        const str = JSON.stringify(fallbackDraw);
+        memoryUniverseStore[memKey] = str;
+        memoryUniverseStore[drawKey] = str;
+        try { universeStorage.setItem(drawKey, str); } catch {}
         return fallbackDraw;
       }
     }
-    const memKey = `draw_1_${tourneyId}_${year}`;
     if (memoryUniverseStore[memKey]) {
       try {
         const parsed = JSON.parse(memoryUniverseStore[memKey]);
@@ -2160,7 +1894,6 @@ export function handleImportUniverseFile(event) {
         });
       }
 
-      universeStorage.setItem('meta_april2024_initialized_v2', 'true');
       savePlayers(false);
       saveTournaments();
       saveHistory();
@@ -2467,9 +2200,6 @@ export function loadSelectedTournament() {
   renderMatches();
   renderCalendarTable();
 }
-
-// Алиас для обратной совместимости
-export const loadCurrentTourney = loadSelectedTournament;
 
 // --- 3. ЖЕРЕБЬЕВКА И СЕТКА ТУРНИРА ---
 export function generateRealisticDraw() {
@@ -4044,10 +3774,13 @@ export async function generateCommentaryForScoreWithAI() {
     // Включаем режим показа комментариев, так как пользователь явно запросил ИИ-комментарий
     setMatchCommentaryMode(true);
 
-    // Сохраняем введенный счет и репортаж в сетку матча, оставляя окно открытым для просмотра
-    applyMatchWinner(activeMatchScore.rIdx, activeMatchScore.mIdx, winnerObj, sets, pendingAiNarrative, {
-      winnerQuote: pendingWinnerQuote,
-      loserQuote: pendingLoserQuote
+    commitMatchOutcome({
+      winner: winnerObj,
+      scoreArray: sets,
+      narrative: pendingAiNarrative,
+      quotes: { winnerQuote: pendingWinnerQuote, loserQuote: pendingLoserQuote },
+      sourceTag,
+      closePopup: false
     });
 
     renderMatchAiReportBlock(pendingAiNarrative, pendingWinnerQuote, pendingLoserQuote, winnerObj.name, loserObj.name, sourceTag);
@@ -4146,9 +3879,13 @@ export async function simulateMatchWithAI() {
     }
 
     // Автоматически вставляем сгенерированный счет в сетку матча
-    applyMatchWinner(activeMatchScore.rIdx, activeMatchScore.mIdx, winnerObj, sets, pendingAiNarrative, {
-      winnerQuote: pendingWinnerQuote,
-      loserQuote: pendingLoserQuote
+    commitMatchOutcome({
+      winner: winnerObj,
+      scoreArray: sets,
+      narrative: pendingAiNarrative,
+      quotes: { winnerQuote: pendingWinnerQuote, loserQuote: pendingLoserQuote },
+      sourceTag: match.aiSourceLabel || pendingAiSourceLabel,
+      closePopup: false
     });
   } catch (err) {
     const errMsg = err?.message || 'Не удалось связаться с Groq API';
@@ -4166,6 +3903,46 @@ export async function simulateMatchWithAI() {
   }
 }
 
+/**
+ * Единая точка фиксации исхода матча для всех режимов симулятора (DRY).
+ */
+export function commitMatchOutcome({
+  winner,
+  scoreArray,
+  narrative = '',
+  quotes = null,
+  sourceTag = '',
+  closePopup = false
+} = {}) {
+  if (!activeMatchScore || !activeMatchScore.match || !winner || !scoreArray) return;
+  const useComments = includeMatchCommentaryMode && Boolean(narrative || quotes);
+  const finalNarrative = useComments ? String(narrative || '').trim() : '';
+  const finalQuotes = useComments && quotes
+    ? {
+        winnerQuote: String(quotes.winnerQuote || '').trim(),
+        loserQuote: String(quotes.loserQuote || '').trim()
+      }
+    : { winnerQuote: '', loserQuote: '' };
+
+  if (sourceTag) {
+    pendingAiSourceLabel = sourceTag;
+    activeMatchScore.match.aiSourceLabel = sourceTag;
+  }
+
+  applyMatchWinner(
+    activeMatchScore.rIdx,
+    activeMatchScore.mIdx,
+    winner,
+    scoreArray,
+    finalNarrative,
+    finalQuotes
+  );
+
+  if (closePopup) {
+    closeModal('scoreModal');
+  }
+}
+
 // Кнопка «⚡ Быстрый расчет (Оффлайн)» — моментально симулирует матч с учетом выбранного режима (с комментариями или только счет)
 export function instantSimulateMatch() {
   if (guardCanonReadOnly()) return;
@@ -4180,10 +3957,13 @@ export function instantSimulateMatch() {
     activeTourney ? activeTourney.name : 'Турнир ATP',
     stageName
   );
-  const narrative = includeMatchCommentaryMode ? sim.narrative : '';
-  const quotes = includeMatchCommentaryMode ? { winnerQuote: sim.winnerQuote, loserQuote: sim.loserQuote } : { winnerQuote: '', loserQuote: '' };
-  applyMatchWinner(activeMatchScore.rIdx, activeMatchScore.mIdx, sim.winner, sim.scores, narrative, quotes);
-  closeModal('scoreModal');
+  commitMatchOutcome({
+    winner: sim.winner,
+    scoreArray: sim.scores,
+    narrative: sim.narrative,
+    quotes: { winnerQuote: sim.winnerQuote, loserQuote: sim.loserQuote },
+    closePopup: true
+  });
 }
 
 export function quickApplyWinner(winnerId) {
@@ -4200,10 +3980,13 @@ export function quickApplyWinner(winnerId) {
     activeTourney ? activeTourney.name : 'Турнир ATP',
     stageName
   );
-  const narrative = includeMatchCommentaryMode ? sim.narrative : '';
-  const quotes = includeMatchCommentaryMode ? { winnerQuote: sim.winnerQuote, loserQuote: sim.loserQuote } : { winnerQuote: '', loserQuote: '' };
-  applyMatchWinner(activeMatchScore.rIdx, activeMatchScore.mIdx, sim.winner, sim.scores, narrative, quotes);
-  closeModal('scoreModal');
+  commitMatchOutcome({
+    winner: sim.winner,
+    scoreArray: sim.scores,
+    narrative: sim.narrative,
+    quotes: { winnerQuote: sim.winnerQuote, loserQuote: sim.loserQuote },
+    closePopup: true
+  });
 }
 
 export function saveQuickStringScore(forceScoreOnly = false) {
@@ -4227,24 +4010,14 @@ export function saveQuickStringScore(forceScoreOnly = false) {
   const winner = validation.p1WinsMatch ? activeMatchScore.match.p1 : activeMatchScore.match.p2;
   const useComments = !forceScoreOnly && includeMatchCommentaryMode;
 
-  if (!useComments) {
-    pendingAiNarrative = '';
-    pendingWinnerQuote = '';
-    pendingLoserQuote = '';
-    pendingAiSourceLabel = '';
-  }
-
-  applyMatchWinner(
-    activeMatchScore.rIdx,
-    activeMatchScore.mIdx,
+  commitMatchOutcome({
     winner,
-    validation.sets,
-    useComments ? pendingAiNarrative : '',
-    useComments
-      ? { winnerQuote: pendingWinnerQuote, loserQuote: pendingLoserQuote }
-      : { winnerQuote: '', loserQuote: '' }
-  );
-  closeModal('scoreModal');
+    scoreArray: validation.sets,
+    narrative: useComments ? pendingAiNarrative : '',
+    quotes: useComments ? { winnerQuote: pendingWinnerQuote, loserQuote: pendingLoserQuote } : null,
+    sourceTag: useComments ? pendingAiSourceLabel : '',
+    closePopup: true
+  });
 }
 
 export function saveQuickStringScoreOnly() {
@@ -6579,7 +6352,7 @@ export function applyStateSnapshot(stateObj) {
   return true;
 }
 
-const CHECKPOINTS_STORAGE_KEY = 'meta_checkpoints_v2';
+const CHECKPOINTS_STORAGE_KEY = 'meta_checkpoints';
 
 function getSavedCheckpointsList() {
   let list = memoryCheckpointsByUniverse[activeUniverseId];
@@ -6592,10 +6365,16 @@ function getSavedCheckpointsList() {
     }
   }
   if (!Array.isArray(list)) list = [];
-  if (activeUniverseId === '1' && CANON_MASTER_SNAPSHOT && Array.isArray(CANON_MASTER_SNAPSHOT.checkpoints)) {
+  if (String(activeUniverseId) === '1' && CANON_MASTER_SNAPSHOT && Array.isArray(CANON_MASTER_SNAPSHOT.checkpoints)) {
     const map = new Map();
     CANON_MASTER_SNAPSHOT.checkpoints.forEach(cp => { if (cp?.id) map.set(cp.id, cp); });
-    list.forEach(cp => { if (cp?.id && !map.has(cp.id)) map.set(cp.id, cp); });
+    list.forEach(cp => {
+      if (cp?.id) {
+        if (!map.has(cp.id) || cp.id.startsWith('cp_manual_') || cp.isManual || cp.name?.includes('Ручной')) {
+          map.set(cp.id, cp);
+        }
+      }
+    });
     list = Array.from(map.values()).sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
   }
   memoryCheckpointsByUniverse[activeUniverseId] = list;
@@ -6859,12 +6638,10 @@ function ensureInitialSeasonCheckpoint() {
   const startId = `cp_start_${currentTourYear}`;
   const expectedStartDate = `${currentTourYear}-01-02`;
   const existingIdx = list.findIndex(c => c.id === startId);
-  const needsDetMigration = !universeStorage.getItem('meta_checkpoints_det_v6');
   let changed = false;
 
-  // 1) Если стартового чекпоинта еще нет ИЛИ он был мутирован с неправильной датой (не 02.01) — создаем эталонный слепок 02.01!
+  // 1) Если стартового чекпоинта еще нет ИЛИ он был поврежден — создаем эталонный слепок 02.01
   if (
-    needsDetMigration ||
     existingIdx === -1 ||
     list[existingIdx].dateStr !== expectedStartDate ||
     !Array.isArray(list[existingIdx].players) ||
@@ -6881,42 +6658,24 @@ function ensureInitialSeasonCheckpoint() {
     changed = true;
   }
 
-  // 2) Автоматически восстанавливаем недостающие чекпоинты после каждого уже проведённого ТБШ и Итогового турнира текущего сезона!
+  // 2) Автоматически восстанавливаем недостающие чекпоинты после каждого уже проведённого ТБШ и Итогового турнира текущего сезона
   const seasonTourneys = getSeasonTournaments(currentTourYear, tournaments);
   seasonTourneys.forEach((t, idx) => {
     if (!t || !t.completed) return;
     if (t.type !== 'ТБШ' && t.id !== 'finals') return;
     const cpId = `cp_${t.id}_${currentTourYear}`;
     const foundMajorIdx = list.findIndex(c => c.id === cpId);
-    if (foundMajorIdx === -1 || needsDetMigration) {
+    if (foundMajorIdx === -1) {
       const rebuiltCp = buildRetroactiveMajorCheckpoint(t, idx, seasonTourneys, currentTourYear);
-      if (foundMajorIdx >= 0) {
-        list[foundMajorIdx] = rebuiltCp;
-      } else {
-        list.unshift(rebuiltCp);
-      }
+      list.unshift(rebuiltCp);
       changed = true;
     }
   });
 
-  if (needsDetMigration) {
-    const currCompletedKey = seasonTourneys.filter(t => t && t.completed).map(t => t.id).join(',');
-    list.forEach(cp => {
-      if (!cp || cp.id === startId || cp.id.startsWith('cp_tbsh_') || cp.id.startsWith('cp_finals_')) return;
-      const cpCompletedKey = (cp.tournaments || []).filter(t => t && t.completed).map(t => t.id).join(',');
-      if (cp.dateStr === currentTourDateStr && cpCompletedKey === currCompletedKey) {
-        cp.players = JSON.parse(JSON.stringify(players));
-        cp.worldNo1 = players[0] ? `${players[0].flag} ${players[0].name} (${(players[0].points || 0).toLocaleString()} pts)` : cp.worldNo1;
-      }
-    });
-    universeStorage.setItem('meta_checkpoints_det_v6', 'true');
-    changed = true;
-  }
-
-  if (changed) {
+  if (changed || String(activeUniverseId) === '1') {
     // Сохраняем все ручные чекпоинты пользователя и мастер-точки канона (они никогда не вытесняются!)
     const cpMap = new Map();
-    if (activeUniverseId === '1' && CANON_MASTER_SNAPSHOT && Array.isArray(CANON_MASTER_SNAPSHOT.checkpoints)) {
+    if (String(activeUniverseId) === '1' && CANON_MASTER_SNAPSHOT && Array.isArray(CANON_MASTER_SNAPSHOT.checkpoints)) {
       CANON_MASTER_SNAPSHOT.checkpoints.forEach(cp => { if (cp?.id) cpMap.set(cp.id, cp); });
     }
     const manualItems = list.filter(x => x && (x.isManual || String(x.id).startsWith('cp_manual_')));
@@ -6926,7 +6685,7 @@ function ensureInitialSeasonCheckpoint() {
       .sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
 
     manualItems.forEach(cp => { if (cp?.id) cpMap.set(cp.id, cp); });
-    others.slice(0, 6).forEach(cp => { if (cp?.id) cpMap.set(cp.id, cp); });
+    others.slice(0, 10).forEach(cp => { if (cp?.id) cpMap.set(cp.id, cp); });
     if (startItem) cpMap.set(startItem.id, startItem);
 
     list = Array.from(cpMap.values()).sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
@@ -7038,8 +6797,6 @@ export function restoreSeasonCheckpoint(cpId) {
   renderCalendarTable();
   showToast(`⏪ <b>Состояние тура восстановлено!</b> Точка отката: ${found.name || found.label} (${formatDateDisplay(currentTourDateStr)}).`);
 }
-
-export const restoreCheckpoint = restoreSeasonCheckpoint;
 
 // --- ПРОБНАЯ СИМУЛЯЦИЯ СЕЗОНА (ТЕСТ) С ВОЗМОЖНОСТЬЮ ОТКАТА В 1 КЛИК ---
 export function runTestSeasonSimulation() {
@@ -7241,7 +6998,6 @@ export function commitTestSeasonSimulation() {
 if (typeof window !== 'undefined') {
   window.switchTab = switchTab;
   window.changeDrawYear = changeDrawYear;
-  window.loadCurrentTourney = loadCurrentTourney;
   window.loadSelectedTournament = loadSelectedTournament;
   window.handleUniverseChange = handleUniverseChange;
   window.openCreateUniverseModal = openCreateUniverseModal;
@@ -7286,6 +7042,7 @@ if (typeof window !== 'undefined') {
   window.quickApplyWinner = quickApplyWinner;
   window.saveQuickStringScore = saveQuickStringScore;
   window.saveQuickStringScoreOnly = saveQuickStringScoreOnly;
+  window.commitMatchOutcome = commitMatchOutcome;
   window.renderPlayersTable = renderPlayersTable;
   window.quickSaveInlineFlag = quickSaveInlineFlag;
   window.clearPlayerSearch = clearPlayerSearch;
@@ -7320,7 +7077,6 @@ if (typeof window !== 'undefined') {
   window.openCheckpointsModal = openCheckpointsModal;
   window.createManualCheckpoint = createManualCheckpoint;
   window.restoreSeasonCheckpoint = restoreSeasonCheckpoint;
-  window.restoreCheckpoint = restoreSeasonCheckpoint;
   window.handleUtCardMouseMove = handleUtCardMouseMove;
   window.handleUtCardMouseLeave = handleUtCardMouseLeave;
   window.handleLiveScoreInputForMomentum = handleLiveScoreInputForMomentum;
@@ -7405,13 +7161,17 @@ if (typeof window !== 'undefined') {
 
       // 0. Очищаем раздутые дубликаты сеток из localStorage, освобождая место
       try {
-        pruneLegacyDuplicateStorageKeys(true);
+        runStorageGarbageCollector();
       } catch {}
 
       // 1. СНАЧАЛА гарантируем турниры (completed: true для всех 26 завершенных турниров 2024 года):
       if (Array.isArray(canonData.tournaments) && canonData.tournaments.length >= 26) {
         const str = JSON.stringify(canonData.tournaments);
-        try { localStorage.setItem('universe_1_meta_tournaments_v8', str); } catch {}
+        try {
+          localStorage.setItem('universe_1_meta_tournaments', str);
+          localStorage.setItem('universe_1_meta_tournaments_v8', str);
+        } catch {}
+        memoryUniverseStore['universe_1_meta_tournaments'] = str;
         memoryUniverseStore['universe_1_meta_tournaments_v8'] = str;
         tournaments = JSON.parse(str);
       }
@@ -7419,7 +7179,11 @@ if (typeof window !== 'undefined') {
       // 2. Гарантируем базу игроков с каноническими очками на 15 Ноября 2024 года:
       if (Array.isArray(canonData.players) && canonData.players.length >= 300) {
         const str = JSON.stringify(canonData.players);
-        try { localStorage.setItem('universe_1_meta_players_v8', str); } catch {}
+        try {
+          localStorage.setItem('universe_1_meta_players', str);
+          localStorage.setItem('universe_1_meta_players_v8', str);
+        } catch {}
+        memoryUniverseStore['universe_1_meta_players'] = str;
         memoryUniverseStore['universe_1_meta_players_v8'] = str;
         players = JSON.parse(str);
       }
@@ -7428,10 +7192,13 @@ if (typeof window !== 'undefined') {
       const targetDate = canonData.universe?.currentTourDateStr || '2024-11-15';
       const targetTourneyId = canonData.universe?.activeTourneyId || 'finals';
       try {
-        localStorage.setItem('universe_1_meta_tour_year_v8', '2024');
-        localStorage.setItem('universe_1_meta_tour_date_v8', targetDate);
-        localStorage.setItem('universe_1_meta_active_tourney_v8', targetTourneyId);
+        localStorage.setItem('universe_1_meta_tour_year', '2024');
+        localStorage.setItem('universe_1_meta_tour_date', targetDate);
+        localStorage.setItem('universe_1_meta_active_tourney', targetTourneyId);
       } catch {}
+      memoryUniverseStore['universe_1_meta_tour_year'] = '2024';
+      memoryUniverseStore['universe_1_meta_tour_date'] = targetDate;
+      memoryUniverseStore['universe_1_meta_active_tourney'] = targetTourneyId;
       memoryUniverseStore['universe_1_meta_tour_year_v8'] = '2024';
       memoryUniverseStore['universe_1_meta_tour_date_v8'] = targetDate;
       memoryUniverseStore['universe_1_meta_active_tourney_v8'] = targetTourneyId;
@@ -7442,7 +7209,7 @@ if (typeof window !== 'undefined') {
 
       // 4. Синхронизируем чекпоинты (включая ручной чекпоинт от 15 ноября и чекпоинт после Океанского шлема):
       if (Array.isArray(canonData.checkpoints) && canonData.checkpoints.length > 0) {
-        const rawCps = localStorage.getItem('universe_1_meta_checkpoints_v2') || localStorage.getItem('meta_checkpoints_v2');
+        const rawCps = localStorage.getItem('universe_1_meta_checkpoints') || localStorage.getItem('meta_checkpoints') || localStorage.getItem('universe_1_meta_checkpoints_v2') || localStorage.getItem('meta_checkpoints_v2');
         let currentCps = [];
         try { if (rawCps) currentCps = JSON.parse(rawCps); } catch {}
         if (!Array.isArray(currentCps)) currentCps = [];
@@ -7461,9 +7228,11 @@ if (typeof window !== 'undefined') {
           .sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
         const str = JSON.stringify(merged);
         try {
-          localStorage.setItem('universe_1_meta_checkpoints_v2', str);
-          localStorage.setItem('meta_checkpoints_v2', str);
+          localStorage.setItem('universe_1_meta_checkpoints', str);
+          localStorage.setItem('meta_checkpoints', str);
         } catch {}
+        memoryUniverseStore['universe_1_meta_checkpoints'] = str;
+        memoryUniverseStore['meta_checkpoints'] = str;
         memoryUniverseStore['universe_1_meta_checkpoints_v2'] = str;
         memoryUniverseStore['meta_checkpoints_v2'] = str;
         memoryCheckpointsByUniverse['1'] = merged;
@@ -7491,20 +7260,13 @@ if (typeof window !== 'undefined') {
           } catch {}
         }
       });
-
-      try {
-        localStorage.setItem('universe_1_meta_checkpoints_det_v6', 'true');
-        localStorage.setItem('meta_checkpoints_det_v6', 'true');
-        localStorage.setItem('universe_1_meta_jan2024_clean_start_v2', 'true');
-        localStorage.setItem('meta_jan2024_clean_start_v2', 'true');
-      } catch {}
     } catch {
       // ignore
     }
   };
 
   const bootstrapApp = async () => {
-    pruneLegacyDuplicateStorageKeys(false);
+    runStorageGarbageCollector();
     await fetchOverridesFromLocalServer();
     await restoreAuthorCanonPositionsOnce();
     await loadPublishedCanonSnapshot();

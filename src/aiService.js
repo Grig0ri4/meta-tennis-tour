@@ -14,7 +14,8 @@ import {
   flipTennisScoreSets,
   sanitizeTemplateScore,
   generateMatchNarrative,
-  generateMatchQuotes
+  generateMatchQuotes,
+  parseStageType
 } from './matchEngine.js';
 import { NEWGEN_NICKNAMES, NEWGEN_PLAY_STYLES } from './retirementEngine.js';
 
@@ -202,11 +203,9 @@ export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
 
     let response = await fetchImpl(GROQ_API_ENDPOINT, buildFetchOptions(model));
 
-    // Если кластер Groq вернул 404 для алиаса llama-3.3-70b-versatile / llama-3.1-8b-instant,
-    // выполняем повторный запрос к реальному Groq API на активный инстанс кластера Groq
-    if (response.status === 404 && !options.disableModelFallback) {
-      const activeClusterModel = model === FAST_GROQ_MODEL ? 'openai/gpt-oss-20b' : 'openai/gpt-oss-120b';
-      response = await fetchImpl(GROQ_API_ENDPOINT, buildFetchOptions(activeClusterModel));
+    // Если кластер Groq вернул 404 для модели, пробуем резервную быструю модель FAST_GROQ_MODEL
+    if (response.status === 404 && !options.disableModelFallback && model !== FAST_GROQ_MODEL) {
+      response = await fetchImpl(GROQ_API_ENDPOINT, buildFetchOptions(FAST_GROQ_MODEL));
     }
 
     if (!response.ok) {
@@ -255,6 +254,78 @@ function parseH2HMatchesCount(h2hSummary = '', h2hTotalMatches = 0) {
 }
 
 /**
+ * Формирует гибкий, реалистичный контекст для генерации спортивного репортажа и цитат игроков.
+ * Исключает заезженные штампы, ориентируя модель на аутентичную лексику пресс-конференций ATP.
+ */
+export function buildMatchPromptContext({
+  stage = 'Матч',
+  tourneyName = 'Турнир ATP',
+  surface = 'Хард',
+  winner = null,
+  loser = null,
+  player1 = null,
+  player2 = null,
+  isRivalry = false,
+  totalH2H = 0,
+  h2hSummary = '0 : 0',
+  isRetirement = false
+} = {}) {
+  const { isFinalStage, isSemiStage } = parseStageType(stage);
+
+  const pWinnerName = (winner || player1)?.name || 'Победитель';
+  const pLoserName = (loser || player2)?.name || 'Проигравший';
+
+  // 1. Динамическая тональность в зависимости от турнирного значения
+  let stageToneInstruction = '';
+  if (isFinalStage) {
+    stageToneInstruction = `
+КОНТЕКСТ СТАДИИ (ФИНАЛ ТУРНИРА «${tourneyName}»):
+- Это титульный матч! Победитель (${pWinnerName}) завоевал трофей: подчеркни гордость за проделанную работу, благодарность команде и удовлетворение от тяжелой недели.
+- Проигравший (${pLoserName}) разочарован упущенным кубком в шаге от триумфа, но держится достойно.
+- Лексика: «реализация брейк-пойнтов», «игра по восходящему мячу», «чистота попадания в ключевые моменты», «удержание концентрации на подаче», «тактический план».`;
+  } else if (isSemiStage) {
+    stageToneInstruction = `
+КОНТЕКСТ СТАДИИ (ПОЛУФИНАЛ):
+- Шаг до титульного поединка. Победитель сосредоточен на предстоящем финале и экономии сил. Проигравший сетует на упущенный шанс побороться за кубок.
+- Лексика: «выход в финал», «тяжелые розыгрыши через центр», «смена темпа», «просевшая первая подача», «борьба за инициативу».`;
+  } else {
+    stageToneInstruction = `
+КОНТЕКСТ СТАДИИ (${stage}):
+- Рабочая сетка. Игроки оценивают вход в турнир, адаптацию к скорости покрытия «${surface}», работу ног и натяжку струн. Тон профессиональный, деловой, без лишнего пафоса.`;
+  }
+
+  // 2. Реалистичный фактор соперничества (Rivalry)
+  let rivalryInstruction = '';
+  if (isRivalry) {
+    rivalryInstruction = `
+ФАКТОР ПРИНЦИПИАЛЬНОГО СОПЕРНИЧЕСТВА (H2H ${h2hSummary}, сыграно матчей: ${totalH2H}):
+- Между игроками давняя история встреч. Цитаты должны быть острыми, с тонким психологическим давлением:
+  • Победитель может поддеть соперника знанием его излюбленных точек подачи или тем, что подобрал ключ к его комбинациям («Мы слишком хорошо знаем игру друг друга, но сегодня на задней линии доминировал я»).
+  • Проигравший признает, что соперник сыграл неудобно, но напоминает о предыдущих победах над ним и обещает реванш при следующей сетке.
+- КАТЕГОРИЧЕСКИ ЗАПРЕЩЕН дешёвый мультяшный треш-ток вроде «его победа была случайностью». Это элитный мужской профессиональный тур.`;
+  } else {
+    rivalryInstruction = `
+ИСТОРИЯ ВСТРЕЧ (H2H ${h2hSummary}):
+- Взаимное уважение соперников по туру, разбор конкретных тактических аспектов прошедшего матча.`;
+  }
+
+  // 3. Запрет на паразитные штампы
+  const antiClichéDirective = `
+ПРАВИЛА АУТЕНТИЧНОСТИ ЯЗЫКА:
+- ЗАПРЕЩЕНО использовать штампы: «мёртвая подача», «забитые ноги», «слёзы счастья», «бился как лев», «мозоли на ладонях».
+- Используй естественный спортивный язык: «глубина удара под заднюю линию», «просел процент первого мяча», «острый перевод по линии», «своевременный укороченный», «плотный кросс», «давление на второй подаче».
+${isRetirement ? '- ВНИМАНИЕ: Матч закончился отказом (RET). Победитель ОБЯЗАТЕЛЬНО желает скорейшего восстановления оппоненту, а снявшийся игрок кратко объясняет медицинскую причину (спазм, плечо, подвернутый голеностоп).' : ''}`;
+
+  return {
+    isFinalStage,
+    isSemiStage,
+    stageToneInstruction: stageToneInstruction.trim(),
+    rivalryInstruction: rivalryInstruction.trim(),
+    antiClichéDirective: antiClichéDirective.trim()
+  };
+}
+
+/**
  * СЦЕНАРИЙ А: Пользователь сам ввел счет руками -> Groq пишет репортаж и цитаты под конкретный счет!
  * Анализирует введенный счет (например, 7-6(5) 1-6 7-6(8) или 6-0 6-1), победителя, покрытие и H2H.
  */
@@ -297,19 +368,20 @@ export async function generateCommentaryForEnteredScore({
   const fallbackStoryline = generateMatchNarrative(winner, loser, validation.sets, surface, tourneyName, stage);
   const fallbackQuotes = generateMatchQuotes(winner, loser, validation.sets, surface, tourneyName, stage);
 
-  const stageUpper = String(stage || '').toUpperCase();
-  const isFinalStage = (stageUpper.includes('ФИНАЛ') || stageUpper === 'F' || stageUpper === 'FINAL') &&
-    !stageUpper.includes('1/') && !stageUpper.includes('ПОЛУФИНАЛ') && !stageUpper.includes('ЧЕТВЕРТЬФИНАЛ');
-  const isSemiStage = stageUpper.includes('1/2') || stageUpper.includes('ПОЛУФИНАЛ') || stageUpper === 'SF';
-  const stageToneInstruction = isFinalStage
-    ? `ТОНАЛЬНОСТЬ ЦИТАТ (ГЛАВНЫЙ ФИНАЛ ЗА ТИТУЛ — ${stage} на «${tourneyName}»): Это ФИНАЛ турнира! Победитель (${winner.name}) становится ЧЕМПИОНОМ турнира и в своей цитате (winnerQuote) ОБЯЗАН выразить огромную радость, слёзы счастья и эйфорию от того, что ему наконец-то удалось победить в этом турнире и поднять кубок над головой! Проигравший (${loser.name}) переживает драму поражения в шаге от титула. Используй живую теннисную лексику («сорванный форхенд», «приём навылет», «мёртвая подача», «забитые ноги»).`
-    : (isSemiStage
-      ? `ТОНАЛЬНОСТЬ ЦИТАТ (ПОЛУФИНАЛ — ${stage}): Максимальный накал страстей, радость выхода в главный финал турнира, горечь поражения в шаге от битвы за титул. Используй живую теннисную лексику («сорванный форхенд», «приём навылет», «мёртвая подача», «забитые ноги»).`
-      : `ТОНАЛЬНОСТЬ ЦИТАТ (РАБОЧАЯ СТАДИЯ — ${stage}): Сдержанный рабочий тон профессионалов (акклиматизация, пристрелка к скорости корта, физическая форма, мозоли на ладонях, настрой на следующий раунд). Используй живую теннисную лексику («сорванный форхенд», «приём навылет», «мёртвая подача», «забитые ноги»).`);
-
-  const rivalryInstruction = isRivalry
-    ? `ФАКТОР ПРИНЦИПИАЛЬНОГО СОПЕРНИЧЕСТВА (isRivalry: true, очных встреч: ${totalH2H}, H2H: ${h2hSummary}): Между ${player1.name} и ${player2.name} острое историческое противостояние! Сделай цитаты (winnerQuote и loserQuote) максимально колких, острых, эмоциональных, с элементами спортивного «трэш-тока» и прямой отсылкой к их прошлым очным дуэлям (например: «Я знаю каждую его привычку на корте и сегодня доказал, что его прошлая победа была чистой случайностью»).`
-    : `Фактор H2H (isRivalry: false, очных встреч: ${totalH2H}): Уважительный, но конкурентный спортивный тон.`;
+  const isRetirement = validation.sets.includes('RET') || Boolean(validation.isRetirement);
+  const { stageToneInstruction, rivalryInstruction, antiClichéDirective } = buildMatchPromptContext({
+    stage,
+    tourneyName,
+    surface,
+    winner,
+    loser,
+    player1,
+    player2,
+    isRivalry,
+    totalH2H,
+    h2hSummary,
+    isRetirement
+  });
 
   try {
     const matchContext = [
@@ -329,6 +401,7 @@ export async function generateCommentaryForEnteredScore({
       'Пользователь зафиксировал точный счет теннисного матча. Твоя задача — проанализировать ИМЕННО ЭТОТ СЧЕТ по сетам, характер борьбы (были ли тайбрейки, баранки 6-0, камбэк после проигранного первого сета, разгром или апсет аутсайдера), покрытие корта и историю H2H.',
       stageToneInstruction,
       rivalryInstruction,
+      antiClichéDirective,
       'Напиши яркую драматичную сводку матча (storyline) и живые разнообразные эмоциональные цитаты обоих игроков (winnerQuote, loserQuote) с прямой отсылкой к деталям этого конкретного счета и стадии турнира!',
       'Верни СТРОГО валидный JSON-объект на русском языке без markdown-оберток:',
       '{',
@@ -342,6 +415,7 @@ export async function generateCommentaryForEnteredScore({
       matchContext,
       stageToneInstruction,
       rivalryInstruction,
+      antiClichéDirective,
       `Проанализируй счет "${finalScoreStr}" (победил ${winner.name}) на стадии "${stage}" и создай репортаж и цитаты игроков именно под этот сценарий матча.`
     ].join('\n');
 
@@ -448,15 +522,17 @@ export async function simulateMatchWithGroq({
   const underdog = p1Rank > p2Rank ? player1 : player2;
   const favorite = p1Rank <= p2Rank ? player1 : player2;
 
-  const stageUpper = String(stage || '').toUpperCase();
-  const isFinalStage = (stageUpper.includes('ФИНАЛ') || stageUpper === 'F' || stageUpper === 'FINAL') &&
-    !stageUpper.includes('1/') && !stageUpper.includes('ПОЛУФИНАЛ') && !stageUpper.includes('ЧЕТВЕРТЬФИНАЛ');
-  const isSemiStage = stageUpper.includes('1/2') || stageUpper.includes('ПОЛУФИНАЛ') || stageUpper === 'SF';
-  const stageToneInstruction = isFinalStage
-    ? `ТОНАЛЬНОСТЬ ЦИТАТ (ГЛАВНЫЙ ФИНАЛ ЗА ТИТУЛ — ${stage} на «${tourneyName}»): Это ФИНАЛ турнира! Победитель становится ЧЕМПИОНОМ и в своей цитате (winnerQuote) ОБЯЗАН выразить огромную радость, слёзы счастья и эйфорию от того, что ему наконец-то удалось победить в этом турнире и завоевать заветный кубок! Проигравший переживает драму поражения в шаге от титула. Используй живую теннисную лексику («сорванный форхенд», «приём навылет», «мёртвая подача», «забитые ноги»).`
-    : (isSemiStage
-      ? `ТОНАЛЬНОСТЬ ЦИТАТ (ПОЛУФИНАЛ — ${stage}): Максимальный накал страстей, радость выхода в главный финал турнира, горечь поражения в шаге от битвы за титул. Используй живую теннисную лексику («сорванный форхенд», «приём навылет», «мёртвая подача», «забитые ноги»).`
-      : `ТОНАЛЬНОСТЬ ЦИТАТ (РАБОЧАЯ СТАДИЯ — ${stage}): Сдержанный рабочий тон профессионалов (акклиматизация, пристрелка к скорости корта, физическая форма, мозоли на ладонях, настрой на следующий раунд). Используй живую теннисную лексику («сорванный форхенд», «приём навылет», «мёртвая подача», «забитые ноги»).`);
+  const { stageToneInstruction, rivalryInstruction, antiClichéDirective } = buildMatchPromptContext({
+    stage,
+    tourneyName,
+    surface,
+    player1,
+    player2,
+    isRivalry,
+    totalH2H,
+    h2hSummary,
+    isRetirement: false
+  });
 
   const scenarioDirective = [
     rollThriller
@@ -469,10 +545,6 @@ export async function simulateMatchWithGroq({
       ? `В одной из партий один из игроков может оформить разгромный сет 6-0 или 6-1.`
       : `Используй разнообразные счета геймов: 7-6(5), 7-5, 6-4, 6-1, 6-0.`
   ].join(' ');
-
-  const rivalryInstruction = isRivalry
-    ? `ФАКТОР ПРИНЦИПИАЛЬНОГО СОПЕРНИЧЕСТВА (isRivalry: true, очных встреч: ${totalH2H}, H2H: ${h2hSummary}): Между ${player1.name} и ${player2.name} принципиальная дуэль! Сгенерируй острые, дерзкие, эмоциональные цитаты с элементами спортивного «трэш-тока» и прямой отсылкой к счету их личных встреч (например: «Я знаю каждую его привычку на корте и сегодня доказал, что его прошлогодняя победа была чистой случайностью»).`
-    : `Фактор H2H (isRivalry: false, очных встреч: ${totalH2H}): Стандартный спортивный тон.`;
 
   try {
     const matchParamsBlock = [
@@ -497,6 +569,7 @@ export async function simulateMatchWithGroq({
       '5. Если в сете тайбрейк (7-6 или 6-7), обязательно укажи очки проигравшего на тайбрейке в круглых скобках, например 7-6(5).',
       stageToneInstruction,
       rivalryInstruction,
+      antiClichéDirective,
       scenarioDirective,
       'Верни СТРОГО валидный JSON-объект со следующими ключами на русском языке без комментариев и без markdown-оберток:',
       '{',
@@ -512,6 +585,7 @@ export async function simulateMatchWithGroq({
       matchParamsBlock,
       stageToneInstruction,
       rivalryInstruction,
+      antiClichéDirective,
       scenarioDirective,
       'Сгенерируй нешаблонный, реалистичный исход матча (ЗАПРЕЩЕНЫ счета 6-3 6-2 и 3-6 2-6) с драматичной сводкой и цитатами игроков.'
     ].join('\n');
