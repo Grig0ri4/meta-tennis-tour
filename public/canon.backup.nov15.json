@@ -41567,10 +41567,22 @@
       "endMonth": 0,
       "endDay": 11,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_3",
+        "name": "Max Kyupan",
+        "flag": "GEO",
+        "rank": 1,
+        "birthDate": "1990-01-13"
+      },
+      "lastRunnerUp": {
+        "id": "p_22",
+        "name": "Ussistian Shifter",
+        "flag": "USA",
+        "rank": 4,
+        "birthDate": "2001-06-19"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "6-3 6-3"
     },
     {
       "id": "tbsh_1",
@@ -41584,10 +41596,22 @@
       "endMonth": 0,
       "endDay": 29,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_2",
+        "name": "Will Wentra",
+        "flag": "NOR",
+        "rank": 2,
+        "birthDate": "2002-05-05"
+      },
+      "lastRunnerUp": {
+        "id": "p_9",
+        "name": "Omar Netigios",
+        "flag": "AUS",
+        "rank": 8,
+        "birthDate": "2002-03-14"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "6-2 3-6 2-6 5-7"
     },
     {
       "id": "500_1",
@@ -41601,10 +41625,22 @@
       "endMonth": 1,
       "endDay": 12,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_9",
+        "name": "Omar Netigios",
+        "flag": "AUS",
+        "rank": 5,
+        "birthDate": "2002-03-14"
+      },
+      "lastRunnerUp": {
+        "id": "p_20",
+        "name": "Tiago Logik",
+        "flag": "GBR",
+        "rank": 14,
+        "birthDate": "2001-01-18"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "6-3 6-3"
     },
     {
       "id": "500_2",
@@ -41618,10 +41654,22 @@
       "endMonth": 1,
       "endDay": 21,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_1",
+        "name": "Istep Fofol",
+        "flag": "SVK",
+        "rank": 7,
+        "birthDate": "1988-04-20"
+      },
+      "lastRunnerUp": {
+        "id": "p_2",
+        "name": "Will Wentra",
+        "flag": "NOR",
+        "rank": 1,
+        "birthDate": "2002-05-05"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "6-4 4-6 4-6"
     },
     {
       "id": "500_3",
@@ -41635,10 +41683,22 @@
       "endMonth": 2,
       "endDay": 2,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_9",
+        "name": "Omar Netigios",
+        "flag": "AUS",
+        "rank": 5,
+        "birthDate": "2002-03-14"
+      },
+      "lastRunnerUp": {
+        "id": "p_58",
+        "name": "Ilias Romos-silie",
+        "flag": "AUS",
+        "rank": 42,
+        "birthDate": "1999-11-29"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "3-6 6-7(3)"
     },
     {
       "id": "m_2",
@@ -41652,10 +41712,22 @@
       "endMonth": 2,
       "endDay": 16,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_3",
+        "name": "Max Kyupan",
+        "flag": "GEO",
+        "rank": 2,
+        "birthDate": "1990-01-13"
+      },
+      "lastRunnerUp": {
+        "id": "p_1",
+        "name": "Istep Fofol",
+        "flag": "SVK",
+        "rank": 5,
+        "birthDate": "1988-04-20"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "1-6 6-4 3-6"
     },
     {
       "id": "m_3",
@@ -41669,10 +41741,22 @@
       "endMonth": 2,
       "endDay": 30,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_1",
+        "name": "Istep Fofol",
+        "flag": "SVK",
+        "rank": 5,
+        "birthDate": "1988-04-20"
+      },
+      "lastRunnerUp": {
+        "id": "p_6",
+        "name": "Gary Riffay",
+        "flag": "SLO",
+        "rank": 6,
+        "birthDate": "2000-05-30"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "7-5 2-6 6-3"
     },
     {
       "id": "m_4",
@@ -41686,10 +41770,22 @@
       "endMonth": 3,
       "endDay": 23,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_2",
+        "name": "Will Wentra",
+        "flag": "NOR",
+        "rank": 1,
+        "birthDate": "2002-05-05"
+      },
+      "lastRunnerUp": {
+        "id": "p_3",
+        "name": "Max Kyupan",
+        "flag": "GEO",
+        "rank": 2,
+        "birthDate": "1990-01-13"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "6-1 7-6(3)"
     },
     {
       "id": "500_4",
@@ -41703,10 +41799,22 @@
       "endMonth": 4,
       "endDay": 1,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_22",
+        "name": "Ussistian Shifter",
+        "flag": "USA",
+        "rank": 4,
+        "birthDate": "2001-06-19"
+      },
+      "lastRunnerUp": {
+        "id": "p_34",
+        "name": "Ilian Verity",
+        "flag": "JPN",
+        "rank": 37,
+        "birthDate": "1991-05-18"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "6-3 6-4"
     },
     {
       "id": "m_5",
@@ -41720,10 +41828,22 @@
       "endMonth": 4,
       "endDay": 13,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_22",
+        "name": "Ussistian Shifter",
+        "flag": "USA",
+        "rank": 3,
+        "birthDate": "2001-06-19"
+      },
+      "lastRunnerUp": {
+        "id": "p_2",
+        "name": "Will Wentra",
+        "flag": "NOR",
+        "rank": 1,
+        "birthDate": "2002-05-05"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "3-6 5-7"
     },
     {
       "id": "tbsh_2",
@@ -41737,10 +41857,22 @@
       "endMonth": 5,
       "endDay": 11,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_3",
+        "name": "Max Kyupan",
+        "flag": "GEO",
+        "rank": 2,
+        "birthDate": "1990-01-13"
+      },
+      "lastRunnerUp": {
+        "id": "p_22",
+        "name": "Ussistian Shifter",
+        "flag": "USA",
+        "rank": 3,
+        "birthDate": "2001-06-19"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "4-6 3-6 6-4 6-7(4)"
     },
     {
       "id": "500_5",
@@ -41754,10 +41886,22 @@
       "endMonth": 5,
       "endDay": 20,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_22",
+        "name": "Ussistian Shifter",
+        "flag": "USA",
+        "rank": 3,
+        "birthDate": "2001-06-19"
+      },
+      "lastRunnerUp": {
+        "id": "p_42",
+        "name": "Rebekka Yentif",
+        "flag": "FIN",
+        "rank": 39,
+        "birthDate": "2001-11-13"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "4-6 7-6(10) 6-2"
     },
     {
       "id": "500_6",
@@ -41771,10 +41915,22 @@
       "endMonth": 5,
       "endDay": 27,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_22",
+        "name": "Ussistian Shifter",
+        "flag": "USA",
+        "rank": 3,
+        "birthDate": "2001-06-19"
+      },
+      "lastRunnerUp": {
+        "id": "p_9",
+        "name": "Omar Netigios",
+        "flag": "AUS",
+        "rank": 5,
+        "birthDate": "2002-03-14"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "7-6(7) 6-3"
     },
     {
       "id": "m_6",
@@ -41788,10 +41944,22 @@
       "endMonth": 6,
       "endDay": 5,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_6",
+        "name": "Gary Riffay",
+        "flag": "SLO",
+        "rank": 6,
+        "birthDate": "2000-05-30"
+      },
+      "lastRunnerUp": {
+        "id": "p_1",
+        "name": "Istep Fofol",
+        "flag": "SVK",
+        "rank": 4,
+        "birthDate": "1988-04-20"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "5-7 7-6(2) 7-6(5)"
     },
     {
       "id": "tbsh_3",
@@ -41805,10 +41973,22 @@
       "endMonth": 6,
       "endDay": 21,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_3",
+        "name": "Max Kyupan",
+        "flag": "GEO",
+        "rank": 1,
+        "birthDate": "1990-01-13"
+      },
+      "lastRunnerUp": {
+        "id": "p_22",
+        "name": "Ussistian Shifter",
+        "flag": "USA",
+        "rank": 3,
+        "birthDate": "2001-06-19"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "6-1 6-3 6-3"
     },
     {
       "id": "500_7",
@@ -41822,10 +42002,22 @@
       "endMonth": 6,
       "endDay": 30,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_2",
+        "name": "Will Wentra",
+        "flag": "NOR",
+        "rank": 3,
+        "birthDate": "2002-05-05"
+      },
+      "lastRunnerUp": {
+        "id": "p_140",
+        "name": "Lars Nielsen",
+        "flag": "ESP",
+        "rank": 47,
+        "birthDate": "1990-03-15"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "6-3 6-4"
     },
     {
       "id": "500_8",
@@ -41839,10 +42031,22 @@
       "endMonth": 7,
       "endDay": 7,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_29",
+        "name": "Vorb Blaostie",
+        "flag": "FIN",
+        "rank": 12,
+        "birthDate": "1996-10-20"
+      },
+      "lastRunnerUp": {
+        "id": "p_5",
+        "name": "Shaun Salkar",
+        "flag": "IRL",
+        "rank": 13,
+        "birthDate": "1992-07-27"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "4-6 3-6"
     },
     {
       "id": "m_7",
@@ -41856,10 +42060,22 @@
       "endMonth": 7,
       "endDay": 18,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_1",
+        "name": "Istep Fofol",
+        "flag": "SVK",
+        "rank": 4,
+        "birthDate": "1988-04-20"
+      },
+      "lastRunnerUp": {
+        "id": "p_3",
+        "name": "Max Kyupan",
+        "flag": "GEO",
+        "rank": 1,
+        "birthDate": "1990-01-13"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "6-7(5) 6-7(4)"
     },
     {
       "id": "tbsh_4",
@@ -41873,10 +42089,22 @@
       "endMonth": 8,
       "endDay": 10,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_22",
+        "name": "Ussistian Shifter",
+        "flag": "USA",
+        "rank": 2,
+        "birthDate": "2001-06-19"
+      },
+      "lastRunnerUp": {
+        "id": "p_33",
+        "name": "Freddy Johnson",
+        "flag": "SWE",
+        "rank": 8,
+        "birthDate": "2001-04-06"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "1-6 0-6 5-7"
     },
     {
       "id": "500_9",
@@ -41890,10 +42118,22 @@
       "endMonth": 8,
       "endDay": 26,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_22",
+        "name": "Ussistian Shifter",
+        "flag": "USA",
+        "rank": 1,
+        "birthDate": "2001-06-19"
+      },
+      "lastRunnerUp": {
+        "id": "p_2",
+        "name": "Will Wentra",
+        "flag": "NOR",
+        "rank": 3,
+        "birthDate": "2002-05-05"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "6-1 6-2"
     },
     {
       "id": "500_10",
@@ -41907,10 +42147,22 @@
       "endMonth": 9,
       "endDay": 4,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_43",
+        "name": "Ryugo Gaston",
+        "flag": "FRA",
+        "rank": 48,
+        "birthDate": "1993-03-15"
+      },
+      "lastRunnerUp": {
+        "id": "p_226",
+        "name": "Esteban Aranda",
+        "flag": "PAR",
+        "rank": 51,
+        "birthDate": "1999-03-31"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "4-6 6-7(7)"
     },
     {
       "id": "m_8",
@@ -41924,10 +42176,22 @@
       "endMonth": 9,
       "endDay": 17,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_3",
+        "name": "Max Kyupan",
+        "flag": "GEO",
+        "rank": 2,
+        "birthDate": "1990-01-13"
+      },
+      "lastRunnerUp": {
+        "id": "p_4",
+        "name": "Puddy Mexalino",
+        "flag": "CHI",
+        "rank": 12,
+        "birthDate": "1993-08-17"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "2-6 3-6"
     },
     {
       "id": "500_11",
@@ -41941,10 +42205,22 @@
       "endMonth": 9,
       "endDay": 26,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_12",
+        "name": "Pen Klak",
+        "flag": "ESP",
+        "rank": 13,
+        "birthDate": "1998-09-09"
+      },
+      "lastRunnerUp": {
+        "id": "p_9",
+        "name": "Omar Netigios",
+        "flag": "AUS",
+        "rank": 5,
+        "birthDate": "2002-03-14"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "3-6 6-7(5)"
     },
     {
       "id": "500_12",
@@ -41958,10 +42234,22 @@
       "endMonth": 10,
       "endDay": 2,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_4",
+        "name": "Puddy Mexalino",
+        "flag": "CHI",
+        "rank": 12,
+        "birthDate": "1993-08-17"
+      },
+      "lastRunnerUp": {
+        "id": "p_1",
+        "name": "Istep Fofol",
+        "flag": "SVK",
+        "rank": 4,
+        "birthDate": "1988-04-20"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "7-5 6-4"
     },
     {
       "id": "m_9",
@@ -41975,10 +42263,22 @@
       "endMonth": 10,
       "endDay": 12,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_3",
+        "name": "Max Kyupan",
+        "flag": "GEO",
+        "rank": 2,
+        "birthDate": "1990-01-13"
+      },
+      "lastRunnerUp": {
+        "id": "p_1",
+        "name": "Istep Fofol",
+        "flag": "SVK",
+        "rank": 4,
+        "birthDate": "1988-04-20"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "4-6 4-6"
     },
     {
       "id": "finals",
@@ -41992,10 +42292,22 @@
       "endMonth": 10,
       "endDay": 22,
       "completed": false,
-      "lastWinner": null,
-      "lastRunnerUp": null,
+      "lastWinner": {
+        "id": "p_3",
+        "name": "Max Kyupan",
+        "flag": "GEO",
+        "rank": 1,
+        "birthDate": "1990-01-13"
+      },
+      "lastRunnerUp": {
+        "id": "p_22",
+        "name": "Ussistian Shifter",
+        "flag": "USA",
+        "rank": 2,
+        "birthDate": "2001-06-19"
+      },
       "lastBronze": null,
-      "lastScore": null
+      "lastScore": "7-6(2) 3-6 4-6"
     }
   ],
   "seasonsHistory": {
@@ -49069,174 +49381,25 @@
           "type": "Мастерс",
           "surface": "Хард",
           "winner": {
-            "id": "p_21",
-            "rank": 1,
+            "id": "p_3",
             "name": "Max Kyupan",
             "flag": "GEO",
-            "points": 12300,
-            "birthDate": "1990-01-13",
-            "racePoints": 0,
-            "tournamentPoints": {
-              "m_1": {
-                "2023": 650,
-                "2024": 1000
-              },
-              "tbsh_1": {
-                "2023": 1300
-              },
-              "500_2": {},
-              "500_3": {
-                "2023": 50
-              },
-              "m_2": {
-                "2023": 200
-              },
-              "m_3": {
-                "2023": 1000
-              },
-              "m_4": {
-                "2023": 10
-              },
-              "500_4": {},
-              "m_5": {
-                "2023": 200
-              },
-              "tbsh_2": {
-                "2023": 50
-              },
-              "500_6": {},
-              "m_6": {
-                "2023": 650
-              },
-              "tbsh_3": {
-                "2023": 50
-              },
-              "500_7": {},
-              "500_8": {
-                "2023": 0
-              },
-              "m_7": {
-                "2023": 10
-              },
-              "tbsh_4": {
-                "2023": 10
-              },
-              "500_10": {
-                "2023": 100
-              },
-              "m_8": {
-                "2023": 50
-              },
-              "m_9": {
-                "2023": 650
-              },
-              "500_1": {},
-              "finals": {},
-              "500_5": {
-                "2023": 200
-              }
-            },
-            "rankChange": 0,
-            "bestRank": 1,
-            "seasonsPlayed": 1,
-            "seasonStartRank": 1,
-            "medals": {
-              "gold": 0,
-              "silver": 0,
-              "bronze": 0
-            },
-            "start2023Points": 12300,
-            "historicalBestRank": 1,
-            "basePoints": 12300,
-            "stamina": 15,
-            "seedNum": 1
+            "rank": 1,
+            "birthDate": "1990-01-13"
           },
           "runnerUp": {
-            "id": "p_19",
+            "id": "p_22",
+            "name": "Ussistian Shifter",
+            "flag": "USA",
             "rank": 4,
-            "name": "Venn Hentay",
-            "flag": "ARG",
-            "points": 5050,
-            "birthDate": "2000-12-09",
-            "racePoints": 0,
-            "tournamentPoints": {
-              "m_1": {
-                "2024": 650
-              },
-              "tbsh_1": {
-                "2023": 400
-              },
-              "500_2": {
-                "2023": 200
-              },
-              "m_2": {
-                "2023": 400
-              },
-              "m_3": {
-                "2023": 650
-              },
-              "m_4": {
-                "2023": 100
-              },
-              "m_5": {
-                "2023": 400
-              },
-              "tbsh_2": {
-                "2023": 200
-              },
-              "m_6": {
-                "2023": 50
-              },
-              "tbsh_3": {
-                "2023": 50
-              },
-              "m_7": {
-                "2023": 50
-              },
-              "tbsh_4": {
-                "2023": 50
-              },
-              "500_9": {},
-              "m_8": {
-                "2023": 10
-              },
-              "500_12": {
-                "2023": 100
-              },
-              "m_9": {
-                "2023": 10
-              },
-              "500_1": {
-                "2023": 500
-              },
-              "500_3": {
-                "2023": 0
-              },
-              "500_6": {
-                "2023": 500
-              }
-            },
-            "rankChange": 0,
-            "bestRank": 4,
-            "seasonsPlayed": 1,
-            "seasonStartRank": 4,
-            "medals": {
-              "gold": 0,
-              "silver": 0,
-              "bronze": 0
-            },
-            "start2023Points": 5050,
-            "historicalBestRank": 4,
-            "basePoints": 5050,
-            "stamina": 15,
-            "seedNum": 4
+            "birthDate": "2001-06-19"
           },
           "bronze": null,
           "score": "6-3 6-3",
           "pressColumn": {
-            "headline": "Kyupan безусловный победитель Хьюстонского Мастерса",
-            "article": "В захватывающем финале Хьюстонского Мастерса Макс Кюпан уверенно победил Усстиан Шифтера со счётом 6-3 6-3. Партнеры обеих сторон показали высокий уровень игры, но грузинский номер один доминировал в каждой розыгрыше, используя мощный сервис и точный форхенд. Титул укрепил лидерство Кюпана в мировом рейтинге и подтвердил его статус главного претендента на предстоящие турниры сезона.",
-            "source": "groq"
+            "headline": "Мастер-класс в решающем матче: Max Kyupan уверенно забирает титул Хьюстон Masters у Ussistian Shifter!",
+            "article": "В главном финале престижного турнира категории «Мастерс» «Хьюстон Masters» сезона 2024 года Max Kyupan (GEO) переиграл Ussistian Shifter (USA) с итоговым счетом 6-3 6-3. На быстром покрытии «Хард» чемпион захватил контроль над центром корта за счет агрессивного приема и глубоких переводов по линии. Завоеванный титул приносит Max Kyupan весомую прибавку очков в 52-недельный рейтинг ATP и золотыми буквами вписывает его имя в архив Зала Славы Meta Tennis Tour.",
+            "source": "local-press"
           }
         },
         {
@@ -49249,25 +49412,21 @@
             "name": "Will Wentra",
             "flag": "NOR",
             "rank": 2,
-            "birthDate": "2002-05-05",
-            "stamina": 15,
-            "seedNum": 2
+            "birthDate": "2002-05-05"
           },
           "runnerUp": {
             "id": "p_9",
             "name": "Omar Netigios",
             "flag": "AUS",
             "rank": 8,
-            "birthDate": "2002-03-14",
-            "stamina": 15,
-            "seedNum": 8
+            "birthDate": "2002-03-14"
           },
           "bronze": null,
           "score": "6-2 3-6 2-6 5-7",
           "pressColumn": {
-            "headline": "Вил Вентра завоевал титул в Cartom Calamb: битва, которой запомнится надолго",
-            "article": "В финале турнира Cartom Calamb (ТБШ) на хардовых кортах норвежский #2 Вил Вентра одержал победу над восьмым Омаром Нетигиосом со счётом 6‑2 3‑6 2‑6 5‑7, продемонстрировав выдающуюся стойкость после первого сета. Несмотря на то, что соперник уверенно отыгрался, Вентра сумел вернуть инициативу в решающем сете, выдержав давление и закрыв матч. Титул укрепил позиции Вентры в рейтинге и подтвердил его статус одного из лидеров сезона 2024.",
-            "source": "groq"
+            "headline": "Абсолютное величие: Will Wentra разгромил соперника и стал королем Cartom Calamb (ТБШ) 2024!",
+            "article": "В грандиозном финале турнира Большого Шлема «Cartom Calamb (ТБШ)» 2024 года сошлись Will Wentra (NOR) и Omar Netigios (AUS). Покрытие «Хард» стало ареной бескомпромиссной тактической битвы лучших ракеток планеты. Will Wentra продемонстрировал запредельную концентрацию в решающие моменты матча, надежно отподавал на брейк-поинтах и оформил итоговую победу со счетом 6-2 3-6 2-6 5-7. Этот исторический титул навсегда войдет в анналы мирового тенниса и открывает Will Wentra прямую дорогу к вершине рейтинга тура.",
+            "source": "local-press"
           }
         },
         {
@@ -50079,230 +50238,24 @@
           "surface": "Трава",
           "winner": {
             "id": "p_6",
-            "rank": 6,
             "name": "Gary Riffay",
             "flag": "SLO",
-            "points": 4150,
-            "birthDate": "2000-05-30",
-            "racePoints": 1620,
-            "tournamentPoints": {
-              "m_1": {
-                "2023": 400,
-                "2024": 10
-              },
-              "tbsh_1": {
-                "2023": 200,
-                "2024": 400
-              },
-              "m_2": {
-                "2023": 100,
-                "2024": 10
-              },
-              "m_3": {
-                "2023": 50,
-                "2024": 650
-              },
-              "m_4": {
-                "2023": 100,
-                "2024": 200
-              },
-              "500_4": {},
-              "m_5": {
-                "2023": 100,
-                "2024": 200
-              },
-              "tbsh_2": {
-                "2023": 100,
-                "2024": 50
-              },
-              "m_6": {
-                "2023": 400,
-                "2024": 1000
-              },
-              "tbsh_3": {
-                "2023": 100,
-                "2024": 400
-              },
-              "m_7": {
-                "2023": 200
-              },
-              "tbsh_4": {
-                "2023": 400
-              },
-              "500_9": {},
-              "500_10": {},
-              "m_8": {
-                "2023": 400
-              },
-              "500_12": {
-                "2023": 200
-              },
-              "m_9": {
-                "2023": 400
-              },
-              "500_1": {
-                "2023": 190,
-                "2024": 100
-              },
-              "500_2": {},
-              "500_3": {
-                "2023": 500
-              },
-              "500_6": {
-                "2023": 10
-              },
-              "500_7": {
-                "2023": 330,
-                "2024": 50
-              },
-              "500_8": {
-                "2023": 100
-              },
-              "finals": {
-                "2023": 0
-              },
-              "500_5": {},
-              "500_11": {}
-            },
-            "rankChange": 1,
-            "bestRank": 6,
-            "seasonsPlayed": 1,
-            "seasonStartRank": 7,
-            "medals": {
-              "gold": 0,
-              "silver": 0,
-              "bronze": 0
-            },
-            "start2023Points": 4280,
-            "historicalBestRank": 6,
-            "basePoints": 4280,
-            "stamina": 15,
-            "lastPointsDelta": -10,
-            "lastRaceDelta": 0,
-            "lastTourneyEarned": 0,
-            "lastTourneyDefended": 10,
-            "lastTourneyName": "Queen's Club 500",
-            "raceRankChange": 0,
-            "remainingDefending": 2530,
-            "defendedSoFar": 1750,
-            "finalsPoints": 0,
-            "_prevRaceRank": 7,
-            "seedNum": 6
+            "rank": 6,
+            "birthDate": "2000-05-30"
           },
           "runnerUp": {
             "id": "p_1",
-            "rank": 4,
             "name": "Istep Fofol",
             "flag": "SVK",
-            "points": 6760,
-            "birthDate": "1988-04-20",
-            "racePoints": 3600,
-            "tournamentPoints": {
-              "m_1": {
-                "2023": 1000,
-                "2024": 100
-              },
-              "tbsh_1": {
-                "2023": 2000,
-                "2024": 100
-              },
-              "m_2": {
-                "2023": 50,
-                "2024": 650
-              },
-              "m_3": {
-                "2023": 400,
-                "2024": 1000
-              },
-              "m_4": {
-                "2023": 200,
-                "2024": 400
-              },
-              "500_4": {},
-              "m_5": {
-                "2023": 50,
-                "2024": 50
-              },
-              "tbsh_2": {
-                "2023": 400,
-                "2024": 800
-              },
-              "500_6": {},
-              "500_7": {
-                "2024": 0
-              },
-              "500_8": {
-                "2023": 500
-              },
-              "m_7": {
-                "2023": 100
-              },
-              "tbsh_4": {
-                "2023": 800
-              },
-              "m_8": {
-                "2023": 10
-              },
-              "500_11": {},
-              "m_9": {
-                "2023": 650
-              },
-              "finals": {
-                "2023": 0
-              },
-              "m_6": {
-                "2023": 200,
-                "2024": 650
-              },
-              "tbsh_3": {
-                "2023": 400,
-                "2024": 800
-              },
-              "500_10": {
-                "2023": 500
-              },
-              "500_1": {},
-              "500_2": {
-                "2024": 500
-              },
-              "500_3": {},
-              "500_5": {},
-              "500_9": {},
-              "500_12": {}
-            },
-            "rankChange": -1,
-            "bestRank": 1,
-            "seasonsPlayed": 1,
-            "seasonStartRank": 3,
-            "medals": {
-              "gold": 0,
-              "silver": 0,
-              "bronze": 0
-            },
-            "start2023Points": 7260,
-            "historicalBestRank": 1,
-            "basePoints": 7260,
-            "stamina": 15,
-            "lastPointsDelta": 0,
-            "lastRaceDelta": 0,
-            "lastTourneyEarned": 0,
-            "lastTourneyDefended": 0,
-            "lastTourneyName": "Queen's Club 500",
-            "raceRankChange": -1,
-            "nickname": "",
-            "playStyle": "",
-            "remainingDefending": 3160,
-            "defendedSoFar": 4100,
-            "finalsPoints": 0,
-            "_prevRaceRank": 4,
-            "seedNum": 4
+            "rank": 4,
+            "birthDate": "1988-04-20"
           },
           "bronze": null,
           "score": "5-7 7-6(2) 7-6(5)",
           "pressColumn": {
-            "headline": "Рифэй одолел Фофола: травяной взрыв в Дублин Мастере",
-            "article": "Гарри Рифэй вышел победителем после напряжённой борьбы, когда он проиграл первый сет 5‑7, но затем победил в двух мятежных мизельных мячах 7‑6(2) и 7‑6(5). Его выносливость и умение держать нервный контроль на траве оказались решающими в финальном поединке. Титул Дублин Мастера укрепил позицию Рифэй как одного из ведущих игроков сезона, а для Истефа Фофола – важный опыт на пути к дальнейшим успехам. Сезон 2024 завершился ярким подтверждением того, что на траве игра остаётся непредсказуемой и захватывающей.",
-            "source": "groq"
+            "headline": "Стальные нервы в финале Дублин Masters 2024: Gary Riffay сломил Istep Fofol на решающем тайбрейке!",
+            "article": "В главном финале престижного турнира категории «Мастерс» «Дублин Masters» сезона 2024 года Gary Riffay (SLO) переиграл Istep Fofol (SVK) с итоговым счетом 5-7 7-6(2) 7-6(5). На быстром покрытии «Трава» чемпион захватил контроль над центром корта за счет агрессивного приема и глубоких переводов по линии. Завоеванный титул приносит Gary Riffay весомую прибавку очков в 52-недельный рейтинг ATP и золотыми буквами вписывает его имя в архив Зала Славы Meta Tennis Tour.",
+            "source": "local-press"
           }
         },
         {
@@ -50606,33 +50559,26 @@
             "name": "Ussistian Shifter",
             "flag": "USA",
             "rank": 2,
-            "birthDate": "2001-06-19",
-            "stamina": 15,
-            "seedNum": 2
+            "birthDate": "2001-06-19"
           },
           "runnerUp": {
             "id": "p_1",
             "name": "Istep Fofol",
             "flag": "SVK",
             "rank": 4,
-            "birthDate": "1988-04-20",
-            "stamina": 15,
-            "seedNum": 4
+            "birthDate": "1988-04-20"
           },
           "bronze": {
             "id": "p_140",
             "name": "Lars Nielsen",
             "flag": "ESP",
-            "rank": 30,
-            "birthDate": "1990-03-15",
-            "stamina": 15,
-            "entryTag": "OLY"
+            "rank": 30
           },
           "score": "3-6 6-7(3)",
           "pressColumn": {
-            "headline": "Шифтер побеждает на Олимпиаде: новый титул на грунте",
-            "article": "Шифтер на Олимпийских играх обыграл Фофола на грунте, обретая второй титул на международной арене. После тяжелого первого сета в 3–6, он вывернул игру, победив в сете 7–6(3) благодаря точным мячам и психологической устойчивости. Фофол показал солидный старт, но не смог удержать ритм, когда Шифтер вошёл в игру на полную мощность. Этот победный матч закрепил место Шифтера в элите мирового тенниса и подтвердил его статус как одного из лучших игроков сезона.",
-            "source": "groq"
+            "headline": "Золотой триумф на века: Ussistian Shifter приносит олимпийское золото в историческом финале против Istep Fofol!",
+            "article": "На кортах олимпийского теннисного турнира 2024 года Ussistian Shifter (USA) вписал свое имя в олимпийскую летопись, одолев Istep Fofol (SVK) в золотом финале со счетом 3-6 6-7(3). В каждом розыгрыше чувствовалось колоссальное напряжение за честь флага, но Ussistian Shifter показал феноменальную стойкость в ключевых геймах и завоевал высшую спортивную награду — олимпийское золото.",
+            "source": "local-press"
           }
         },
         {
@@ -52104,25 +52050,21 @@
             "name": "Max Kyupan",
             "flag": "GEO",
             "rank": 2,
-            "birthDate": "1990-01-13",
-            "stamina": 15,
-            "seedNum": 2
+            "birthDate": "1990-01-13"
           },
           "runnerUp": {
             "id": "p_1",
             "name": "Istep Fofol",
             "flag": "SVK",
             "rank": 4,
-            "birthDate": "1988-04-20",
-            "stamina": 15,
-            "seedNum": 3
+            "birthDate": "1988-04-20"
           },
           "bronze": null,
           "score": "4-6 4-6",
           "pressColumn": {
-            "headline": "Кюпан воскрешает титул: победа над Фофолом в финале Хельсинки",
-            "article": "В напряжённом финале Хельсинки Masters, где игра проходила на зале, Макс Кюпан (Грузия, №2) одержал победу над Истепом Фофолом (Словакия, №4) со счётом 6‑4, 6‑4, после того как первый набор потерял на 4‑6. Это второе звание в этом сезоне для Кюпан, подтверждающее его статус одного из ведущих игроков в мировом рейтинге. Победа над сильным соперником усиливает его претензии к следующему Мастеру и поднимает настроение фанатам Грузии. Теперь Кюпан готов к новым вызовам на мировой арене, укрепив своё место в элите.",
-            "source": "groq"
+            "headline": "Мастер-класс в решающем матче: Max Kyupan уверенно забирает титул Хельсинки Masters у Istep Fofol!",
+            "article": "В главном финале престижного турнира категории «Мастерс» «Хельсинки Masters» сезона 2024 года Max Kyupan (GEO) переиграл Istep Fofol (SVK) с итоговым счетом 4-6 4-6. На быстром покрытии «Зал» чемпион захватил контроль над центром корта за счет агрессивного приема и глубоких переводов по линии. Завоеванный титул приносит Max Kyupan весомую прибавку очков в 52-недельный рейтинг ATP и золотыми буквами вписывает его имя в архив Зала Славы Meta Tennis Tour.",
+            "source": "local-press"
           }
         },
         {
@@ -153319,8 +153261,8 @@
             "seedNum": 1
           },
           "aiSourceLabel": "ИИ-репортаж (Groq / Llama 3.3)",
-          "narrative": "В финальном матче Хьюстон Masters на хард‑корте Макс Кюпан уверенно победил Уссистиана Шифтера 6‑3 6‑3, контролируя каждый розыгрыш и не дав сопернику шанса на откат, а зрители стали свидетелями безупречного «мёртвого» подачи и точных приёмов навылет.",
-          "storyline": "В финальном матче Хьюстон Masters на хард‑корте Макс Кюпан уверенно победил Уссистиана Шифтера 6‑3 6‑3, контролируя каждый розыгрыш и не дав сопернику шанса на откат, а зрители стали свидетелями безупречного «мёртвого» подачи и точных приёмов навылет.",
+          "narrative": "В финальном матче Хьюстон Masters на хард‑корте Макс Кюпан уверенно победил Уссистиана Шифтера 6‑3 6‑3, контролируя каждый розыгрыш и не дав сопернику шанса на откат, а зрители стали свидетелями безупречного пушечной первой подачи и точных приёмов навылет.",
+          "storyline": "В финальном матче Хьюстон Masters на хард‑корте Макс Кюпан уверенно победил Уссистиана Шифтера 6‑3 6‑3, контролируя каждый розыгрыш и не дав сопернику шанса на откат, а зрители стали свидетелями безупречного пушечной первой подачи и точных приёмов навылет.",
           "winnerQuote": "Я не могу поверить, что наконец держу этот трофей! Слёзы счастья льются, когда я поднимаю кубок над головой – каждое мёртвое подача и каждый забитый ногой удар в 6‑3, 6‑3 стали частью моей мечты. Это момент, о котором я мечтал всю карьеру, и я благодарен всем, кто верил в меня!",
           "loserQuote": "Это горько – выйти в финал и потерять шанс на титул. Я отдал всё, но форхенд Макса оказался слишком сильным, а его приём навылет заставил меня падать на корте. Я уйду с «забитыми ногами», но этот опыт сделает меня сильнее, и я вернусь сильнее в следующем сезоне."
         }

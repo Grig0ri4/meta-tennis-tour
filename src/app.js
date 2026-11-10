@@ -1069,6 +1069,19 @@ export function initData() {
 
   savePlayers(false);
   ensureInitialSeasonCheckpoint();
+
+  // Синхронизируем историю сезонов с реальными турнирными сетками
+  const syncYears = new Set([
+    ...Object.keys(seasonsHistory || {}).map(Number),
+    2023,
+    2024,
+    Number(currentTourYear)
+  ]);
+  syncYears.forEach(yr => {
+    if (yr && !isNaN(yr)) {
+      syncSeasonHistoryWithActualDraws(yr);
+    }
+  });
 }
 
 export function resetCurrentSeasonToCleanJanuary() {
@@ -1541,6 +1554,116 @@ function readSavedDraw(tourneyId, year) {
   } catch {
     return [];
   }
+}
+
+export function syncSeasonHistoryWithActualDraws(targetYear) {
+  const y = Number(targetYear);
+  if (!y || !seasonsHistory) return;
+  const yrStr = String(y);
+  if (!seasonsHistory[yrStr]) {
+    seasonsHistory[yrStr] = { tournamentsData: [] };
+  }
+  if (!Array.isArray(seasonsHistory[yrStr].tournamentsData)) {
+    seasonsHistory[yrStr].tournamentsData = [];
+  }
+
+  const seasonTourneys = getSeasonTournaments(y, tournaments);
+  let changed = false;
+
+  seasonTourneys.forEach(tmpl => {
+    const d = readSavedDraw(tmpl.id, y);
+    if (!Array.isArray(d) || d.length === 0) return;
+
+    const fm = d[d.length - 1]?.[0];
+    if (!fm || !fm.winner || !fm.p1 || !fm.p2) return;
+
+    const w = fm.winner;
+    const ru = String(fm.p1.id) === String(w.id) ? fm.p2 : fm.p1;
+    const scoreStr = Array.isArray(fm.score) && fm.score.length > 0 ? fm.score.join(' ') : (typeof fm.score === 'string' && fm.score ? fm.score : '6-4 6-4');
+    const bronze = tmpl.id === 'olympics' ? (d[d.length - 1]?.[1]?.winner || null) : null;
+    const isMajor = ['ТБШ', 'Мастерс', 'Итоговый', 'Олимпиада'].includes(tmpl.type);
+
+    let histEntry = seasonsHistory[yrStr].tournamentsData.find(t => t && t.id === tmpl.id);
+    if (!histEntry) {
+      histEntry = {
+        id: tmpl.id,
+        name: tmpl.name,
+        type: tmpl.type,
+        surface: tmpl.surface,
+        winner: w,
+        runnerUp: ru,
+        bronze: bronze,
+        score: scoreStr,
+        pressColumn: isMajor
+          ? buildFallbackFinalPressColumn({
+              tourneyName: tmpl.name,
+              tourneyType: tmpl.type,
+              surface: tmpl.surface,
+              year: y,
+              winner: w,
+              runnerUp: ru,
+              score: scoreStr
+            })
+          : null
+      };
+      seasonsHistory[yrStr].tournamentsData.push(histEntry);
+      changed = true;
+    } else {
+      const winnerDiff = String(histEntry.winner?.id) !== String(w.id) || histEntry.winner?.name !== w.name;
+      const ruDiff = String(histEntry.runnerUp?.id) !== String(ru.id) || histEntry.runnerUp?.name !== ru.name;
+      const scoreDiff = histEntry.score !== scoreStr;
+      const bronzeDiff = tmpl.id === 'olympics' && String(histEntry.bronze?.id) !== String(bronze?.id);
+      const pressMissingOrMismatched = isMajor && (
+        !histEntry.pressColumn ||
+        (histEntry.pressColumn.headline && w.name && !histEntry.pressColumn.headline.includes(w.name) && !histEntry.pressColumn.article?.includes(w.name))
+      );
+
+      if (winnerDiff || ruDiff || scoreDiff || bronzeDiff || pressMissingOrMismatched) {
+        histEntry.winner = w;
+        histEntry.runnerUp = ru;
+        histEntry.score = scoreStr;
+        histEntry.bronze = bronze;
+        if (isMajor) {
+          histEntry.pressColumn = buildFallbackFinalPressColumn({
+            tourneyName: tmpl.name,
+            tourneyType: tmpl.type,
+            surface: tmpl.surface,
+            year: y,
+            winner: w,
+            runnerUp: ru,
+            score: scoreStr
+          });
+        }
+        changed = true;
+      }
+    }
+
+    if (y === currentTourYear) {
+      const liveT = Array.isArray(tournaments) ? tournaments.find(x => x && x.id === tmpl.id) : null;
+      if (liveT) {
+        liveT.completed = true;
+        liveT.lastWinner = w;
+        liveT.lastRunnerUp = ru;
+        liveT.lastScore = scoreStr;
+        if (tmpl.id === 'olympics') liveT.lastBronze = bronze;
+      }
+      tmpl.completed = true;
+      tmpl.lastWinner = w;
+      tmpl.lastRunnerUp = ru;
+      tmpl.lastScore = scoreStr;
+      if (tmpl.id === 'olympics') tmpl.lastBronze = bronze;
+    }
+  });
+
+  if (changed) {
+    saveHistory();
+    if (y === currentTourYear) {
+      saveTournaments();
+    }
+  }
+}
+if (typeof window !== 'undefined') {
+  window.syncSeasonHistoryWithActualDraws = syncSeasonHistoryWithActualDraws;
 }
 
 function saveDraw() {
@@ -4161,15 +4284,53 @@ export function commitMatchOutcome({
   if (viewingYear < currentTourYear) {
     const finalM = currentDraw[currentDraw.length - 1]?.[0];
     if (finalM && finalM.winner && finalM.p1 && finalM.p2) {
-      if (!seasonsHistory[viewingYear]) seasonsHistory[viewingYear] = { tournaments: {} };
-      if (!seasonsHistory[viewingYear].tournaments) seasonsHistory[viewingYear].tournaments = {};
-      const loser = finalM.winner.id === finalM.p1.id ? finalM.p2 : finalM.p1;
-      seasonsHistory[viewingYear].tournaments[activeTourney.id] = {
-        ...(seasonsHistory[viewingYear].tournaments[activeTourney.id] || {}),
-        winner: finalM.winner,
-        runnerUp: loser,
-        score: Array.isArray(finalM.score) ? finalM.score.join(' ') : String(finalM.score || '')
-      };
+      if (!seasonsHistory[viewingYear]) seasonsHistory[viewingYear] = { tournamentsData: [] };
+      if (!Array.isArray(seasonsHistory[viewingYear].tournamentsData)) seasonsHistory[viewingYear].tournamentsData = [];
+      const loser = String(finalM.winner.id) === String(finalM.p1.id) ? finalM.p2 : finalM.p1;
+      const scoreStr = Array.isArray(finalM.score) && finalM.score.length > 0 ? finalM.score.join(' ') : (typeof finalM.score === 'string' && finalM.score ? finalM.score : '6-4 6-4');
+      const bronze = activeTourney.id === 'olympics' ? (currentDraw[currentDraw.length - 1]?.[1]?.winner || null) : null;
+      const isMajor = ['ТБШ', 'Мастерс', 'Итоговый', 'Олимпиада'].includes(activeTourney.type);
+
+      let histEntry = seasonsHistory[viewingYear].tournamentsData.find(t => t && t.id === activeTourney.id);
+      if (!histEntry) {
+        histEntry = {
+          id: activeTourney.id,
+          name: activeTourney.name,
+          type: activeTourney.type,
+          surface: activeTourney.surface,
+          winner: finalM.winner,
+          runnerUp: loser,
+          bronze: bronze,
+          score: scoreStr,
+          pressColumn: isMajor ? buildFallbackFinalPressColumn({
+            tourneyName: activeTourney.name,
+            tourneyType: activeTourney.type,
+            surface: activeTourney.surface,
+            year: viewingYear,
+            winner: finalM.winner,
+            runnerUp: loser,
+            score: scoreStr
+          }) : null
+        };
+        seasonsHistory[viewingYear].tournamentsData.push(histEntry);
+      } else {
+        histEntry.winner = finalM.winner;
+        histEntry.runnerUp = loser;
+        histEntry.score = scoreStr;
+        histEntry.bronze = bronze;
+        if (isMajor) {
+          histEntry.pressColumn = buildFallbackFinalPressColumn({
+            tourneyName: activeTourney.name,
+            tourneyType: activeTourney.type,
+            surface: activeTourney.surface,
+            year: viewingYear,
+            winner: finalM.winner,
+            runnerUp: loser,
+            score: scoreStr
+          });
+        }
+      }
+      syncSeasonHistoryWithActualDraws(viewingYear);
       saveHistory();
     }
     backfill2023HistoryFromDraws();
@@ -4539,6 +4700,8 @@ export function finishTournamentAndAwardPoints(options = {}) {
       }
     );
   }
+
+  syncSeasonHistoryWithActualDraws(viewingYear);
 
   // Сохраняем выбранный завершенный турнир на экране сразу после клика «Завершить турнир», чтобы сетка не исчезала перед глазами
   initUI({ preserveSelectedTourney: true });
@@ -5016,8 +5179,8 @@ export function renderCalendarTable() {
     let drawExists = false;
     let drawWinner = null;
     try {
-      const savedD = JSON.parse(universeStorage.getItem(`draw_${t.id}_${selectedYear}`));
-      if (savedD && savedD.length > 0 && savedD[savedD.length - 1][0]?.winner) {
+      const savedD = readSavedDraw(t.id, selectedYear);
+      if (savedD && savedD.length > 0 && savedD[savedD.length - 1]?.[0]?.winner) {
         drawExists = true;
         drawWinner = savedD[savedD.length - 1][0].winner;
       }
@@ -5026,11 +5189,9 @@ export function renderCalendarTable() {
     }
 
     const isDone = (selectedYear < currentTourYear && (histEntry?.winner || drawExists)) ||
-                   (selectedYear === currentTourYear && Boolean(t.completed));
+                   (selectedYear === currentTourYear && (Boolean(t.completed) || drawExists));
 
-    const champObj = (selectedYear === currentTourYear && t.lastWinner)
-      ? t.lastWinner
-      : (histEntry?.winner || drawWinner || null);
+    const champObj = drawWinner || (selectedYear === currentTourYear ? t.lastWinner : null) || histEntry?.winner || null;
     const liveChamp = champObj ? (players.find(x => String(x.id) === String(champObj.id)) || champObj) : null;
     const champName = liveChamp
       ? `${renderFlagBadge(liveChamp.flag, { compact: true })} ${liveChamp.name}`
@@ -5799,6 +5960,7 @@ export function setCompareMode(mode) {
 
 export function renderHistoryYear() {
   const year = document.getElementById('historyYearSelect')?.value || '2023';
+  syncSeasonHistoryWithActualDraws(year);
   const data = seasonsHistory[year];
   const container = document.getElementById('historyContent');
   if (!container || !data) return;
@@ -5844,6 +6006,56 @@ export function renderHistoryYear() {
   const fullTourneysList = seasonTemplateList.map(tmpl => {
     const saved = savedTourneysMap[tmpl.id];
     const isMajor = ['ТБШ', 'Мастерс', 'Итоговый', 'Олимпиада'].includes(tmpl.type);
+
+    let d = null;
+    try {
+      const candidate = readSavedDraw(tmpl.id, Number(year));
+      if (Array.isArray(candidate) && candidate.length > 0 && candidate[candidate.length - 1]?.[0]?.winner) {
+        d = candidate;
+      }
+    } catch {
+      d = null;
+    }
+
+    if (d) {
+      const fm = d[d.length - 1][0];
+      const w = fm.winner;
+      const ru = (fm.p1 && fm.p2) ? (String(fm.p1.id) === String(w.id) ? fm.p2 : fm.p1) : null;
+      const bronzeM = tmpl.id === 'olympics' ? d[d.length - 1]?.[1] : null;
+      const scoreStr = Array.isArray(fm.score) && fm.score.length > 0 ? fm.score.join(' ') : (typeof fm.score === 'string' && fm.score ? fm.score : '6-4 6-4');
+      const bronzeWinner = bronzeM?.winner || null;
+
+      // Проверяем, подходит ли колонка прессы от saved, или нужно перегенерировать под реального чемпиона w
+      let pressCol = saved?.pressColumn || null;
+      const pressMatchesWinner = pressCol?.headline && (
+        (w.name && pressCol.headline.includes(w.name)) ||
+        (w.name && pressCol.article && pressCol.article.includes(w.name))
+      );
+      if (isMajor && (!pressCol || !pressMatchesWinner)) {
+        pressCol = buildFallbackFinalPressColumn({
+          tourneyName: tmpl.name,
+          tourneyType: tmpl.type,
+          surface: tmpl.surface,
+          year: Number(year),
+          winner: w,
+          runnerUp: ru,
+          score: scoreStr
+        });
+      }
+
+      return {
+        id: tmpl.id,
+        name: tmpl.name,
+        type: tmpl.type,
+        surface: tmpl.surface,
+        winner: w,
+        runnerUp: ru,
+        bronze: bronzeWinner,
+        score: scoreStr,
+        pressColumn: pressCol
+      };
+    }
+
     if (saved && saved.winner) {
       if (isMajor && !saved.pressColumn) {
         saved.pressColumn = buildFallbackFinalPressColumn({
@@ -5858,39 +6070,7 @@ export function renderHistoryYear() {
       }
       return saved;
     }
-    try {
-      const d = JSON.parse(universeStorage.getItem(`draw_${tmpl.id}_${year}`));
-      if (d && d.length > 0 && d[d.length - 1][0]?.winner) {
-        const fm = d[d.length - 1][0];
-        const w = fm.winner;
-        const ru = (fm.p1 && fm.p2) ? (fm.p1.id === w.id ? fm.p2 : fm.p1) : null;
-        const bronzeM = tmpl.id === 'olympics' ? d[d.length - 1][1] : null;
-        const scoreStr = fm.score ? fm.score.join(' ') : '6-4 6-4';
-        return {
-          id: tmpl.id,
-          name: tmpl.name,
-          type: tmpl.type,
-          surface: tmpl.surface,
-          winner: w,
-          runnerUp: ru,
-          bronze: bronzeM?.winner || null,
-          score: scoreStr,
-          pressColumn: isMajor
-            ? buildFallbackFinalPressColumn({
-                tourneyName: tmpl.name,
-                tourneyType: tmpl.type,
-                surface: tmpl.surface,
-                year: Number(year),
-                winner: w,
-                runnerUp: ru,
-                score: scoreStr
-              })
-            : null
-        };
-      }
-    } catch {
-      // ignore
-    }
+
     return saved || {
       id: tmpl.id,
       name: tmpl.name,
