@@ -8,10 +8,27 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const OVERRIDES_FILE_PATH = path.join(__dirname, "data", "user_player_overrides.json");
 
+// Запись разрешена только с localhost: сервер слушает 0.0.0.0, поэтому любой
+// POST из внешней сети отклоняется с 403.
+function isLocalRequest(req: express.Request): boolean {
+  const addr = String(req.socket?.remoteAddress || "");
+  return addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
+}
+
+// Хранилище правок игроков: { [universeId]: { "id:p_9": {...}, "name:...": {...} } }.
+// Старый плоский файл (правки всех миров вперемешку) мигрирует в { "1": {...} }.
+function isFlatLegacyOverridesMap(map: Record<string, any>): boolean {
+  return Object.keys(map).some((k) => k.startsWith("id:") || k.startsWith("name:"));
+}
+
 function readServerOverrides(): Record<string, any> {
   try {
     if (fs.existsSync(OVERRIDES_FILE_PATH)) {
-      return JSON.parse(fs.readFileSync(OVERRIDES_FILE_PATH, "utf8")) || {};
+      const raw = JSON.parse(fs.readFileSync(OVERRIDES_FILE_PATH, "utf8")) || {};
+      if (raw && typeof raw === "object" && !Array.isArray(raw) && isFlatLegacyOverridesMap(raw)) {
+        return { "1": raw };
+      }
+      return raw;
     }
   } catch {
     // ignore
@@ -45,23 +62,40 @@ async function startServer() {
   });
 
   app.post("/api/player-overrides", (req, res) => {
+    if (!isLocalRequest(req)) {
+      res.status(403).json({ ok: false, error: "Запись разрешена только с localhost" });
+      return;
+    }
     const incoming = req.body && typeof req.body === "object" ? req.body : {};
+    // Новый формат: { universeId, overrides: {...} }. Старый плоский формат -> вселенная "1".
+    const universeId = incoming.universeId !== undefined
+      ? String(incoming.universeId)
+      : "1";
+    const incomingOverrides = incoming.overrides && typeof incoming.overrides === "object"
+      ? incoming.overrides
+      : incoming;
     const current = readServerOverrides();
-    for (const [k, v] of Object.entries(incoming)) {
+    const universeMap = { ...(current[universeId] || {}) };
+    for (const [k, v] of Object.entries(incomingOverrides)) {
       if (v && typeof v === "object") {
         const val = v as any;
         if (val.flag && val.flag !== "?") {
-          current[k] = { ...(current[k] || {}), ...val };
-        } else if (!current[k]) {
-          current[k] = val;
+          universeMap[k] = { ...(universeMap[k] || {}), ...val };
+        } else if (!universeMap[k]) {
+          universeMap[k] = val;
         }
       }
     }
+    current[universeId] = universeMap;
     writeServerOverrides(current);
     res.json({ ok: true, overrides: current });
   });
 
   app.post("/api/client-diag", (req, res) => {
+    if (!isLocalRequest(req)) {
+      res.status(403).json({ ok: false, error: "Запись разрешена только с localhost" });
+      return;
+    }
     try {
       const diagPath = path.join(__dirname, "data", "client_diag.json");
       fs.writeFileSync(diagPath, JSON.stringify(req.body || {}, null, 2), "utf8");
@@ -83,6 +117,10 @@ async function startServer() {
   });
 
   app.post("/api/canon-snapshot", (req, res) => {
+    if (!isLocalRequest(req)) {
+      res.status(403).json({ ok: false, error: "Запись разрешена только с localhost" });
+      return;
+    }
     try {
       const body = req.body;
       if (!body || !Array.isArray(body.players) || body.players.length < 250) {

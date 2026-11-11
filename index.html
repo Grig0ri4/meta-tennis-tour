@@ -29,13 +29,18 @@
                     <option value="1">Вселенная Автора (Канон) · 2024</option>
                 </select>
                 <button type="button" class="btn-green btn-compact" id="btnOpenCreateUniverse" onclick="openCreateUniverseModal()" title="Создать новую параллельную теннисную вселенную">+ Создать новую вселенную</button>
-                <button type="button" class="btn-red btn-compact" id="btnDeleteUniverse" onclick="promptDeleteCurrentUniverse()" style="display: none;" title="Удалить текущую пользовательскую вселенную">🗑️ Удалить мир</button>
-                <button type="button" class="btn-edit btn-compact" onclick="exportCurrentUniverse()" title="Скачать сохранение мира (.json)">📥 Экспорт мира (.json)</button>
-                <button type="button" class="btn-edit btn-compact" id="btnImportUniverse" onclick="triggerImportUniverse()" title="Загрузить сохранение мира (.json)">📤 Загрузить мир (.json)</button>
-                <button type="button" class="btn-edit btn-compact" id="btnImport2023Archive" onclick="triggerImport2023ArchiveOnly()" title="Импортировать ТОЛЬКО сетки 2023 года (.json), не затрагивая сезон 2024">📥 Импорт сеток 2023 (.json)</button>
-                <button type="button" class="btn-gold btn-compact" id="btnTestSimSeason" onclick="runTestSeasonSimulation()" title="Пробная симуляция всех турниров сезона с возможностью отката назад в 1 клик">⚡ Пробная симуляция сезона (Тест)</button>
                 <button type="button" class="btn-edit btn-compact" id="btnCheckpoints" onclick="openCheckpointsModal()" title="Точки сохранения сезона (после ТБШ и Итогового)">🕒 Чекпоинты сезона</button>
-                <button type="button" class="btn-purple btn-compact" id="btnApiSettings" onclick="openApiSettingsModal()" title="Настройки Groq API (llama-3.3-70b-versatile)">⚙️ Настройки API</button>
+                <details class="header-tools-dropdown">
+                    <summary class="btn-edit btn-compact">⚙️ Меню и инструменты ▾</summary>
+                    <div class="header-tools-menu">
+                        <button type="button" class="btn-red btn-compact" id="btnDeleteUniverse" onclick="promptDeleteCurrentUniverse()" style="display: none;" title="Удалить текущую пользовательскую вселенную">🗑️ Удалить мир</button>
+                        <button type="button" class="btn-edit btn-compact" onclick="exportCurrentUniverse()" title="Скачать сохранение мира (.json)">📥 Экспорт мира (.json)</button>
+                        <button type="button" class="btn-edit btn-compact" id="btnImportUniverse" onclick="triggerImportUniverse()" title="Загрузить сохранение мира (.json)">📤 Загрузить мир (.json)</button>
+                        <button type="button" class="btn-edit btn-compact" id="btnImport2023Archive" onclick="triggerImport2023ArchiveOnly()" title="Импортировать ТОЛЬКО сетки 2023 года (.json), не затрагивая сезон 2024">📥 Импорт сеток 2023 (.json)</button>
+                        <button type="button" class="btn-gold btn-compact" id="btnTestSimSeason" onclick="runTestSeasonSimulation()" title="Пробная симуляция всех турниров сезона с возможностью отката назад в 1 клик">⚡ Пробная симуляция сезона (Тест)</button>
+                        <button type="button" class="btn-purple btn-compact" id="btnApiSettings" onclick="openApiSettingsModal()" title="Настройки Groq API (llama-3.3-70b-versatile)">⚙️ Настройки API</button>
+                    </div>
+                </details>
                 <input type="file" id="importUniverseFile" accept=".json,application/json" onchange="handleImportUniverseFile(event)" style="display: none;">
                 <input type="file" id="import2023ArchiveFile" accept=".json,application/json" onchange="handleImport2023ArchiveFile(event)" style="display: none;">
             </div>
@@ -104,14 +109,19 @@
                 <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
                     <button type="button" class="btn-gold" id="btnOlympicTeams" onclick="openOlympicTeamsModal()" style="display: none;">🌍 Сборные и квоты ОИ</button>
                     <button type="button" class="btn-gold" id="btnFinalsDefending" onclick="openFinalsDefendingModal()" style="display: none;">🛡️ Защита очков Итогового</button>
-                    <button type="button" class="btn-gold" id="btnOpenATP250AutoDraw" onclick="openWeeklyATP250BracketModal()">🏆 Турнир ATP 250 (Авто-сетка)</button>
-                    <button type="button" class="btn-edit" onclick="openPointsInfoModal()">Очки ATP</button>
-                    <button type="button" class="btn-edit" id="btnEditCurrentTourney" onclick="openEditCurrentTourney()">Ред. турнир</button>
                     <button type="button" class="btn-green" id="btnMakeDraw" onclick="generateRealisticDraw()">🎲 Жеребьевка</button>
                     <button type="button" class="btn-edit" id="btnSimRound" onclick="autoSimulateRound()">⚡ Симулировать раунд</button>
                     <button type="button" class="btn-edit" id="btnSimAllTourney" onclick="autoSimulateEntireTournament()">⏩ Весь турнир</button>
                     <button type="button" class="btn-gold" id="btnFinishTourney" onclick="finishTournamentAndAwardPoints()">🏆 Завершить турнир</button>
-                    <button type="button" class="btn-red" id="btnResetDraw" onclick="resetCurrentDraw()">Сброс сетки</button>
+                    <details class="header-tools-dropdown">
+                        <summary class="btn-edit">⋯ Опции турнира ▾</summary>
+                        <div class="header-tools-menu">
+                            <button type="button" class="btn-gold" id="btnOpenATP250AutoDraw" onclick="openWeeklyATP250BracketModal()">🏆 Турнир ATP 250 (Авто-сетка)</button>
+                            <button type="button" class="btn-edit" onclick="openPointsInfoModal()">Очки ATP</button>
+                            <button type="button" class="btn-edit" id="btnEditCurrentTourney" onclick="openEditCurrentTourney()">Ред. турнир</button>
+                            <button type="button" class="btn-red" id="btnResetDraw" onclick="resetCurrentDraw()">Сброс сетки</button>
+                        </div>
+                    </details>
                 </div>
 
                 <div id="withdrawalsNotice" class="withdrawals-alert" style="display: none;"></div>

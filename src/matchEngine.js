@@ -557,6 +557,24 @@ export function computeSimMatchScores(m, bestOf = 3, forcedWinnerNumber = 0, sur
   };
 }
 
+const SET_TOKEN_RE = /^(\d{1,2})-(\d{1,2})(?:\((\d{1,2})\))?$/;
+
+function parseSetToken(token) {
+  const m = SET_TOKEN_RE.exec(String(token || '').trim());
+  if (!m) return null;
+  return {
+    g1: parseInt(m[1], 10),
+    g2: parseInt(m[2], 10),
+    tiebreak: m[3] !== undefined ? parseInt(m[3], 10) : null
+  };
+}
+
+function isCompletedTennisSet(g1, g2) {
+  const maxG = Math.max(g1, g2);
+  const minG = Math.min(g1, g2);
+  return (maxG === 6 && minG <= 4) || (maxG === 7 && (minG === 5 || minG === 6));
+}
+
 export function parseAndValidateScoreString(str, bestOf = 3) {
   const cleanStr = (str || '').trim();
   if (!cleanStr) {
@@ -567,55 +585,95 @@ export function parseAndValidateScoreString(str, bestOf = 3) {
   const lastTokenUpper = rawTokens[rawTokens.length - 1].toUpperCase();
   const isRetirement = lastTokenUpper === 'RET' || lastTokenUpper === 'RET.';
 
+  const req = bestOf === 5 ? 3 : 2;
+  const maxSets = bestOf === 5 ? 5 : 3;
+
+  const setTokens = isRetirement ? rawTokens.slice(0, -1) : rawTokens;
+  if (setTokens.length === 0) {
+    return {
+      valid: false,
+      error: isRetirement
+        ? 'Укажите счет геймов/сетов перед отказом RET (например: 6-4 3-1 RET).'
+        : 'Введите счет матча!'
+    };
+  }
+  if (setTokens.length > maxSets) {
+    return { valid: false, error: `Слишком много сетов (${setTokens.length}) для формата best-of-${bestOf} (максимум ${maxSets}).` };
+  }
+
+  let p1W = 0;
+  let p2W = 0;
+  let p1TotalG = 0;
+  let p2TotalG = 0;
+
+  for (let i = 0; i < setTokens.length; i++) {
+    const s = setTokens[i];
+    const parsed = parseSetToken(s);
+    if (!parsed) {
+      return {
+        valid: false,
+        error: isRetirement
+          ? `Некорректный формат сета перед RET: "${s}".`
+          : `Некорректный формат сета: "${s}". Используйте формат 6-4 или 7-6(5).`
+      };
+    }
+    const { g1, g2, tiebreak } = parsed;
+    const maxG = Math.max(g1, g2);
+    const minG = Math.min(g1, g2);
+
+    // Тайбрейк допустим только в сете со счетом 7-6 / 6-7
+    if (tiebreak !== null && !(maxG === 7 && minG === 6)) {
+      return { valid: false, error: `Тайбрейк в сете "${s}" допустим только при счете 7-6 или 6-7.` };
+    }
+    if (isRetirement && i === setTokens.length - 1 && !isCompletedTennisSet(g1, g2)) {
+      // Незавершенный сет непосредственно перед RET: геймы не могут превышать 6,
+      // сет не может остановиться на 6-6 и не может содержать тайбрейк
+      if (g1 > 6 || g2 > 6) {
+        return { valid: false, error: `Недопустимый счет незавершенного сета перед RET: "${s}". Геймы не могут превышать 6 без завершения сета.` };
+      }
+      if (g1 === 6 && g2 === 6) {
+        return { valid: false, error: `Незавершенный сет перед RET не может остановиться на счете 6-6: "${s}".` };
+      }
+      if (tiebreak !== null) {
+        return { valid: false, error: `Незавершенный сет перед RET не может содержать тайбрейк: "${s}".` };
+      }
+    } else {
+      if (g1 === g2) {
+        return { valid: false, error: `В сете "${s}" должен быть определен победитель.` };
+      }
+      if (!isCompletedTennisSet(g1, g2)) {
+        if (isRetirement) {
+          return { valid: false, error: `Незавершенный сет "${s}" допустим только непосредственно перед RET.` };
+        }
+        return { valid: false, error: `Недопустимый теннисный счет в сете "${s}". Допустимы 6-0..6-4, 7-5 или 7-6.` };
+      }
+      if (!isRetirement && (p1W >= req || p2W >= req)) {
+        return { valid: false, error: `Лишний сет "${s}" после того, как победитель матча уже определился.` };
+      }
+      if (g1 > g2) p1W++;
+      else p2W++;
+    }
+
+    p1TotalG += g1;
+    p2TotalG += g2;
+  }
+
+  if (!isRetirement && p1W < req && p2W < req) {
+    return { valid: false, error: `Недостаточно выигранных сетов! Для победы требуется ${req} выигранных сета.` };
+  }
+
   if (isRetirement) {
-    const setTokens = rawTokens.slice(0, -1);
-    if (setTokens.length === 0) {
-      return { valid: false, error: 'Укажите счет геймов/сетов перед отказом RET (например: 6-4 3-1 RET).' };
-    }
-    let p1W = 0;
-    let p2W = 0;
-    let p1TotalG = 0;
-    let p2TotalG = 0;
-    let lastG1 = 0;
-    let lastG2 = 0;
+    // Если матч прерван в ходе незавершенного сета, снялся отстающий игрок
+    const lastSet = setTokens[setTokens.length - 1];
+    const lastParsed = parseSetToken(lastSet);
+    const lastSetIsComplete = isCompletedTennisSet(lastParsed.g1, lastParsed.g2);
 
-    for (let i = 0; i < setTokens.length; i++) {
-      const s = setTokens[i];
-      const clean = s.replace(/\(\d+\)/g, '');
-      const parts = clean.split('-');
-      if (parts.length !== 2) {
-        return { valid: false, error: `Некорректный формат сета перед RET: "${s}".` };
-      }
-      const g1 = parseInt(parts[0], 10);
-      const g2 = parseInt(parts[1], 10);
-      if (isNaN(g1) || isNaN(g2) || g1 < 0 || g2 < 0 || g1 > 7 || g2 > 7) {
-        return { valid: false, error: `Некорректный счет геймов перед RET: "${s}".` };
-      }
-      p1TotalG += g1;
-      p2TotalG += g2;
-      lastG1 = g1;
-      lastG2 = g2;
-      const maxG = Math.max(g1, g2);
-      const minG = Math.min(g1, g2);
-      const isCompletedSet = (maxG === 6 && minG <= 4) || (maxG === 7 && (minG === 5 || minG === 6));
-      if (isCompletedSet) {
-        if (g1 > g2) p1W++;
-        else if (g2 > g1) p2W++;
-      } else if (i < setTokens.length - 1) {
-        return { valid: false, error: `Незавершенный сет "${s}" допустим только непосредственно перед RET.` };
-      }
+    if (p1W >= req || p2W >= req) {
+      return { valid: false, error: 'Отказ RET недопустим: победитель матча уже определился в завершенных сетах.' };
     }
 
-    // Если матч прерван в ходе незавершенного сета, травмировался и снялся отстающий игрок
-    const lastSetClean = setTokens[setTokens.length - 1].replace(/\(\d+\)/g, '');
-    const lastParts = lastSetClean.split('-');
-    const lg1 = parseInt(lastParts[0], 10);
-    const lg2 = parseInt(lastParts[1], 10);
-    const lastSetIsComplete = (Math.max(lg1, lg2) === 6 && Math.min(lg1, lg2) <= 4) ||
-                              (Math.max(lg1, lg2) === 7 && (Math.min(lg1, lg2) === 5 || Math.min(lg1, lg2) === 6));
-
-    const p1WinsMatch = !lastSetIsComplete && lg1 !== lg2
-      ? lg1 > lg2
+    const p1WinsMatch = !lastSetIsComplete && lastParsed.g1 !== lastParsed.g2
+      ? lastParsed.g1 > lastParsed.g2
       : (p1W !== p2W ? p1W > p2W : p1TotalG >= p2TotalG);
 
     const normalizedSets = [...setTokens, 'RET'];
@@ -629,49 +687,9 @@ export function parseAndValidateScoreString(str, bestOf = 3) {
     };
   }
 
-  const sets = rawTokens;
-  const req = bestOf === 5 ? 3 : 2;
-  const maxSets = bestOf === 5 ? 5 : 3;
-  if (sets.length > maxSets) {
-    return { valid: false, error: `Слишком много сетов (${sets.length}) для формата best-of-${bestOf} (максимум ${maxSets}).` };
-  }
-
-  let p1W = 0;
-  let p2W = 0;
-
-  for (const s of sets) {
-    if (p1W >= req || p2W >= req) {
-      return { valid: false, error: `Лишний сет "${s}" после того, как победитель матча уже определился.` };
-    }
-    const clean = s.replace(/\(\d+\)/g, '');
-    const parts = clean.split('-');
-    if (parts.length !== 2) {
-      return { valid: false, error: `Некорректный формат сета: "${s}". Используйте формат 6-4 или 7-6(5).` };
-    }
-    const g1 = parseInt(parts[0], 10);
-    const g2 = parseInt(parts[1], 10);
-    if (isNaN(g1) || isNaN(g2) || g1 === g2 || g1 < 0 || g2 < 0) {
-      return { valid: false, error: `В сете "${s}" должен быть определен победитель.` };
-    }
-    const maxG = Math.max(g1, g2);
-    const minG = Math.min(g1, g2);
-    const isValidTennisSet =
-      (maxG === 6 && minG <= 4) ||
-      (maxG === 7 && (minG === 5 || minG === 6));
-    if (!isValidTennisSet) {
-      return { valid: false, error: `Недопустимый теннисный счет в сете "${s}". Допустимы 6-0..6-4, 7-5 или 7-6.` };
-    }
-    if (g1 > g2) p1W++;
-    else if (g2 > g1) p2W++;
-  }
-
-  if (p1W < req && p2W < req) {
-    return { valid: false, error: `Недостаточно выигранных сетов! Для победы требуется ${req} выигранных сета.` };
-  }
-
   return {
     valid: true,
-    sets,
+    sets: setTokens,
     isRetirement: false,
     p1WinsMatch: p1W > p2W,
     p1W,
