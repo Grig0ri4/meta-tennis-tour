@@ -1116,7 +1116,8 @@ test('Спринт Блокбастер #3 и #4: Шкала энергии (Sta
     options: { storage: memStore, fetchImpl: mockFetchRivalry, strictGroq: true }
   });
 
-  assert.ok(capturedSystemPrompt.includes('isRivalry: true'), 'При H2H >= 2 матчей в промпт Groq передаётся флаг isRivalry: true');
+  assert.ok(capturedSystemPrompt.includes('ДАВНЯЯ ИСТОРИЯ ВСТРЕЧ'), 'При H2H >= 2 матчей модель получает rivalry-контекст без цифр');
+  assert.ok(!capturedSystemPrompt.includes('3 : 2'), 'Счёт H2H не передаётся в промпт — модель не должна его цитировать');
 });
 
 test('Аудит H2H (Wentra vs Shifter, 1/4 Okeanskiy Open 2023) и отсутствие undefined в бейджах архетипов', () => {
