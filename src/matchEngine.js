@@ -591,7 +591,10 @@ function isCompletedTennisSet(g1, g2) {
   return (maxG === 6 && minG <= 4) || (maxG === 7 && (minG === 5 || minG === 6));
 }
 
-export function parseAndValidateScoreString(str, bestOf = 3) {
+export function parseAndValidateScoreString(str, bestOf = 3, options = {}) {
+  const explicitRetiredPlayer = options.retiredPlayer === 1 || options.retiredPlayer === 2
+    ? options.retiredPlayer
+    : null;
   const cleanStr = (str || '').trim();
   if (!cleanStr) {
     return { valid: false, error: 'Введите счет матча!' };
@@ -688,9 +691,12 @@ export function parseAndValidateScoreString(str, bestOf = 3) {
       return { valid: false, error: 'Отказ RET недопустим: победитель матча уже определился в завершенных сетах.' };
     }
 
-    const p1WinsMatch = !lastSetIsComplete && lastParsed.g1 !== lastParsed.g2
+    const inferredP1Wins = !lastSetIsComplete && lastParsed.g1 !== lastParsed.g2
       ? lastParsed.g1 > lastParsed.g2
       : (p1W !== p2W ? p1W > p2W : p1TotalG >= p2TotalG);
+    const p1WinsMatch = explicitRetiredPlayer === 1
+      ? false
+      : (explicitRetiredPlayer === 2 ? true : inferredP1Wins);
 
     const normalizedSets = [...setTokens, 'RET'];
     return {
@@ -698,6 +704,7 @@ export function parseAndValidateScoreString(str, bestOf = 3) {
       sets: normalizedSets,
       isRetirement: true,
       p1WinsMatch,
+      retiredPlayer: explicitRetiredPlayer || (p1WinsMatch ? 2 : 1),
       p1W,
       p2W
     };

@@ -1052,6 +1052,25 @@ test('Спринт Блокбастер #2: Валидация отказов (R
   assert.equal(retP2.isRetirement, true);
   assert.equal(retP2.p1WinsMatch, false, 'При 4-6 1-4 RET побеждает Игрок 2');
 
+  // Явный выбор снявшегося игрока: Игрок 1 ведёт 3-2, но снялся именно он
+  const retExplicitP1 = parseAndValidateScoreString('3-2 RET', 3, { retiredPlayer: 1 });
+  assert.equal(retExplicitP1.valid, true);
+  assert.equal(retExplicitP1.isRetirement, true);
+  assert.equal(retExplicitP1.retiredPlayer, 1, 'Явный отказ Игрока 1 сохраняется');
+  assert.equal(retExplicitP1.p1WinsMatch, false, 'При отказе Игрока 1 победа достаётся Игроку 2, даже если Игрок 1 ведёт по счёту');
+
+  // Явный выбор снявшегося: Игрок 2 уступает 2-5, но снялся он — победа Игроку 1
+  const retExplicitP2 = parseAndValidateScoreString('6-4 2-5 RET', 3, { retiredPlayer: 2 });
+  assert.equal(retExplicitP2.valid, true);
+  assert.equal(retExplicitP2.isRetirement, true);
+  assert.equal(retExplicitP2.retiredPlayer, 2);
+  assert.equal(retExplicitP2.p1WinsMatch, true, 'При отказе Игрока 2 победа достаётся Игроку 1');
+
+  // Автоопределение осталось прежним: 3-2 RET без опций — побеждает Игрок 1, снялся Игрок 2
+  const retAuto = parseAndValidateScoreString('3-2 RET', 3);
+  assert.equal(retAuto.p1WinsMatch, true);
+  assert.equal(retAuto.retiredPlayer, 2);
+
   // Momentum Bar (по умолчанию 50%, смещается в сторону доминирующего игрока)
   assert.equal(computeMatchMomentumPercent([]), 50);
   assert.ok(computeMatchMomentumPercent(['6-1', '6-2']) >= 70, 'При разгроме 6-1 6-2 инициатива > 70% у Игрока 1');

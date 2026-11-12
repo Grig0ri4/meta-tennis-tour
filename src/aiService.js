@@ -376,6 +376,7 @@ export async function generateCommentaryForEnteredScore({
   h2hSummary = '0 : 0',
   h2hTotalMatches = 0,
   isRivalry: explicitRivalry,
+  retiredPlayer = null,
   options = {}
 }) {
   const player1 = p1 || match?.p1;
@@ -390,7 +391,7 @@ export async function generateCommentaryForEnteredScore({
   }
 
   const rawScoreInput = String(enteredScore || scoreStr || '').trim();
-  const validation = parseAndValidateScoreString(rawScoreInput, bestOf);
+  const validation = parseAndValidateScoreString(rawScoreInput, bestOf, { retiredPlayer });
   if (!validation.valid) {
     throw new Error(validation.error || 'Введите корректный счет матча перед генерацией ИИ-комментария.');
   }

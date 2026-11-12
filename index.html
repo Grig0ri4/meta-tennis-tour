@@ -374,6 +374,16 @@
 
                 <input type="text" id="quickScoreStr" class="score-quick-input" placeholder="например: 4-6 7-6(5) 6-3 или 6-4 3-1 RET" oninput="handleLiveScoreInputForMomentum()" onkeydown="if(event.key==='Enter') saveQuickStringScore()">
 
+                <div id="retirementSideRow" style="display: none; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+                    <span style="color: var(--text-dim); font-size: 13px;">🚑 Отказ RET — снялся:</span>
+                    <select id="retiredPlayerSelect" style="font-size: 12px; padding: 5px 10px;">
+                        <option value="auto">Авто (по счёту)</option>
+                        <option value="p1">Игрок 1</option>
+                        <option value="p2">Игрок 2</option>
+                    </select>
+                    <span style="color: var(--text-dim); font-size: 12px;">победа достанется другому игроку</span>
+                </div>
+
                 <div class="preset-sets-bar">
                     <span class="preset-sets-title">Быстрый сет:</span>
                     <div class="preset-buttons">
