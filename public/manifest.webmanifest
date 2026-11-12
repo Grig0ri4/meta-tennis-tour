@@ -1,0 +1,20 @@
+{
+  "name": "Meta Tennis Tour — Симулятор Профессионального Теннисного Тура",
+  "short_name": "Meta Tennis",
+  "description": "Симулятор виртуальной теннисной вселенной: 300 игроков, 26 турниров сезона, рейтинг ATP 52 недели, Чемпионская гонка и ИИ-симуляция матчей.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1015",
+  "theme_color": "#0d1015",
+  "categories": ["games", "sports", "simulation"],
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

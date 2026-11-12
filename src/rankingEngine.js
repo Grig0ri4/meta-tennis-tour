@@ -20,6 +20,9 @@ import { BG_250_NAMES } from '../data/tournaments.js';
 import { PRESERVED_BASE, CALIBRATED_2023_POINTS_141_TO_300 } from '../data/players.js';
 import { REAL_USER_DRAWS_2023 } from '../data/realDraws2023.js';
 
+// Лучший ранг по снимкам Топ-50; защищает подтверждённый историей №1 от сброса эвристикой
+const archivePeakEvidence = new Map();
+
 export const POINTS_SCALE = {
   128: [10, 50, 100, 200, 400, 800, 1300, 2000], // ТБШ (1-й круг = 10 очков)
   64: [10, 50, 100, 200, 400, 650, 1000],        // Мастерс 1000 (1-й круг = 10 очков)
@@ -298,11 +301,12 @@ export function sortAndRankPlayers(players, updateRankChange = false) {
       p.historicalBestRank = canonicalPeak;
       // Пик не может быть хуже исторического канонического (у Wentra пик #1, а не #2).
       // Если у игрока висел старый баг с ошибочным #1 (например, у Salkar с каноническим пиком #5), сбрасываем его
+      const verifiedPeak = archivePeakEvidence.get(String(p.name || '').trim().toLowerCase());
       let currentBest = p.bestRank || canonicalPeak;
       if (currentBest > canonicalPeak) {
         currentBest = canonicalPeak;
       } else if (currentBest < canonicalPeak && canonicalPeak > 1) {
-        if (currentBest === 1 && (p.seasonStartRank || 999) >= canonicalPeak && newRank >= canonicalPeak) {
+        if (currentBest === 1 && verifiedPeak !== 1 && (p.seasonStartRank || 999) >= canonicalPeak && newRank >= canonicalPeak) {
           currentBest = canonicalPeak;
         }
       }
@@ -315,6 +319,61 @@ export function sortAndRankPlayers(players, updateRankChange = false) {
   });
 
   return players;
+}
+
+/**
+ * Поднимает карьерный пик (bestRank) по архивным снимкам истории сезонов.
+ * Учитывает только улучшение, поэтому корректный пик никогда не ухудшается.
+ */
+export function repairCareerHighRanksFromHistory(players, seasonsHistory) {
+  if (!Array.isArray(players) || !seasonsHistory || typeof seasonsHistory !== 'object') return 0;
+
+  const bestFromHistory = new Map();
+  const considerSnapshot = (snapshot) => {
+    if (!Array.isArray(snapshot)) return;
+    snapshot.forEach((entry, idx) => {
+      const name = entry && entry.name ? String(entry.name).trim().toLowerCase() : '';
+      if (!name) return;
+      const rank = Number(entry.rank);
+      const effectiveRank = Number.isFinite(rank) && rank > 0 ? rank : idx + 1;
+      const prev = bestFromHistory.get(name);
+      if (prev === undefined || effectiveRank < prev) bestFromHistory.set(name, effectiveRank);
+    });
+  };
+
+  Object.values(seasonsHistory).forEach(season => {
+    if (!season || typeof season !== 'object') return;
+    considerSnapshot(season.seasonStartTop50);
+    considerSnapshot(season.yearEndTop50);
+    const slams = season.slamSnapshots;
+    if (slams && typeof slams === 'object') {
+      Object.values(slams).forEach(snap => {
+        if (!snap) return;
+        considerSnapshot(Array.isArray(snap) ? snap : snap.top50);
+      });
+    }
+  });
+
+  archivePeakEvidence.clear();
+  bestFromHistory.forEach((rank, name) => archivePeakEvidence.set(name, rank));
+
+  let repaired = 0;
+  players.forEach(p => {
+    if (!p || !p.name) return;
+    const key = String(p.name).trim().toLowerCase();
+    const evidence = bestFromHistory.get(key);
+    if (evidence === undefined) return;
+
+    const canonicalPeak = HISTORICAL_PEAK_RANK_BY_NAME[key];
+    const target = canonicalPeak !== undefined ? Math.min(evidence, canonicalPeak) : evidence;
+    const current = Number(p.bestRank);
+    if (!Number.isFinite(current) || current > target) {
+      p.bestRank = target;
+      repaired++;
+    }
+  });
+
+  return repaired;
 }
 
 export function calculateTournamentEarnedPoints(tourney, draw) {
@@ -469,7 +528,7 @@ function generateDeterministicRealisticMatchScore(p1Wins, keyPrefix) {
  * - Первые 4 сеяных ([1]..[4]) ВСЕГДА пропускают 1-й раунд (BYE в 1/16 финала) и выходят сразу в 1/8 финала!
  * - Все матчи всех 5 раундов сразу заполняются реалистичным счетом без спама «баранок» 6-0.
  */
-export function simulateDeterministicATP250Bracket(pool, scale, keyPrefix, strengthOrderMap = null, tourneyName = 'ATP 250') {
+export function simulateDeterministicATP250Bracket(pool, scale, keyPrefix, strengthOrderMap = null, tourneyName = 'ATP 250', options = {}) {
   const earnedByPlayerId = {};
   const details = {
     winner: null,
@@ -595,7 +654,13 @@ export function simulateDeterministicATP250Bracket(pool, scale, keyPrefix, stren
       const rankGap = Math.abs(rankB - rankA);
       // Фавориты из Топ-30 имеют весомое преимущество на турнирах ATP 250
       const favWinProb = rankGap > 40 ? 0.80 : (rankGap > 18 ? 0.74 : 0.64);
-      const probA = aIsFav ? favWinProb : (1 - favWinProb);
+      let probA = aIsFav ? favWinProb : (1 - favWinProb);
+      // Молодые таланты с высоким потенциалом чаще выдают прорывные матчи
+      const talentRefDate = options.currentDateStr || '2024-06-30';
+      const talentBonusA = getYoungTalentWinBonus(a, talentRefDate);
+      const talentBonusB = getYoungTalentWinBonus(b, talentRefDate);
+      probA += aIsFav ? -talentBonusB : talentBonusA;
+      probA = Math.min(0.94, Math.max(0.06, probA));
       const roll = (hashDeterministicSeed(`${keyPrefix}_r${r}_m${mIdx}_${a.id}_${b.id}`) % 1000) / 1000;
       const aWins = roll < probA;
       const w = aWins ? a : b;
@@ -628,7 +693,7 @@ export function simulateDeterministicATP250Bracket(pool, scale, keyPrefix, stren
   return { earnedByPlayerId, details };
 }
 
-function simulateDeterministic32Bracket(pool, scale, keyPrefix) {
+function simulateDeterministic32Bracket(pool, scale, keyPrefix, options = {}) {
   const earnedByPlayerId = {};
   const details = {
     winner: null,
@@ -639,6 +704,7 @@ function simulateDeterministic32Bracket(pool, scale, keyPrefix) {
     return { earnedByPlayerId, details };
   }
 
+  const talentRefDate = options.currentDateStr || '2024-06-30';
   let current = [...pool];
   for (let r = 0; r < 5; r++) {
     const next = [];
@@ -650,7 +716,9 @@ function simulateDeterministic32Bracket(pool, scale, keyPrefix) {
         continue;
       }
       const probRoll = (hashDeterministicSeed(`${keyPrefix}_${r}_${a.id}_${b.id}`) % 1000) / 1000;
-      const aWins = probRoll < 0.62;
+      let probA = 0.62 + getYoungTalentWinBonus(a, talentRefDate) - getYoungTalentWinBonus(b, talentRefDate);
+      probA = Math.min(0.9, Math.max(0.1, probA));
+      const aWins = probRoll < probA;
       const w = aWins ? a : b;
       const l = aWins ? b : a;
       earnedByPlayerId[l.id] = scale[r]; // r=0 -> 10 очков за 1-й круг!
@@ -752,12 +820,14 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
   const inAtp250Set = new Set(atp250Pool.map(p => p.id));
 
   const { atp250, ch175, ch125, ch100, ch75 } = PARALLEL_TOUR_SCALES;
+  const talentRefDate = options.currentDateStr || `${year}-06-30`;
   const { earnedByPlayerId: atp250Earned, details: atp250Details } = simulateDeterministicATP250Bracket(
     atp250Pool,
     atp250,
     `${year}_${tourney.id}_atp250`,
     strengthOrderMap,
-    leadTourneyName
+    leadTourneyName,
+    { currentDateStr: talentRefDate }
   );
   const leadBracketDetails = {
     ...atp250Details,
@@ -793,7 +863,7 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
   for (let b = 0; b * 32 < challengerEligible.length; b++) {
     const slice = challengerEligible.slice(b * 32, (b + 1) * 32);
     const sc = chScales[Math.min(b, chScales.length - 1)];
-    const { earnedByPlayerId } = simulateDeterministic32Bracket(slice, sc, `${year}_${tourney.id}_ch${b}`);
+    const { earnedByPlayerId } = simulateDeterministic32Bracket(slice, sc, `${year}_${tourney.id}_ch${b}`, { currentDateStr: talentRefDate });
     Object.entries(earnedByPlayerId).forEach(([pid, pts]) => {
       parallelEarnedMap[pid] = pts;
     });
@@ -1643,6 +1713,531 @@ export function getPlayerSkills(player, surface = 'Хард', currentDateStr = '
   };
 }
 
+// --- ФИЧА 1: ГОНКА ВЕЛИЧАЙШИХ (GOAT), НЕДЕЛИ НА №1 И КАРЬЕРНЫЙ ШЛЕМ ---
+
+/**
+ * Прежние базы недель (модели v1–v4) содержали выдуманные значения и переходные артефакты.
+ * Модель v5 считает недели только по реальной истории тура; earned-недели доверяем с v5.
+ */
+export const WEEKS_AT_NO1_MODEL_VERSION = 6;
+const EARNED_WEEKS_TRUSTED_FROM_MODEL = 6;
+
+const getLeaderKey = (person) => {
+  if (!person) return '';
+  if (person.id) return String(person.id).trim().toLowerCase();
+  return String(person.name || '').trim().toLowerCase();
+};
+
+/**
+ * Сколько недель на №1 приносит титул турнира:
+ * ТБШ / Мастерс / Олимпиада / Итоговый — 2 недели, ATP 500 — 1 неделя.
+ */
+export function getWeeksAtNo1Award(tourney) {
+  if (!tourney) return 0;
+  const type = String(tourney.type || '');
+  const id = String(tourney.id || '');
+  if (type === 'ТБШ' || type === 'Мастерс' || type === 'Итоговый' || type === 'Олимпиада' || id === 'finals' || id === 'olympics' || tourney.isOlympics) {
+    return 2;
+  }
+  if (type === 'ATP 500') return 1;
+  return 0;
+}
+
+/**
+ * Восстанавливает недели на №1 по архивным снимкам рейтинга:
+ * старт сезона → снимки после ТБШ → годовой финиш (ориентир — 15 ноября).
+ * Лидер на начало отрезка удерживает его до следующего снимка,
+ * финишный отрезок уходит год-end №1. asOfDate ограничивает подсчёт датой отката.
+ */
+export function computeSeasonWeeksAtNo1(seasonHistory, year, asOfDate = '') {
+  const result = new Map();
+  if (!seasonHistory) return result;
+  const yearStr = String(Number(year) || year || '');
+  if (!yearStr) return result;
+
+  const startDate = `${yearStr}-01-02`;
+  const finalsDate = `${yearStr}-11-15`;
+  const seasonEndDate = `${yearStr}-12-31`;
+  const asOf = typeof asOfDate === 'string' ? asOfDate.slice(0, 10) : '';
+  const cutoff = asOf && asOf < seasonEndDate ? asOf : seasonEndDate;
+  if (cutoff <= startDate) return result;
+
+  const checkpoints = [];
+  const startLeader = Array.isArray(seasonHistory.seasonStartTop50) ? seasonHistory.seasonStartTop50[0] : null;
+  const rawSnaps = seasonHistory.slamSnapshots;
+  const snaps = Array.isArray(rawSnaps) ? rawSnaps : (rawSnaps && typeof rawSnaps === 'object' ? Object.values(rawSnaps) : []);
+  snaps.forEach(snap => {
+    const leader = snap && Array.isArray(snap.top50) ? snap.top50[0] : null;
+    const date = snap && typeof snap.date === 'string' ? snap.date.slice(0, 10) : '';
+    if (leader && date) checkpoints.push({ date, leader });
+  });
+  const yearEndLeader = Array.isArray(seasonHistory.yearEndTop50) ? seasonHistory.yearEndTop50[0] : null;
+
+  if (startLeader) checkpoints.push({ date: startDate, leader: startLeader });
+  else if (yearEndLeader) checkpoints.push({ date: startDate, leader: yearEndLeader });
+  if (yearEndLeader) checkpoints.push({ date: finalsDate, leader: yearEndLeader });
+
+  checkpoints.sort((a, b) => a.date.localeCompare(b.date));
+
+  const unique = [];
+  checkpoints.forEach(cp => {
+    if (cp.date > cutoff) return;
+    const sameDate = unique.find(x => x.date === cp.date);
+    if (sameDate) sameDate.leader = cp.leader;
+    else unique.push({ ...cp });
+  });
+
+  const addWeeks = (leader, days) => {
+    const weeks = Math.max(0, Math.round(days / 7));
+    const key = getLeaderKey(leader);
+    if (!key || weeks <= 0) return;
+    result.set(key, (result.get(key) || 0) + weeks);
+  };
+
+  unique.forEach((cp, idx) => {
+    const nextDate = idx + 1 < unique.length ? unique[idx + 1].date : cutoff;
+    const days = (Date.parse(`${nextDate}T00:00:00Z`) - Date.parse(`${cp.date}T00:00:00Z`)) / 86400000;
+    if (Number.isFinite(days)) addWeeks(cp.leader, days);
+  });
+
+  return result;
+}
+
+/**
+ * Инициализирует и мигрирует p.weeksAtNo1 строго по фактической истории тура:
+ * восстановленные недели лидерства во всех сыгранных сезонах + недели, заработанные в игре.
+ * Никакой искусственной базы «до старта игры» нет. Повторные вызовы ничего не добавляют.
+ */
+export function ensureWeeksAtNo1State(players, options = {}) {
+  if (!Array.isArray(players)) return 0;
+  const seasonsHistory = options.seasonsHistory && typeof options.seasonsHistory === 'object' ? options.seasonsHistory : null;
+  const asOfDate = typeof options.asOfDate === 'string' ? options.asOfDate.slice(0, 10) : '';
+  const requestedYears = Array.isArray(options.syncYears)
+    ? options.syncYears
+    : (options.syncYear !== undefined && options.syncYear !== null ? [options.syncYear] : []);
+
+  const seasonMaps = new Map();
+  const historicalWeeks = new Map();
+  requestedYears.forEach(year => {
+    const yearStr = String(year);
+    const hist = seasonsHistory && seasonsHistory[yearStr];
+    if (!hist) return;
+    const seasonMap = computeSeasonWeeksAtNo1(hist, yearStr, asOfDate);
+    seasonMaps.set(yearStr, seasonMap);
+    seasonMap.forEach((weeks, key) => {
+      historicalWeeks.set(key, (historicalWeeks.get(key) || 0) + weeks);
+    });
+  });
+
+  let initialized = 0;
+  players.forEach(p => {
+    if (!p) return;
+    const hasStoredWeeks = typeof p.weeksAtNo1 === 'number' && Number.isFinite(p.weeksAtNo1);
+    if (hasStoredWeeks && p.weeksAtNo1Model === WEEKS_AT_NO1_MODEL_VERSION) return;
+
+    const nameKey = String(p.name || '').trim().toLowerCase();
+    const idKey = String(p.id || '').trim().toLowerCase();
+    const historicalWeeksForPlayer = historicalWeeks.get(idKey) || historicalWeeks.get(nameKey) || 0;
+
+    // До v5 происхождение недель не отслеживалось достоверно — при миграции оставляем только историю
+    const earnedWeeks = hasStoredWeeks && Number(p.weeksAtNo1Model) >= EARNED_WEEKS_TRUSTED_FROM_MODEL
+      ? Math.max(0, Number(p.weeksAtNo1Earned) || 0)
+      : 0;
+
+    p.weeksAtNo1 = historicalWeeksForPlayer + earnedWeeks;
+    p.weeksAtNo1Earned = earnedWeeks;
+    p.weeksAtNo1Model = WEEKS_AT_NO1_MODEL_VERSION;
+    initialized++;
+  });
+  return initialized;
+}
+
+/**
+ * Начисляет недели на №1 действующему лидеру рейтинга (players[0]) за выигранный турнир.
+ */
+export function awardWeeksAtNo1(players, tourney) {
+  if (!Array.isArray(players) || players.length === 0) return { weeks: 0, player: null };
+  const weeks = getWeeksAtNo1Award(tourney);
+  if (weeks <= 0) return { weeks: 0, player: null };
+  const leader = players[0];
+  if (!leader) return { weeks: 0, player: null };
+  leader.weeksAtNo1 = (Number(leader.weeksAtNo1) || 0) + weeks;
+  leader.weeksAtNo1Earned = (Number(leader.weeksAtNo1Earned) || 0) + weeks;
+  leader.weeksAtNo1Model = WEEKS_AT_NO1_MODEL_VERSION;
+  return { weeks, player: leader };
+}
+
+// --- ФИЧА 2: ПОТЕНЦИАЛ (POT) И ПРОРЫВ МОЛОДЫХ ТАЛАНТОВ ---
+
+export const POTENTIAL_MODEL_VERSION = 3;
+
+/**
+ * Запас роста тем больше, чем моложе игрок: 18 лет — +12 к потолку,
+ * 19–20 — +9, 21–22 — +6, 23 — +3.
+ */
+function getPotentialAgeHeadroom(age) {
+  if (age <= 18) return 12;
+  if (age <= 20) return 9;
+  if (age <= 22) return 6;
+  return 3;
+}
+
+/**
+ * Скаутский бонус за игровой профиль: подача и агрессивный приём
+ * легче переносятся на взрослый уровень, чем универсальная игра.
+ */
+function getPotentialArchetypeBonus(player, currentDateStr) {
+  const archetypes = getPlayerArchetypes(player, currentDateStr);
+  let bonus = 0;
+  archetypes.forEach(a => {
+    if (a.id === 'serve_bot') bonus += 2;
+    else if (a.id === 'aggressive_returner' || a.id === 'clutch_king') bonus += 1;
+    else if (a.id === 'clay_specialist') bonus += 1;
+  });
+  return Math.min(3, bonus);
+}
+
+/**
+ * Скаутская оценка POT для действующего игрока: текущий OVR + запас по возрасту
+ * + профиль + детерминированный шум скаута. Элитный потолок 93–98 выпадает
+ * только самым молодым (15% в 18 лет, 10% в 19–20, 5% в 21).
+ */
+function getDeterministicPlayerPotential(player, currentDateStr = '2024-01-02') {
+  if (!player) return 78;
+  const age = calculateAgeNum(player.birthDate, currentDateStr);
+  const ovr = calculatePlayerOVR(player);
+  const h = hashDeterministicSeed(`potential_${player?.id || player?.name || 'p'}`);
+  const scoutNoise = (h % 5) - 2;
+
+  let potential = ovr + getPotentialAgeHeadroom(age) + getPotentialArchetypeBonus(player, currentDateStr) + scoutNoise;
+
+  const eliteChance = age <= 18 ? 15 : age <= 20 ? 10 : age <= 21 ? 5 : 0;
+  if (eliteChance > 0 && Math.floor(h / 7) % 100 < eliteChance) {
+    potential = Math.max(potential, 93 + (Math.floor(h / 13) % 6));
+  }
+
+  // Скаутская вилка для низких рангов: даже игрок из хвоста получает
+  // индивидуальный потолок 78–84, а не одинаковый минимум.
+  const youthUpside = age <= 18 ? 2 : age <= 20 ? 1 : 0;
+  potential = Math.max(potential, 78 + youthUpside + (Math.floor(h / 17) % 5));
+
+  potential = Math.max(78, Math.min(98, potential));
+  return Math.max(potential, Math.min(98, ovr));
+}
+
+/**
+ * Потенциал новичка — скаутская лотерея юниоров: 15% «поколенческий талант»
+ * (93–98), иначе 78–92 с надбавкой за молодость (до +4 в 18 лет).
+ */
+export function generatePlayerPotential(rng = Math.random, context = {}) {
+  const roll = rng();
+  if (roll < 0.15) {
+    return 93 + Math.floor(rng() * 6);
+  }
+  const age = Number(context.age);
+  const ageBonus = Number.isFinite(age) ? (age <= 18 ? 4 : age <= 20 ? 2 : 0) : 0;
+  return Math.min(92, 78 + Math.floor(rng() * 15) + ageBonus);
+}
+
+/**
+ * Назначает POT молодым игрокам (до 23 лет включительно) по скаутской модели.
+ * Значения предыдущих версий модели пересчитываются один раз.
+ */
+export function ensureYoungPlayerPotentials(players, currentDateStr = '2024-01-02') {
+  if (!Array.isArray(players)) return 0;
+  let count = 0;
+  players.forEach(p => {
+    if (!p) return;
+    if (calculateAgeNum(p.birthDate, currentDateStr) > 23) return;
+    if (p.potentialModel === POTENTIAL_MODEL_VERSION && typeof p.potential === 'number' && Number.isFinite(p.potential)) return;
+    p.potential = getDeterministicPlayerPotential(p, currentDateStr);
+    p.potentialModel = POTENTIAL_MODEL_VERSION;
+    count++;
+  });
+  return count;
+}
+
+/**
+ * Прогрессивный бонус к вероятности победы для молодого таланта:
+ * чем больше разрыв между потенциалом и текущим OVR, тем сильнее прорыв (максимум +18%).
+ */
+export function getYoungTalentWinBonus(player, currentDateStr = '2024-06-30') {
+  if (!player) return 0;
+  const potential = Number(player.potential);
+  if (!Number.isFinite(potential) || potential <= 0) return 0;
+  if (calculateAgeNum(player.birthDate, currentDateStr) > 23) return 0;
+  const ovr = calculatePlayerOVR(player);
+  const gap = potential - ovr;
+  if (gap <= 0) return 0;
+  return Math.min(0.18, Math.round(gap * 0.6) / 100);
+}
+
+// --- ФИЧА 1 + 4: GOAT-РЕЙТИНГ И ЛАУРЕАТЫ СЕЗОНА ---
+
+export const GOAT_SCORE_WEIGHTS = {
+  slamTitle: 8,
+  finalsTitle: 4,
+  olympicGold: 5,
+  olympicSilver: 2,
+  olympicBronze: 1,
+  mastersTitle: 3,
+  atp500Title: 1,
+  seasonNo1: 5,
+  tenWeeksAtNo1: 1,
+  careerGrandSlam: 10
+};
+
+export function calculateGoatScore(stats) {
+  if (!stats) return 0;
+  const num = (v) => Math.max(0, Number(v) || 0);
+  const weeks = num(stats.weeksAtNo1);
+  const score =
+    num(stats.slamTitles) * GOAT_SCORE_WEIGHTS.slamTitle +
+    num(stats.finalsTitles) * GOAT_SCORE_WEIGHTS.finalsTitle +
+    num(stats.olympicGold) * GOAT_SCORE_WEIGHTS.olympicGold +
+    num(stats.olympicSilver) * GOAT_SCORE_WEIGHTS.olympicSilver +
+    num(stats.olympicBronze) * GOAT_SCORE_WEIGHTS.olympicBronze +
+    num(stats.mastersTitles) * GOAT_SCORE_WEIGHTS.mastersTitle +
+    num(stats.atp500Titles) * GOAT_SCORE_WEIGHTS.atp500Title +
+    num(stats.seasonNo1) * GOAT_SCORE_WEIGHTS.seasonNo1 +
+    Math.floor(weeks / 10) * GOAT_SCORE_WEIGHTS.tenWeeksAtNo1 +
+    (stats.careerGrandSlam ? GOAT_SCORE_WEIGHTS.careerGrandSlam : 0);
+  return Math.round(score);
+}
+
+const SLAM_IDS = ['tbsh_1', 'tbsh_2', 'tbsh_3', 'tbsh_4'];
+
+/**
+ * Единый всевременной рейтинг действующих игроков и легенд.
+ * Титулы и завершённые сезоны на №1 берутся из seasonsHistory, недели на №1 — из p.weeksAtNo1.
+ */
+export function buildGoatLeaderboard(players = [], retiredLegends = [], seasonsHistory = {}) {
+  const entriesByKey = new Map();
+
+  const makeEntry = (p, isRetired) => ({
+    id: p.id,
+    name: p.name,
+    flag: p.flag,
+    isRetired,
+    statusLabel: isRetired ? 'Легенда' : 'Активен',
+    rank: Number(p.rank) || null,
+    bestRank: Number(p.bestRank) || null,
+    retiredYear: isRetired ? (Number(p.retiredYear) || null) : null,
+    weeksAtNo1: Math.max(0, Number(p.weeksAtNo1) || 0),
+    slamTitles: 0,
+    finalsTitles: 0,
+    mastersTitles: 0,
+    atp500Titles: 0,
+    olympicGold: Math.max(0, Number(p.medals?.gold) || 0),
+    olympicSilver: Math.max(0, Number(p.medals?.silver) || 0),
+    olympicBronze: Math.max(0, Number(p.medals?.bronze) || 0),
+    _historyGold: 0,
+    _historySilver: 0,
+    _historyBronze: 0,
+    seasonNo1: 0,
+    slamIdSet: new Set(),
+    careerGrandSlam: false,
+    goatScore: 0,
+    goatRank: 0
+  });
+
+  const register = (p, isRetired) => {
+    if (!p) return null;
+    const idKey = p.id ? `id:${String(p.id)}` : '';
+    const nameKey = p.name ? `name:${String(p.name).trim().toLowerCase()}` : '';
+    const existing = (idKey && entriesByKey.get(idKey)) || (nameKey && entriesByKey.get(nameKey)) || null;
+    const entry = existing || makeEntry(p, isRetired);
+    if (idKey && !entriesByKey.has(idKey)) entriesByKey.set(idKey, entry);
+    if (nameKey && !entriesByKey.has(nameKey)) entriesByKey.set(nameKey, entry);
+    return entry;
+  };
+
+  (players || []).forEach(p => register(p, false));
+  (retiredLegends || []).forEach(p => register(p, true));
+
+  const findEntry = (person) => {
+    if (!person) return null;
+    if (person.id && entriesByKey.has(`id:${String(person.id)}`)) return entriesByKey.get(`id:${String(person.id)}`);
+    if (person.name) {
+      const nameKey = `name:${String(person.name).trim().toLowerCase()}`;
+      if (entriesByKey.has(nameKey)) return entriesByKey.get(nameKey);
+    }
+    return null;
+  };
+
+  Object.keys(seasonsHistory || {}).forEach(yearKey => {
+    const hist = seasonsHistory[yearKey];
+    if (!hist) return;
+
+    (hist.tournamentsData || []).forEach(t => {
+      if (!t || !t.winner) return;
+      const entry = findEntry(t.winner);
+      if (!entry) return;
+      if (t.type === 'ТБШ') {
+        entry.slamTitles++;
+        if (SLAM_IDS.includes(t.id)) entry.slamIdSet.add(t.id);
+      } else if (t.type === 'Мастерс') {
+        entry.mastersTitles++;
+      } else if (t.type === 'ATP 500') {
+        entry.atp500Titles++;
+      } else if (t.type === 'Итоговый' || t.id === 'finals') {
+        entry.finalsTitles++;
+      } else if (t.type === 'Олимпиада' || t.id === 'olympics') {
+        entry._historyGold++;
+      }
+      if (t.type === 'Олимпиада' || t.id === 'olympics') {
+        if (t.runnerUp) {
+          const silverEntry = findEntry(t.runnerUp);
+          if (silverEntry) silverEntry._historySilver++;
+        }
+        if (t.bronze) {
+          const bronzeEntry = findEntry(t.bronze);
+          if (bronzeEntry) bronzeEntry._historyBronze++;
+        }
+      }
+    });
+
+    // Завершённый сезон = есть итоговый снимок Топ-50 на конец года
+    if (Array.isArray(hist.yearEndTop50) && hist.yearEndTop50.length > 0) {
+      const seasonLeader = findEntry(hist.yearEndTop50[0]);
+      if (seasonLeader) seasonLeader.seasonNo1++;
+    }
+  });
+
+  const list = [...new Set(entriesByKey.values())];
+  list.forEach(entry => {
+    entry.olympicGold = Math.max(entry.olympicGold, entry._historyGold);
+    entry.olympicSilver = Math.max(entry.olympicSilver, entry._historySilver);
+    entry.olympicBronze = Math.max(entry.olympicBronze, entry._historyBronze);
+    entry.careerGrandSlam = entry.slamIdSet.size >= SLAM_IDS.length;
+    entry.goatScore = calculateGoatScore(entry);
+    delete entry._historyGold;
+    delete entry._historySilver;
+    delete entry._historyBronze;
+  });
+
+  list.sort((a, b) =>
+    b.goatScore - a.goatScore ||
+    b.slamTitles - a.slamTitles ||
+    b.weeksAtNo1 - a.weeksAtNo1 ||
+    String(a.name || '').localeCompare(String(b.name || ''))
+  );
+  list.forEach((entry, idx) => { entry.goatRank = idx + 1; });
+
+  return list;
+}
+
+/**
+ * Лауреаты премии ATP Tour Awards по итогам завершённого сезона:
+ * Игрок Года, Прорыв Года, NextGen Года (U22), Железный Человек.
+ */
+export function computeSeasonAwards(players = [], seasonYear, options = {}) {
+  const year = Number(seasonYear);
+  const list = Array.isArray(players) ? players.filter(Boolean) : [];
+  if (list.length === 0) return null;
+
+  const seasonsHistory = options.seasonsHistory && typeof options.seasonsHistory === 'object' ? options.seasonsHistory : {};
+  const seasonTourneys = Array.isArray(options.seasonTourneys) ? options.seasonTourneys : [];
+  const getDraw = typeof options.getDraw === 'function' ? options.getDraw : null;
+
+  const snapshot = (p, summary) => p ? {
+    id: p.id,
+    name: p.name,
+    flag: p.flag,
+    rank: Number(p.rank) || null,
+    points: Math.round(Number(p.points) || 0),
+    summary
+  } : null;
+
+  const playerOfYear = snapshot(list[0], `Финиш на №1 мирового рейтинга · ${Math.round(Number(list[0].points) || 0).toLocaleString()} pts`);
+
+  let bestRise = null;
+  list.slice(0, 50).forEach(p => {
+    const startRank = Number(p.seasonStartRank) || Number(p.rank) || 50;
+    const currentRank = Number(p.rank) || 50;
+    const rise = startRank - currentRank;
+    if (!bestRise || rise > bestRise.rise) {
+      bestRise = { player: p, rise };
+    }
+  });
+  const breakthrough = bestRise ? {
+    ...snapshot(bestRise.player, `${bestRise.rise >= 0 ? '▲ +' : '▼ '}${bestRise.rise} мест за сезон (#${Number(bestRise.player.seasonStartRank) || bestRise.player.rank} → #${bestRise.player.rank})`),
+    seasonStartRank: Number(bestRise.player.seasonStartRank) || null,
+    rise: bestRise.rise
+  } : null;
+
+  let nextGenPick = null;
+  list.forEach(p => {
+    const age = calculateAgeNum(p.birthDate, `${year}-12-30`);
+    if (age > 22) return;
+    if (!nextGenPick || Number(p.rank) < Number(nextGenPick.player.rank)) {
+      nextGenPick = { player: p, age };
+    }
+  });
+  const nextGen = nextGenPick ? {
+    ...snapshot(nextGenPick.player, `Лучший игрок тура до 23 лет · ${nextGenPick.age} лет`),
+    age: nextGenPick.age
+  } : null;
+
+  const winsMap = {};
+  const titlesMap = {};
+  if (getDraw) {
+    seasonTourneys.forEach(t => {
+      if (!t || !t.id) return;
+      let draw = null;
+      try { draw = getDraw(t.id, year); } catch { draw = null; }
+      if (!Array.isArray(draw)) return;
+      draw.forEach(round => {
+        (round || []).forEach(m => {
+          if (!m || !m.winner || !m.p1 || !m.p2) return;
+          if (m.isBye || m.isByeMatch || (Array.isArray(m.score) && String(m.score[0]).toUpperCase() === 'BYE')) return;
+          if (!m.p1.id || !m.p2.id) return;
+          winsMap[m.winner.id] = (winsMap[m.winner.id] || 0) + 1;
+        });
+      });
+    });
+  }
+
+  const historyData = seasonsHistory[year]?.tournamentsData || [];
+  [...historyData, ...seasonTourneys].forEach(t => {
+    const winner = t?.winner || t?.lastWinner || null;
+    if (!winner || !winner.id) return;
+    titlesMap[winner.id] = (titlesMap[winner.id] || 0) + 1;
+  });
+
+  let ironManPick = null;
+  Object.entries(winsMap).forEach(([pid, wins]) => {
+    const p = list.find(x => String(x.id) === String(pid));
+    if (!p) return;
+    const titles = titlesMap[pid] || 0;
+    if (!ironManPick || wins > ironManPick.wins || (wins === ironManPick.wins && titles > ironManPick.titles)) {
+      ironManPick = { player: p, wins, titles };
+    }
+  });
+  if (!ironManPick) {
+    Object.entries(titlesMap).forEach(([pid, titles]) => {
+      const p = list.find(x => String(x.id) === String(pid));
+      if (!p) return;
+      if (!ironManPick || titles > ironManPick.titles) {
+        ironManPick = { player: p, wins: 0, titles };
+      }
+    });
+  }
+  const ironMan = ironManPick ? {
+    ...snapshot(ironManPick.player, `${ironManPick.wins} побед · ${ironManPick.titles} титулов`),
+    wins: ironManPick.wins,
+    titles: ironManPick.titles
+  } : null;
+
+  return {
+    year,
+    playerOfYear,
+    breakthrough,
+    nextGen,
+    ironMan
+  };
+}
+
 export function createTop50Snapshot(players, currentTourDateStr, prevSnapshotTop50 = null) {
   const prevRankMap = {};
   if (prevSnapshotTop50 && Array.isArray(prevSnapshotTop50)) {
@@ -1693,4 +2288,16 @@ if (typeof window !== 'undefined') {
   window.calculatePlayerOVR = calculatePlayerOVR;
   window.getPlayerArchetypes = getPlayerArchetypes;
   window.getPlayerSkills = getPlayerSkills;
+  window.WEEKS_AT_NO1_MODEL_VERSION = WEEKS_AT_NO1_MODEL_VERSION;
+  window.getWeeksAtNo1Award = getWeeksAtNo1Award;
+  window.computeSeasonWeeksAtNo1 = computeSeasonWeeksAtNo1;
+  window.ensureWeeksAtNo1State = ensureWeeksAtNo1State;
+  window.awardWeeksAtNo1 = awardWeeksAtNo1;
+  window.generatePlayerPotential = generatePlayerPotential;
+  window.ensureYoungPlayerPotentials = ensureYoungPlayerPotentials;
+  window.getYoungTalentWinBonus = getYoungTalentWinBonus;
+  window.GOAT_SCORE_WEIGHTS = GOAT_SCORE_WEIGHTS;
+  window.calculateGoatScore = calculateGoatScore;
+  window.buildGoatLeaderboard = buildGoatLeaderboard;
+  window.computeSeasonAwards = computeSeasonAwards;
 }

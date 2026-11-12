@@ -78,9 +78,15 @@ import {
   renderPlayerMedalsHtml,
   getDefendingPoints,
   sortAndRankPlayers,
+  repairCareerHighRanksFromHistory,
   applyTournamentPointsToPlayers,
   runBackgroundATP250Tournaments,
-  createTop50Snapshot
+  createTop50Snapshot,
+  ensureWeeksAtNo1State,
+  awardWeeksAtNo1,
+  ensureYoungPlayerPotentials,
+  buildGoatLeaderboard,
+  computeSeasonAwards
 } from './rankingEngine.js';
 import {
   NEWGEN_NICKNAMES,
@@ -123,6 +129,7 @@ const CANON_AUTHOR_PASSCODE = 'grig0ri4';
 
 let universesList = [];
 let activeUniverseId = '1';
+let authorCanonRestoreHook = null;
 
 export function isCanonUniverseActive() {
   const currentUnivMeta = universesList.find(u => u.id === activeUniverseId);
@@ -169,7 +176,7 @@ export function openAuthorUnlockModal() {
   setTimeout(() => input?.focus(), 60);
 }
 
-export function confirmAuthorUnlock() {
+export async function confirmAuthorUnlock() {
   const input = document.getElementById('authorPasscodeInput');
   const errEl = document.getElementById('authorUnlockError');
   const code = String(input?.value || '').trim();
@@ -180,12 +187,11 @@ export function confirmAuthorUnlock() {
     } catch {
       // ignore
     }
-    // Автор разблокировал канон уже после загрузки гостевого снимка: снимаем
-    // блокировку записи, иначе прогресс останется только в памяти и пропадёт при F5.
-    canonSnapshotInfo = null;
+    // Автор разблокировал канон уже после загрузки гостевого снимка: сначала
+    // возвращаем более свежий прогресс из localStorage и только потом показываем UI.
     closeModal('authorUnlockModal');
+    await restoreAuthorProgressAfterGuestPreview();
     initUI({ preserveSelectedTourney: true });
-    persistCurrentCanonAuthorState();
     renderPlayersTable();
     renderRaceTable();
     renderCalendarTable();
@@ -198,7 +204,7 @@ export function confirmAuthorUnlock() {
   }
 }
 
-export function toggleGuestReadOnlyPreview(enableGuestPreview) {
+export async function toggleGuestReadOnlyPreview(enableGuestPreview) {
   try {
     if (enableGuestPreview) {
       localStorage.setItem(CANON_GUEST_PREVIEW_KEY, 'true');
@@ -207,6 +213,9 @@ export function toggleGuestReadOnlyPreview(enableGuestPreview) {
     }
   } catch {
     // ignore
+  }
+  if (!enableGuestPreview) {
+    await restoreAuthorProgressAfterGuestPreview();
   }
   initUI({ preserveSelectedTourney: true });
   renderPlayersTable();
@@ -326,6 +335,69 @@ function saveUniversesRegistry() {
 }
 
 const memoryUniverseStore = {};
+
+// Прогресс Автора в localStorage не должен затираться гостевым снимком canon.json:
+// при возврате в режим Автора сравниваем даты и поднимаем более свежее сохранение.
+function getLocalAuthorProgressStamp() {
+  try {
+    const yearRaw =
+      localStorage.getItem('universe_1_meta_tour_year_v8') ||
+      localStorage.getItem('universe_1_meta_tour_year') ||
+      localStorage.getItem('meta_tour_year_v8') ||
+      localStorage.getItem('meta_tour_year');
+    const dateRaw =
+      localStorage.getItem('universe_1_meta_tour_date_v8') ||
+      localStorage.getItem('universe_1_meta_tour_date') ||
+      localStorage.getItem('meta_tour_date_v8') ||
+      localStorage.getItem('meta_tour_date');
+    return {
+      year: parseInt(yearRaw, 10) || 0,
+      date: String(dateRaw || ''),
+      hasPlayers: Boolean(
+        localStorage.getItem('universe_1_meta_players_v8') ||
+        localStorage.getItem('universe_1_meta_players')
+      )
+    };
+  } catch {
+    return { year: 0, date: '', hasPlayers: false };
+  }
+}
+
+async function restoreAuthorProgressAfterGuestPreview() {
+  canonSnapshotInfo = null;
+  const stamp = getLocalAuthorProgressStamp();
+  const hasLocalProgress = stamp.hasPlayers || stamp.year > 0;
+
+  if (!hasLocalProgress) {
+    persistCurrentCanonAuthorState();
+    return;
+  }
+
+  const localIsOlder =
+    stamp.year > 0 &&
+    (stamp.year < currentTourYear ||
+      (stamp.year === currentTourYear &&
+        Boolean(stamp.date) &&
+        Boolean(currentTourDateStr) &&
+        stamp.date < currentTourDateStr));
+  if (localIsOlder) {
+    // В памяти уже более свежий прогресс Автора — сохраняем его, а не откатываемся.
+    persistCurrentCanonAuthorState();
+    return;
+  }
+
+  // Сбрасываем гостевые значения из памяти и перечитываем прогресс Автора из localStorage.
+  Object.keys(memoryUniverseStore).forEach(key => {
+    if (key.startsWith('universe_1_meta_') || key.startsWith('draw_1_')) {
+      delete memoryUniverseStore[key];
+    }
+  });
+  loadUniverseStateFromStorage();
+  if (authorCanonRestoreHook) {
+    await authorCanonRestoreHook();
+  }
+  invalidatePlayerCardAnalyticsCache();
+}
 
 export function runStorageGarbageCollector() {
   if (typeof localStorage === 'undefined') return;
@@ -1102,6 +1174,9 @@ export function initData() {
     }
   });
 
+  // ФИЧА 2: POT для молодых игроков до 23 лет
+  ensureYoungPlayerPotentials(players, currentTourDateStr);
+
   if (isCanonUniverse || !isCustomRandomUniverse) {
     // 1) Гарантируем истинный архив 2023 года: World #1 GEO Max Kyupan (12 300 pts), Топ-10 и чемпионы 2023
     const archive2023Updated = ensureDefault2023SeasonArchive(tournaments, players, seasonsHistory, universeStorage);
@@ -1137,6 +1212,7 @@ export function initData() {
     }
   }
 
+  repairCareerHighRanksFromHistory(players, seasonsHistory);
   savePlayers(false);
   ensureInitialSeasonCheckpoint();
 
@@ -1152,6 +1228,12 @@ export function initData() {
       syncSeasonHistoryWithActualDraws(yr);
     }
   });
+
+  // ФИЧА 1: недели на №1 — строго по сыгранным сезонам тура (2023–2024), без искусственной базы.
+  // Считаем после сборки архива 2023 и синхронизации истории с реальными сетками.
+  if (ensureWeeksAtNo1State(players, { seasonsHistory, syncYears: [2023, 2024], asOfDate: currentTourDateStr }) > 0) {
+    savePlayers(false);
+  }
 }
 
 export function resetCurrentSeasonToCleanJanuary() {
@@ -1783,6 +1865,7 @@ function saveDraw() {
   );
   const jsonStr = JSON.stringify(compact);
   universeStorage.setItem(`draw_${activeTourney.id}_${viewingYear}`, jsonStr);
+  invalidatePlayerCardAnalyticsCache();
   if (typeof window !== 'undefined' && typeof window.syncLiveCanonSnapshotToLocalServer === 'function') {
     window.syncLiveCanonSnapshotToLocalServer();
   }
@@ -1987,16 +2070,29 @@ export function handleUniverseChange(val) {
   }
 }
 
-export function exportCurrentUniverse() {
+export function exportCurrentUniverse(asCanonSnapshot = false) {
   const drawsBackup = {};
   const withdrawalsBackup = {};
   const bg250Backup = {};
 
+  const addDraw = (drawKey, value) => {
+    if (!drawKey || value == null || drawsBackup[drawKey]) return;
+    let parsed = value;
+    if (typeof value === 'string') {
+      try {
+        parsed = JSON.parse(value);
+      } catch {
+        return;
+      }
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) return;
+    drawsBackup[drawKey] = parsed;
+  };
+
   for (let y = 2023; y <= currentTourYear + 1; y++) {
     const yearTourneys = getSeasonTournaments(y, tournaments);
     yearTourneys.forEach(t => {
-      const d = universeStorage.getItem(`draw_${t.id}_${y}`);
-      if (d) drawsBackup[`draw_${t.id}_${y}`] = JSON.parse(d);
+      addDraw(`draw_${t.id}_${y}`, readSavedDraw(t.id, y));
       const w = universeStorage.getItem(`withdrawals_${t.id}_${y}`);
       if (w) withdrawalsBackup[`withdrawals_${t.id}_${y}`] = JSON.parse(w);
       const bg = universeStorage.getItem(`bg250_${t.id}_${y}`);
@@ -2004,13 +2100,25 @@ export function exportCurrentUniverse() {
     });
   }
 
+  // Архивные сетки живут в мастер-снимке и памяти, поэтому добавляем их напрямую,
+  // иначе экспорт теряет 53+ исторические сетки канонической вселенной.
+  if (String(activeUniverseId) === '1') {
+    const historicalDraws = {
+      ...(RESTORED_2024_DRAWS || {}),
+      ...(CANON_MASTER_SNAPSHOT?.draws || {})
+    };
+    Object.entries(historicalDraws).forEach(([drawKey, drawVal]) => {
+      addDraw(drawKey, drawVal);
+    });
+  }
+
   const currentUniv = universesList.find(u => u.id === activeUniverseId) || { id: activeUniverseId, name: 'Основной тур' };
   const payload = {
-    metaTennisSaveVersion: 2,
+    ...(asCanonSnapshot ? { metaTennisTourSaveVersion: 8 } : { metaTennisSaveVersion: 2 }),
     exportedAt: new Date().toISOString(),
     universe: {
-      id: currentUniv.id,
-      name: currentUniv.name,
+      id: asCanonSnapshot ? '1' : currentUniv.id,
+      name: asCanonSnapshot ? 'Вселенная Автора (Канон)' : currentUniv.name,
       currentTourYear,
       currentTourDateStr,
       activeTourneyId
@@ -2021,20 +2129,23 @@ export function exportCurrentUniverse() {
     retiredLegends,
     draws: drawsBackup,
     withdrawals: withdrawalsBackup,
-    bg250: bg250Backup
+    bg250: bg250Backup,
+    checkpoints: getSavedCheckpointsList(),
+    ...(asCanonSnapshot ? { currentTourYear, currentTourDateStr, activeTourneyId } : {})
   };
 
+  const fileName = asCanonSnapshot ? 'canon.json' : 'meta_tennis_save.json';
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'meta_tennis_save.json';
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  showToast('📥 Файл <b>meta_tennis_save.json</b> успешно сохранен!');
+  showToast(`📥 Файл <b>${fileName}</b> успешно сохранен! Сеток: <b>${Object.keys(drawsBackup).length}</b>, чекпоинтов: <b>${payload.checkpoints.length}</b>.`);
 }
 
 export function triggerImportUniverse() {
@@ -2729,6 +2840,7 @@ export function resetCurrentDraw() {
   currentDraw = [];
   universeStorage.removeItem(`draw_${activeTourney.id}_${viewingYear}`);
   universeStorage.removeItem(`withdrawals_${activeTourney.id}_${viewingYear}`);
+  invalidatePlayerCardAnalyticsCache();
   const noticeBox = document.getElementById('withdrawalsNotice');
   if (noticeBox && activeTourney?.id !== 'olympics') noticeBox.style.display = 'none';
   renderRoundTabs();
@@ -3439,6 +3551,11 @@ export function renderRoundTabs() {
     </button>
   `).join('');
 
+  const canShowTree = activeTourney.id !== 'finals' && currentDraw.length >= 3;
+  const treeBtnHtml = canShowTree
+    ? `<button type="button" role="tab" aria-selected="${activeRoundIdx === 'tree'}" class="round-tab round-tab-tree ${activeRoundIdx === 'tree' ? 'active' : ''}" onclick="changeRound('tree')">🌳 Дерево Плей-офф</button>`
+    : '';
+
   if (isOlympics) {
     const olyData = buildOlympicDelegationsData();
     const teamsBtnHtml = `
@@ -3446,9 +3563,9 @@ export function renderRoundTabs() {
         🌍 Сборные и квоты ОИ (${olyData.countries.length} стран · ${olyData.totalPlayers} уч.)
       </button>
     `;
-    container.innerHTML = roundButtonsHtml + teamsBtnHtml;
+    container.innerHTML = roundButtonsHtml + treeBtnHtml + teamsBtnHtml;
   } else {
-    container.innerHTML = roundButtonsHtml;
+    container.innerHTML = roundButtonsHtml + treeBtnHtml;
   }
 }
 
@@ -3471,6 +3588,179 @@ function getPlayerSeedOrEntryTag(p) {
   return '';
 }
 
+function renderTourneyIntrigueBar() {
+  const bar = document.getElementById('tourneyIntrigueBar');
+  if (!bar) return;
+  if (!activeTourney || !Array.isArray(currentDraw) || currentDraw.length === 0) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+
+  const items = [];
+
+  // 1) Защита титула: чемпион прошлого сезона на этом же турнире
+  const prevYear = viewingYear - 1;
+  const prevEntry = (seasonsHistory[prevYear]?.tournamentsData || []).find(t => t && t.id === activeTourney.id);
+  const defendingChampion = prevEntry?.winner || null;
+  if (defendingChampion) {
+    items.push(`
+      <span class="intrigue-item">
+        <span class="intrigue-label">👑 Защита титула:</span>
+        ${renderFlagBadge(defendingChampion.flag, { compact: true })}
+        <b>${escapeHtmlText(defendingChampion.name)}</b>
+        <span class="intrigue-muted">(чемпион ${prevYear})</span>
+      </span>
+    `);
+  }
+
+  // 2) Смертельная четверть: сильнейшая средняя позиция рейтинга в первой четверти сетки
+  const firstRound = currentDraw[0] || [];
+  const matchesPerQuarter = Math.max(1, Math.ceil(firstRound.length / 4));
+  const quarterStats = [];
+  for (let q = 0; q < 4; q++) {
+    const slice = firstRound.slice(q * matchesPerQuarter, (q + 1) * matchesPerQuarter);
+    const ranks = [];
+    slice.forEach(m => {
+      [m?.p1, m?.p2].forEach(p => {
+        const r = Number(p?.rank);
+        if (Number.isFinite(r) && r > 0) ranks.push(r);
+      });
+    });
+    if (ranks.length > 0) {
+      quarterStats.push({ q: q + 1, avg: ranks.reduce((a, b) => a + b, 0) / ranks.length });
+    }
+  }
+  if (quarterStats.length >= 2) {
+    const deadliest = quarterStats.reduce((a, b) => (b.avg < a.avg ? b : a));
+    items.push(`
+      <span class="intrigue-item">
+        <span class="intrigue-label">💀 Смертельная четверть:</span>
+        <b>Q${deadliest.q}</b>
+        <span class="intrigue-muted">(средний рейтинг ${Math.round(deadliest.avg)})</span>
+      </span>
+    `);
+  }
+
+  // 3) Вывеска раунда: матч с минимальной суммой рейтингов в открытом раунде
+  let marqueeRoundIdx = Number.isInteger(activeRoundIdx)
+    ? activeRoundIdx
+    : currentDraw.findIndex(r => (r || []).some(m => m && m.p1 && m.p2 && !m.winner));
+  if (marqueeRoundIdx < 0 || marqueeRoundIdx >= currentDraw.length) marqueeRoundIdx = currentDraw.length - 1;
+  let marquee = null;
+  (currentDraw[marqueeRoundIdx] || []).forEach(m => {
+    if (!m || !m.p1 || !m.p2) return;
+    const r1 = Number(m.p1.rank) || 999;
+    const r2 = Number(m.p2.rank) || 999;
+    const sum = r1 + r2;
+    if (!marquee || sum < marquee.sum) marquee = { m, sum, r1, r2 };
+  });
+  if (marquee) {
+    items.push(`
+      <span class="intrigue-item">
+        <span class="intrigue-label">🔥 Вывеска раунда:</span>
+        ${renderFlagBadge(marquee.m.p1.flag, { compact: true })}
+        <b>${escapeHtmlText(marquee.m.p1.name)}</b> <span class="intrigue-muted">#${marquee.r1}</span>
+        <span class="intrigue-vs">vs</span>
+        ${renderFlagBadge(marquee.m.p2.flag, { compact: true })}
+        <b>${escapeHtmlText(marquee.m.p2.name)}</b> <span class="intrigue-muted">#${marquee.r2}</span>
+      </span>
+    `);
+  }
+
+  if (items.length === 0) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+  bar.style.display = 'flex';
+  bar.innerHTML = items.join('<span class="intrigue-divider"></span>');
+}
+
+function bracketPlayerLine(player, isWinner) {
+  if (!player) {
+    return `<div class="bracket-player bracket-tbd"><span class="bracket-player-name">TBD</span></div>`;
+  }
+  return `
+    <div class="bracket-player ${isWinner ? 'bracket-winner' : ''}">
+      ${renderFlagBadge(player.flag, { compact: true })}
+      <span class="bracket-player-name">${escapeHtmlText(player.name)}</span>
+      ${getPlayerSeedOrEntryTag(player)}
+    </div>
+  `;
+}
+
+function bracketMatchCard(m, roundIdx, idx) {
+  if (!m) return '';
+  const label = m.stageLabel || (m.isBronzeMatch ? 'Матч за 3-е место' : `Матч #${idx + 1}`);
+  const p1Win = m.winner && m.p1 && String(m.winner.id) === String(m.p1.id);
+  const p2Win = m.winner && m.p2 && String(m.winner.id) === String(m.p2.id);
+  const scoreHtml = Array.isArray(m.score) && m.score.length > 0
+    ? formatTennisScore(m.score)
+    : (m.winner ? 'W/O' : '—');
+  const cardClass = [
+    'bracket-match',
+    m.isGoldMatch ? 'bracket-gold' : '',
+    m.isBronzeMatch ? 'bracket-bronze' : ''
+  ].filter(Boolean).join(' ');
+  return `
+    <button type="button" class="${cardClass}" onclick="openScoreModal(${roundIdx}, ${idx})" title="Открыть Матч-центр: ${escapeHtmlText(label)}">
+      <div class="bracket-match-head">
+        <span>${escapeHtmlText(label)}</span>
+        <span>${m.winner ? '✓' : '…'}</span>
+      </div>
+      ${bracketPlayerLine(m.p1, p1Win)}
+      ${bracketPlayerLine(m.p2, p2Win)}
+      <div class="bracket-match-score">${scoreHtml}</div>
+    </button>
+  `;
+}
+
+function renderPlayoffTreeHtml() {
+  const rounds = currentDraw.length;
+  const qfIdx = rounds - 3;
+  const sfIdx = rounds - 2;
+  const finalIdx = rounds - 1;
+
+  const names = activeTourney.id === 'olympics'
+    ? rNamesOlympics
+    : (rounds === 7 ? rNames128 : (rounds === 6 ? rNames64 : rNames32));
+
+  const makeColumn = (title, roundIdx, extraClass, matchIndices = null) => {
+    const round = currentDraw[roundIdx] || [];
+    const entries = matchIndices
+      ? matchIndices.filter(i => round[i]).map(i => ({ m: round[i], i }))
+      : round.map((m, i) => ({ m, i }));
+    return `
+      <div class="bracket-column ${extraClass}">
+        <div class="bracket-column-title">${title}</div>
+        <div class="bracket-round-list">
+          ${entries.map(({ m, i }) => bracketMatchCard(m, roundIdx, i)).join('')}
+        </div>
+      </div>
+    `;
+  };
+
+  const finalIndices = currentDraw[finalIdx]?.length > 1 ? [0, 1] : [0];
+
+  return `
+    <div class="playoff-tree">
+      <div class="playoff-tree-head">
+        <div>
+          <h3>🌳 Дерево Плей-офф · ${escapeHtmlText(activeTourney.name)}</h3>
+          <small>${escapeHtmlText(activeTourney.surface)} · сезон ${viewingYear} · сетка ${currentDraw[0]?.length * 2 || '—'} участников</small>
+        </div>
+        <span class="playoff-tree-hint">💡 Нажмите на матч, чтобы открыть Матч-центр</span>
+      </div>
+      <div class="playoff-tree-grid">
+        ${makeColumn(names[qfIdx] || '1/4 финала', qfIdx, 'bracket-col-qf')}
+        ${makeColumn(names[sfIdx] || 'Полуфинал', sfIdx, 'bracket-col-sf')}
+        ${makeColumn(`${names[finalIdx] || 'Финал'}`, finalIdx, 'bracket-col-final', finalIndices)}
+      </div>
+    </div>
+  `;
+}
+
 export function renderMatches() {
   const container = document.getElementById('matchesContainer');
   const tablesContainer = document.getElementById('finalsGroupTablesContainer');
@@ -3486,6 +3776,11 @@ export function renderMatches() {
 
   if (!currentDraw || currentDraw.length === 0) {
     tablesContainer.style.display = 'none';
+    const intrigueBar = document.getElementById('tourneyIntrigueBar');
+    if (intrigueBar) {
+      intrigueBar.style.display = 'none';
+      intrigueBar.innerHTML = '';
+    }
     const isFutureLocked = isFutureLockedTournament(activeTourney, viewingYear);
     const startDay = String(activeTourney?.startDay || 2).padStart(2, '0');
     const startMonth = String((activeTourney?.startMonth || 0) + 1).padStart(2, '0');
@@ -3513,6 +3808,14 @@ export function renderMatches() {
   }
 
   const refDateStr = viewingYear < currentTourYear ? `${viewingYear}-06-15` : currentTourDateStr;
+
+  renderTourneyIntrigueBar();
+
+  if (activeRoundIdx === 'tree') {
+    tablesContainer.style.display = 'none';
+    container.innerHTML = renderPlayoffTreeHtml();
+    return;
+  }
 
   if (activeTourney.id === 'finals') {
     tablesContainer.style.display = 'block';
@@ -3690,6 +3993,107 @@ export function invalidatePlayerCardAnalyticsCache() {
   cardAnalyticsCacheVersion++;
 }
 
+// Единый проход по всем сеткам 2023..currentTourYear для профиля и UT-карточки.
+// Раньше профиль сканировал сетки трижды (титулы + W/L + live-аналитика).
+function getPlayerCareerScan(player) {
+  if (!player || (!player.id && !player.name)) return { yearEntries: [] };
+  const pIdStr = String(player.id || '');
+  const pNameLower = String(player.name || '').trim().toLowerCase();
+  const cacheKey = `career_scan_${activeUniverseId}_${pIdStr || pNameLower}_${currentTourYear}_v${cardAnalyticsCacheVersion}`;
+  if (playerCardAnalyticsCache.has(cacheKey)) {
+    return playerCardAnalyticsCache.get(cacheKey);
+  }
+
+  const isSamePlayer = (cand) => {
+    if (!cand) return false;
+    if (cand.name && pNameLower) {
+      return String(cand.name).trim().toLowerCase() === pNameLower;
+    }
+    if (cand.id !== undefined && String(cand.id) === pIdStr) return true;
+    return false;
+  };
+
+  const maxYear = Math.max(2024, currentTourYear);
+  const yearEntries = [];
+
+  for (let yr = 2023; yr <= maxYear; yr++) {
+    const yearTourneys = getSeasonTournaments(yr, tournaments);
+    const histTourneys = seasonsHistory[yr]?.tournamentsData || [];
+
+    yearTourneys.forEach(t => {
+      const histEntry = histTourneys.find(h => h.id === t.id) || null;
+      const rawDraw = readSavedDraw(t.id, yr);
+      const hasDraw = Array.isArray(rawDraw) && rawDraw.length > 0;
+
+      let finalInfo = null;
+      const drawForFinal =
+        (yr === currentTourYear && !t.completed && (!histEntry || !histEntry.winner))
+          ? null
+          : (hasDraw ? rawDraw : null);
+      if (drawForFinal && drawForFinal[drawForFinal.length - 1]?.[0]?.winner) {
+        const finalM = drawForFinal[drawForFinal.length - 1][0];
+        const winner = finalM.winner;
+        finalInfo = {
+          winner,
+          runnerUp: (finalM.p1 && finalM.p2)
+            ? (String(finalM.p1.id) === String(winner.id) ? finalM.p2 : finalM.p1)
+            : null,
+          bronze: t.id === 'olympics' ? (drawForFinal[drawForFinal.length - 1]?.[1]?.winner || null) : null,
+          score: finalM.score ? finalM.score.join(' ') : '6-4 6-4'
+        };
+      } else if (histEntry && histEntry.winner) {
+        finalInfo = {
+          winner: histEntry.winner,
+          runnerUp: histEntry.runnerUp || null,
+          bronze: histEntry.bronze || null,
+          score: histEntry.score || '6-4 6-4'
+        };
+      }
+
+      const matches = [];
+      if (hasDraw) {
+        const surface = ['Хард', 'Грунт', 'Трава', 'Зал'].includes(t.surface) ? t.surface : 'Хард';
+        rawDraw.forEach((round, rIdx) => {
+          if (!Array.isArray(round)) return;
+          const isFinalRound = rIdx === rawDraw.length - 1;
+          round.forEach((m, mIdx) => {
+            if (!m || !m.winner || !m.p1 || !m.p2) return;
+            const isP1 = isSamePlayer(m.p1);
+            const isP2 = isSamePlayer(m.p2);
+            if (!isP1 && !isP2) return;
+            const mySlot = isP1 ? m.p1 : m.p2;
+            const oppSlot = isP1 ? m.p2 : m.p1;
+            const rawSets = Array.isArray(m.score)
+              ? m.score
+              : (typeof m.score === 'string' ? m.score.trim().split(/\s+/).filter(Boolean) : []);
+            const mySets = isP1 ? [...rawSets] : flipTennisScoreSets(rawSets);
+            matches.push({
+              year: yr,
+              tourneyId: t.id,
+              tourneyName: t.name,
+              surface,
+              won: isSamePlayer(m.winner),
+              myRank: Number(mySlot?.rank || player.rank) || 100,
+              oppRank: Number(oppSlot?.rank) || 100,
+              opponentName: oppSlot?.name || 'Соперник',
+              mySets,
+              score: mySets.join(' '),
+              isFinalMatch: isFinalRound && mIdx === 0,
+              bestOf: t.bestOf || (t.isGrandSlam ? 5 : 3)
+            });
+          });
+        });
+      }
+
+      yearEntries.push({ year: yr, tourney: t, histEntry, finalInfo, matches });
+    });
+  }
+
+  const result = { yearEntries };
+  playerCardAnalyticsCache.set(cacheKey, result);
+  return result;
+}
+
 /**
  * ШАГ 2: Быстрый сбор реальной клатч-статистики, формы и титулов игрока из сохраненных сеток тура
  */
@@ -3712,7 +4116,7 @@ export function getPlayerLiveCardAnalytics(player) {
   const pIdStr = String(player.id || '');
   const pNameLower = String(player.name || '').trim().toLowerCase();
   const targetYear = viewingYear || currentTourYear || 2024;
-  const cacheKey = `${pIdStr || pNameLower}_${targetYear}_v${cardAnalyticsCacheVersion}`;
+  const cacheKey = `live_${activeUniverseId}_${pIdStr || pNameLower}_${targetYear}_v${cardAnalyticsCacheVersion}`;
   if (playerCardAnalyticsCache.has(cacheKey)) {
     return playerCardAnalyticsCache.get(cacheKey);
   }
@@ -3735,67 +4139,16 @@ export function getPlayerLiveCardAnalytics(player) {
   let deciderLosses = 0;
   let hasGiantKill = false;
 
-  const isPlayerMatch = (m) => {
-    if (!m || !m.p1 || !m.p2 || !m.winner) return null;
-    const isP1 = (pIdStr && String(m.p1.id) === pIdStr) || (pNameLower && m.p1.name && m.p1.name.trim().toLowerCase() === pNameLower);
-    const isP2 = (pIdStr && String(m.p2.id) === pIdStr) || (pNameLower && m.p2.name && m.p2.name.trim().toLowerCase() === pNameLower);
-    if (!isP1 && !isP2) return null;
-    return { isP1, isP2 };
-  };
-
-  const scanYear = (yr) => {
-    const seasonTourneys = getSeasonTournaments(yr, FULL_CALENDAR_TEMPLATE);
-    const matches = [];
-    seasonTourneys.forEach(t => {
-      const d = readSavedDraw(t.id, yr);
-      if (!Array.isArray(d) || d.length === 0) return;
-      const surf = surfaceRecord[t.surface] ? t.surface : 'Хард';
-
-      d.forEach((round, rIdx) => {
-        if (!Array.isArray(round)) return;
-        const isFinalRound = rIdx === d.length - 1;
-
-        round.forEach((m, mIdx) => {
-          const matchCheck = isPlayerMatch(m);
-          if (!matchCheck) return;
-
-          const { isP1 } = matchCheck;
-          const mySlot = isP1 ? m.p1 : m.p2;
-          const oppSlot = isP1 ? m.p2 : m.p1;
-          const won = (pIdStr && String(m.winner.id) === pIdStr) ||
-                      (pNameLower && m.winner.name && m.winner.name.trim().toLowerCase() === pNameLower);
-
-          const myRank = Number(mySlot?.rank || player.rank) || 100;
-          const oppRank = Number(oppSlot?.rank) || 100;
-
-          const rawSets = Array.isArray(m.score)
-            ? m.score
-            : (typeof m.score === 'string' ? m.score.trim().split(/\s+/).filter(Boolean) : []);
-          const mySets = isP1 ? rawSets : flipTennisScoreSets(rawSets);
-
-          matches.push({
-            year: yr,
-            tourneyId: t.id,
-            tourneyName: t.name,
-            surface: surf,
-            won,
-            myRank,
-            oppRank,
-            opponentName: oppSlot?.name || 'Соперник',
-            mySets,
-            score: mySets.join(' '),
-            isFinalMatch: isFinalRound && mIdx === 0,
-            bestOf: t.bestOf || (t.isGrandSlam ? 5 : 3)
-          });
-        });
-      });
-    });
-    return matches;
-  };
-
-  let allMatches = scanYear(targetYear);
+  const scan = getPlayerCareerScan(player);
+  let allMatches = [];
+  scan.yearEntries.forEach(entry => {
+    if (entry.year === targetYear) allMatches.push(...entry.matches);
+  });
   if (allMatches.length < 5 && targetYear > 2023) {
-    const prevMatches = scanYear(targetYear - 1);
+    const prevMatches = [];
+    scan.yearEntries.forEach(entry => {
+      if (entry.year === targetYear - 1) prevMatches.push(...entry.matches);
+    });
     allMatches = [...prevMatches, ...allMatches];
   }
 
@@ -3960,6 +4313,7 @@ export function renderUltimateTeamCardHtml(player, surface = 'Хард', options
             <div class="ut-player-sub">
               ATP #${rank} · ${calculateAge(player.birthDate, refDateStr)}${player.nickname ? ` · <span style="color:var(--gold);">«${player.nickname}»</span>` : ''}
             </div>
+            ${renderPotentialBadgeHtml(player, refDateStr)}
           </div>
         </div>
 
@@ -4452,7 +4806,7 @@ export function generateRandomScoreToInput() {
     activeTourney ? activeTourney.surface : 'Хард',
     activeTourney ? activeTourney.name : 'Турнир ATP',
     stageName,
-    { allowRandomInjury: true }
+    { allowRandomInjury: true, currentDateStr: currentTourDateStr }
   );
   const scoreStr = sim.scores.join(' ');
   document.getElementById('quickScoreStr').value = scoreStr;
@@ -4751,7 +5105,7 @@ export function commitMatchOutcome({
     match.p1PreStamina = p1Live.stamina ?? 100;
     match.p2PreStamina = p2Live.stamina ?? 100;
 
-    const staminaCost = applyMatchFatigueToPlayers(p1Live, p2Live, scoreArray, bestOf);
+    const staminaCost = applyMatchFatigueToPlayers(p1Live, p2Live, scoreArray, bestOf, { currentDateStr: currentTourDateStr });
     match.staminaCost = staminaCost;
 
     // Межраундовая регенерация победителя (+20% стамины к следующему кругу)
@@ -4854,7 +5208,8 @@ function executeOfflineSimulation(forcedWinner = 0) {
     forcedWinner,
     activeTourney ? activeTourney.surface : 'Хард',
     activeTourney ? activeTourney.name : 'Турнир ATP',
-    stageName
+    stageName,
+    { currentDateStr: currentTourDateStr }
   );
   commitMatchOutcome({
     winner: sim.winner,
@@ -4933,7 +5288,7 @@ export function autoSimulateRound() {
   currentDraw[activeRoundIdx].forEach((m, idx) => {
     if (!m.winner && m.p1 && m.p2) {
       const mStage = getStageNameForRound(activeTourney, activeRoundIdx, m) || stageName;
-      const sim = computeSimMatchScores(m, activeTourney.bestOf, 0, activeTourney.surface, activeTourney.name, mStage, { allowRandomInjury: true });
+      const sim = computeSimMatchScores(m, activeTourney.bestOf, 0, activeTourney.surface, activeTourney.name, mStage, { allowRandomInjury: true, currentDateStr: currentTourDateStr });
       const narrative = includeMatchCommentaryMode ? sim.narrative : '';
       const quotes = includeMatchCommentaryMode ? { winnerQuote: sim.winnerQuote, loserQuote: sim.loserQuote } : null;
       commitMatchOutcome({
@@ -4964,7 +5319,7 @@ export function autoSimulateEntireTournament() {
     currentDraw[r].forEach((m, idx) => {
       if (!m.winner && m.p1 && m.p2) {
         const mStage = getStageNameForRound(activeTourney, r, m) || stageName;
-        const sim = computeSimMatchScores(m, activeTourney.bestOf, 0, activeTourney.surface, activeTourney.name, mStage, { allowRandomInjury: true });
+        const sim = computeSimMatchScores(m, activeTourney.bestOf, 0, activeTourney.surface, activeTourney.name, mStage, { allowRandomInjury: true, currentDateStr: currentTourDateStr });
         const narrative = includeMatchCommentaryMode ? sim.narrative : '';
         const quotes = includeMatchCommentaryMode ? { winnerQuote: sim.winnerQuote, loserQuote: sim.loserQuote } : null;
         commitMatchOutcome({
@@ -5009,7 +5364,7 @@ export function finishTournamentAndAwardPoints(options = {}) {
 
   // Если это Олимпиада и матч за 3-е место (finalRound[1]) еще не доигран при сыгранном финале — доигрываем автоматически
   if (activeTourney.id === 'olympics' && finalRound?.[1] && finalRound[1].p1 && finalRound[1].p2 && !finalRound[1].winner) {
-    const simBronze = computeSimMatchScores(finalRound[1], activeTourney.bestOf, 0, activeTourney.surface, activeTourney.name);
+    const simBronze = computeSimMatchScores(finalRound[1], activeTourney.bestOf, 0, activeTourney.surface, activeTourney.name, '', { currentDateStr: currentTourDateStr });
     advanceWinnerInDraw(currentDraw, activeTourney.id, currentDraw.length - 1, 1, simBronze.winner, simBronze.scores, simBronze.narrative, {
       winnerQuote: simBronze.winnerQuote,
       loserQuote: simBronze.loserQuote
@@ -5069,6 +5424,12 @@ export function finishTournamentAndAwardPoints(options = {}) {
   saveDraw();
   saveTournaments();
   savePlayers(true);
+
+  // ФИЧА 1: мировой №1 продлевает серию недель на первой строчке
+  const weeksAward = awardWeeksAtNo1(players, activeTourney);
+  if (weeksAward.weeks > 0) {
+    savePlayers(false);
+  }
 
   if (!seasonsHistory[viewingYear]) {
     seasonsHistory[viewingYear] = {
@@ -5210,7 +5571,10 @@ export function finishTournamentAndAwardPoints(options = {}) {
       `🏅 <b>Олимпийские игры</b> завершены! 🥇 Золото: <b>${medalists.gold.name}</b> · 🥈 Серебро: <b>${medalists.silver?.name || '—'}</b> · 🥉 Бронза: <b>${medalists.bronze?.name || '—'}</b>.`
     );
   } else {
-    showToast(`🏆 <b>${finishedTourneyObj.name}</b> завершен! Чемпион: <b>${finalMatch.winner.name}</b>. Рейтинг 52 недель и Гонка обновлены.`);
+    const weeksSuffix = weeksAward.weeks > 0 && weeksAward.player
+      ? ` 👑 <b>${weeksAward.player.name}</b> укрепил лидерство: <b>+${weeksAward.weeks}</b> нед. на №1 (всего ${weeksAward.player.weeksAtNo1}).`
+      : '';
+    showToast(`🏆 <b>${finishedTourneyObj.name}</b> завершен! Чемпион: <b>${finalMatch.winner.name}</b>. Рейтинг 52 недель и Гонка обновлены.${weeksSuffix}`);
   }
 }
 
@@ -5267,6 +5631,15 @@ export function endSeasonAndDecayPoints() {
       pressColumn
     };
   });
+
+  // ФИЧА 4: Лауреаты ATP Tour Awards сезона (до пересменки поколений)
+  const seasonAwards = computeSeasonAwards(players, endingYear, {
+    seasonsHistory,
+    seasonTourneys: endingSeasonTourneys,
+    getDraw: (tid, yr) => readSavedDraw(tid, yr)
+  });
+  seasonsHistory[endingYear].awards = seasonAwards;
+
   saveHistory();
 
   // ЗАПУСК СИСТЕМЫ ЗАВЕРШЕНИЯ КАРЬЕРЫ И ГЕНЕРАЦИИ МОЛОДЫХ НОВИЧКОВ (НЬЮГЕНОВ)
@@ -5329,7 +5702,7 @@ export function endSeasonAndDecayPoints() {
   renderPlayersTable();
   renderRaceTable();
 
-  openSeasonTransitionReportModal(endingYear, currentTourYear, retiredThisYear, newgensThisYear);
+  openSeasonTransitionReportModal(endingYear, currentTourYear, retiredThisYear, newgensThisYear, seasonAwards);
 
   // Запрашиваем у Groq уникальные короткие прозвища и стили игры для молодых новичков
   if (newgensThisYear.length > 0) {
@@ -5344,16 +5717,37 @@ export function endSeasonAndDecayPoints() {
       savePlayers(false);
       renderPlayersTable();
       if (document.getElementById('seasonTransitionModal')?.classList.contains('open')) {
-        openSeasonTransitionReportModal(endingYear, currentTourYear, retiredThisYear, enrichedList);
+        openSeasonTransitionReportModal(endingYear, currentTourYear, retiredThisYear, enrichedList, seasonAwards);
       }
     });
   }
 }
 
-function openSeasonTransitionReportModal(endedYear, newYear, retiredList, newgensList) {
+function openSeasonTransitionReportModal(endedYear, newYear, retiredList, newgensList, awards = null) {
   document.getElementById('seasonTransitionTitle').innerText = `Сезон ${endedYear} завершен · Добро пожаловать в сезон ${newYear}!`;
   document.getElementById('seasonTransitionSubtitle').innerText =
     `Архив сезона ${endedYear} сохранен в Зале Славы. Чемпионская гонка (Live Race) обнулена к 1 января ${newYear} года.${isOlympicYear(newYear) ? ' В календаре этого года пройдут Олимпийские игры!' : ''} Баланс пула: 300 игроков.`;
+
+  const seasonAwards = awards || seasonsHistory[endedYear]?.awards || null;
+  const awardCardHtml = (icon, title, winner, tone) => winner ? `
+    <div class="season-award-card ${tone}">
+      <div class="season-award-icon">${icon}</div>
+      <div class="season-award-body">
+        <div class="season-award-title">${title}</div>
+        <div class="season-award-winner">${winner.flag ? renderFlagBadge(winner.flag, { compact: true }) : ''} <b>${escapeHtmlText(winner.name)}</b></div>
+        <div class="season-award-summary">${escapeHtmlText(winner.summary || '')}</div>
+      </div>
+    </div>` : '';
+  const awardsHtml = seasonAwards ? `
+    <div class="season-awards-block">
+      <h4>🏆 Лауреаты премии ATP Tour Awards сезона ${endedYear}</h4>
+      <div class="season-awards-grid">
+        ${awardCardHtml('👑', 'Игрок Года', seasonAwards.playerOfYear, 'gold')}
+        ${awardCardHtml('🚀', 'Прорыв Года', seasonAwards.breakthrough, 'green')}
+        ${awardCardHtml('🌟', 'NextGen Года (U22)', seasonAwards.nextGen, 'blue')}
+        ${awardCardHtml('🧱', 'Железный Человек', seasonAwards.ironMan, 'orange')}
+      </div>
+    </div>` : '';
 
   const retiredHtml = retiredList.length === 0
     ? `<div style="padding: 16px; color: var(--text-dim); text-align: center;">В этом межсезонье никто из ветеранов не завершил карьеру.</div>`
@@ -5388,6 +5782,7 @@ function openSeasonTransitionReportModal(endedYear, newYear, retiredList, newgen
       `).join('');
 
   document.getElementById('seasonTransitionBody').innerHTML = `
+    ${awardsHtml}
     <div class="report-columns">
       <div style="background: #0d1420; border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
         <h4 style="color: var(--gold); font-size: 14px; margin-bottom: 10px;">👋 Завершили карьеру (${retiredList.length})</h4>
@@ -5491,6 +5886,7 @@ export function quickSaveInlineFlag(playerId, rawValue, moveFocusToNext = false)
   recordCustomPlayerOverride(p);
   propagatePlayerIdentityUpdate(p, oldNameLower);
   savePlayers(false);
+  invalidatePlayerCardAnalyticsCache();
   renderPlayersTable();
   renderRaceTable();
   if (currentDraw && currentDraw.length > 0) {
@@ -5578,6 +5974,7 @@ export function renderPlayersTable() {
         <div>
           <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${p.id}')" title="Открыть профиль игрока">${p.name}</button>
           ${renderPlayerMedalsHtml(p)}
+          ${renderPotentialBadgeHtml(p, currentTourDateStr)}
           ${p.isNewgen ? '<span style="color: var(--primary); font-size: 11px; margin-left: 6px;">· Newgen</span>' : ''}
           ${p.nickname ? `<span class="player-nickname-badge">«${p.nickname}»</span>` : ''}
         </div>
@@ -5752,9 +6149,52 @@ export function jumpToTourney(tourneyId, year = null) {
 }
 
 // --- БЛОК 4: ПОЛНОЦЕННАЯ КАРТОЧКА ПРОФИЛЯ ИГРОКА (ЗАЛ ТРОФЕЕВ, МЕДАЛИ И СТАТИСТИКА СЕЗОНА) ---
-function computePlayerCareerAndSeasonStats(player) {
+const TROPHY_CATEGORIES = [
+  { key: 'slam', icon: '🏆', label: 'ТБШ (Grand Slam)' },
+  { key: 'masters', icon: '💎', label: 'Мастерс 1000' },
+  { key: 'olympics', icon: '🥇', label: 'Олимпиада' },
+  { key: 'finals', icon: '👑', label: 'Итоговый турнир' },
+  { key: 'atp500', icon: '🔥', label: 'ATP 500' }
+];
+
+const TROPHY_CATEGORY_BY_KEY = Object.fromEntries(TROPHY_CATEGORIES.map(c => [c.key, c]));
+
+function getTrophyCategoryKey(type) {
+  if (type === 'ТБШ') return 'slam';
+  if (type === 'Мастерс') return 'masters';
+  if (type === 'Олимпиада') return 'olympics';
+  if (type === 'Итоговый') return 'finals';
+  return 'atp500';
+}
+
+// Счёт в сетках хранится от первого игрока пары, поэтому для финалов
+// ориентируем сеты по победителю: его цифры всегда идут первыми и больше.
+export function orientFinalScoreToWinner(score) {
+  const sets = Array.isArray(score)
+    ? [...score]
+    : String(score || '').trim().split(/\s+/).filter(Boolean);
+  let leftWins = 0;
+  let rightWins = 0;
+  sets.forEach(token => {
+    const m = String(token).trim().match(/^(\d{1,2})-(\d{1,2})/);
+    if (!m) return;
+    if (Number(m[1]) > Number(m[2])) leftWins++;
+    else if (Number(m[2]) > Number(m[1])) rightWins++;
+  });
+  return rightWins > leftWins ? flipTennisScoreSets(sets) : sets;
+}
+
+// В профиле счёт показываем от лица игрока: при победе его цифры первые
+// и больше, при поражении — первые и меньше, чтобы знак результата читался сразу.
+export function orientFinalScoreForPlayer(score, playerWon) {
+  const winnerOriented = orientFinalScoreToWinner(score);
+  return playerWon ? winnerOriented : flipTennisScoreSets(winnerOriented);
+}
+
+function computePlayerCareerAndSeasonStats(player, seasonYear = currentTourYear) {
   const pIdStr = String(player.id);
   const pNameLower = String(player.name || '').toLowerCase();
+  const statSeasonYear = Number(seasonYear) || currentTourYear;
 
   const isSamePlayer = (cand) => {
     if (!cand) return false;
@@ -5772,99 +6212,76 @@ function computePlayerCareerAndSeasonStats(player) {
     finals: 0,
     atp500: 0
   };
-  const titlesList = [];
+  const finalsByCategory = {
+    slam: [],
+    masters: [],
+    olympics: [],
+    finals: [],
+    atp500: []
+  };
   const olympicMedalsList = [];
-  const seenTourneyYear = new Set();
 
-  const maxYear = Math.max(2024, currentTourYear);
-  for (let yr = 2023; yr <= maxYear; yr++) {
-    const yearTourneys = getSeasonTournaments(yr, tournaments);
-    const histTourneys = seasonsHistory[yr]?.tournamentsData || [];
+  const scan = getPlayerCareerScan(player);
 
-    yearTourneys.forEach(t => {
-      const key = `${yr}_${t.id}`;
-      if (seenTourneyYear.has(key)) return;
+  scan.yearEntries.forEach(entry => {
+    const { year: yr, tourney: t, histEntry, finalInfo } = entry;
+    if (!finalInfo) return;
+    const { winner, runnerUp, bronze, score } = finalInfo;
+    const tourneyType = t.type || histEntry?.type || '';
+    const categoryKey = getTrophyCategoryKey(tourneyType);
+    const finalBase = {
+      year: yr,
+      id: t.id,
+      name: t.name,
+      type: tourneyType,
+      surface: t.surface
+    };
 
-      let winner = null;
-      let runnerUp = null;
-      let bronze = null;
-      let score = '';
+    if (isSamePlayer(winner)) {
+      titlesCount[categoryKey]++;
+      finalsByCategory[categoryKey].push({
+        ...finalBase,
+        score: orientFinalScoreForPlayer(score, true),
+        result: 'won',
+        opponent: runnerUp
+      });
 
-      let draw = readSavedDraw(t.id, yr);
-      if (!draw || draw.length === 0) draw = null;
-
-      const histEntry = histTourneys.find(h => h.id === t.id);
-
-      if (yr === currentTourYear && !t.completed && (!histEntry || !histEntry.winner)) {
-        // Незавершенный турнир текущего года не дает титула
-        draw = null;
+      if (t.id === 'olympics') {
+        olympicMedalsList.push({
+          year: yr,
+          medal: '🥇 Золото',
+          color: 'var(--gold)',
+          tourneyName: t.name,
+          surface: t.surface
+        });
       }
+    } else if (isSamePlayer(runnerUp)) {
+      finalsByCategory[categoryKey].push({
+        ...finalBase,
+        score: orientFinalScoreForPlayer(score, false),
+        result: 'lost',
+        opponent: winner
+      });
 
-      if (draw && draw.length > 0 && draw[draw.length - 1]?.[0]?.winner) {
-        const finalM = draw[draw.length - 1][0];
-        winner = finalM.winner;
-        runnerUp = (finalM.p1 && finalM.p2)
-          ? (String(finalM.p1.id) === String(winner.id) ? finalM.p2 : finalM.p1)
-          : null;
-        score = finalM.score ? finalM.score.join(' ') : '6-4 6-4';
-        if (t.id === 'olympics' && draw[draw.length - 1]?.[1]?.winner) {
-          bronze = draw[draw.length - 1][1].winner;
-        }
-      } else if (histEntry && histEntry.winner) {
-        winner = histEntry.winner;
-        runnerUp = histEntry.runnerUp || null;
-        bronze = histEntry.bronze || null;
-        score = histEntry.score || '6-4 6-4';
+      if (t.id === 'olympics') {
+        olympicMedalsList.push({
+          year: yr,
+          medal: '🥈 Серебро',
+          color: '#e2e8f0',
+          tourneyName: t.name,
+          surface: t.surface
+        });
       }
-
-      if (winner) {
-        seenTourneyYear.add(key);
-        if (isSamePlayer(winner)) {
-          if (t.type === 'ТБШ') titlesCount.slam++;
-          else if (t.type === 'Мастерс') titlesCount.masters++;
-          else if (t.type === 'Олимпиада') titlesCount.olympics++;
-          else if (t.type === 'Итоговый') titlesCount.finals++;
-          else titlesCount.atp500++;
-
-          titlesList.push({
-            year: yr,
-            id: t.id,
-            name: t.name,
-            type: t.type,
-            surface: t.surface,
-            runnerUpName: runnerUp ? `${runnerUp.flag} ${runnerUp.name}` : '—',
-            score
-          });
-
-          if (t.id === 'olympics') {
-            olympicMedalsList.push({
-              year: yr,
-              medal: '🥇 Золото',
-              color: 'var(--gold)',
-              tourneyName: t.name,
-              surface: t.surface
-            });
-          }
-        } else if (t.id === 'olympics' && isSamePlayer(runnerUp)) {
-          olympicMedalsList.push({
-            year: yr,
-            medal: '🥈 Серебро',
-            color: '#e2e8f0',
-            tourneyName: t.name,
-            surface: t.surface
-          });
-        } else if (t.id === 'olympics' && isSamePlayer(bronze)) {
-          olympicMedalsList.push({
-            year: yr,
-            medal: '🥉 Бронза',
-            color: '#fb923c',
-            tourneyName: t.name,
-            surface: t.surface
-          });
-        }
-      }
-    });
-  }
+    } else if (t.id === 'olympics' && isSamePlayer(bronze)) {
+      olympicMedalsList.push({
+        year: yr,
+        medal: '🥉 Бронза',
+        color: '#fb923c',
+        tourneyName: t.name,
+        surface: t.surface
+      });
+    }
+  });
 
   // Баланс побед и поражений за текущий сезон и по покрытиям
   const seasonWL = { w: 0, l: 0 };
@@ -5875,38 +6292,34 @@ function computePlayerCareerAndSeasonStats(player) {
     'Трава': { w: 0, l: 0 },
     'Зал': { w: 0, l: 0 }
   };
+  const careerSurfaceWL = {
+    'Хард': { w: 0, l: 0 },
+    'Грунт': { w: 0, l: 0 },
+    'Трава': { w: 0, l: 0 },
+    'Зал': { w: 0, l: 0 }
+  };
 
-  for (let yr = 2023; yr <= maxYear; yr++) {
-    const yearTourneys = getSeasonTournaments(yr, tournaments);
-    yearTourneys.forEach(t => {
-      const draw = readSavedDraw(t.id, yr);
-      if (!draw || !Array.isArray(draw) || draw.length === 0) return;
-      const surf = surfaceWL[t.surface] ? t.surface : 'Хард';
-      draw.forEach(round => {
-        if (!Array.isArray(round)) return;
-        round.forEach(m => {
-          if (!m || !m.winner || !m.p1 || !m.p2) return;
-          const isP1 = isSamePlayer(m.p1);
-          const isP2 = isSamePlayer(m.p2);
-          if (!isP1 && !isP2) return;
-          const won = isSamePlayer(m.winner);
-          if (won) {
-            careerWL.w++;
-            if (yr === currentTourYear) {
-              seasonWL.w++;
-              surfaceWL[surf].w++;
-            }
-          } else {
-            careerWL.l++;
-            if (yr === currentTourYear) {
-              seasonWL.l++;
-              surfaceWL[surf].l++;
-            }
-          }
-        });
-      });
+  scan.yearEntries.forEach(entry => {
+    const yr = entry.year;
+    const surf = surfaceWL[entry.tourney.surface] ? entry.tourney.surface : 'Хард';
+    entry.matches.forEach(m => {
+      if (m.won) {
+        careerWL.w++;
+        careerSurfaceWL[surf].w++;
+        if (yr === statSeasonYear) {
+          seasonWL.w++;
+          surfaceWL[surf].w++;
+        }
+      } else {
+        careerWL.l++;
+        careerSurfaceWL[surf].l++;
+        if (yr === statSeasonYear) {
+          seasonWL.l++;
+          surfaceWL[surf].l++;
+        }
+      }
     });
-  }
+  });
 
   // Таблица набранных и защищаемых очков по всем турнирам текущего года
   const currentSeasonTourneys = getSeasonTournaments(currentTourYear, tournaments);
@@ -5928,27 +6341,47 @@ function computePlayerCareerAndSeasonStats(player) {
     };
   });
 
+  Object.values(finalsByCategory).forEach(list => {
+    list.sort((a, b) => b.year - a.year || String(a.name).localeCompare(String(b.name), 'ru'));
+  });
+  const totalTitles = Object.values(titlesCount).reduce((sum, n) => sum + n, 0);
+  const totalFinalsPlayed = Object.values(finalsByCategory).reduce((sum, list) => sum + list.length, 0);
+
   return {
     titlesCount,
-    totalTitles: titlesList.length,
-    titlesList,
+    totalTitles,
+    finalsByCategory,
+    totalFinalsPlayed,
+    totalFinalLosses: totalFinalsPlayed - totalTitles,
     olympicMedalsList,
     seasonWL,
     careerWL,
     surfaceWL,
+    careerSurfaceWL,
     tourneyPointsRows
   };
 }
 
 export function openPlayerProfileModal(playerId) {
-  const player = players.find(x => String(x.id) === String(playerId));
+  const idStr = String(playerId);
+  let player = players.find(x => String(x.id) === idStr) || null;
+  let retiredLegend = null;
+  if (!player) {
+    const idOrName = idStr.trim().toLowerCase();
+    retiredLegend = retiredLegends.find(x =>
+      String(x.id) === idStr || String(x.name || '').trim().toLowerCase() === idOrName
+    ) || null;
+    if (retiredLegend) player = retiredLegend;
+  }
   if (!player) {
     showToast('⚠️ Профиль игрока не найден.');
     return;
   }
 
+  const isRetiredProfile = Boolean(retiredLegend);
   activeProfilePlayerId = player.id;
-  const stats = computePlayerCareerAndSeasonStats(player);
+  const stats = computePlayerCareerAndSeasonStats(player, isRetiredProfile ? retiredLegend.retiredYear : null);
+  const seasonYearLabel = isRetiredProfile ? (Number(retiredLegend.retiredYear) || currentTourYear) : currentTourYear;
 
   const raceSorted = [...players].sort((a, b) => {
     const diff = (b.racePoints || 0) - (a.racePoints || 0);
@@ -5960,11 +6393,18 @@ export function openPlayerProfileModal(playerId) {
   const titleEl = document.getElementById('playerProfileTitle');
   const subEl = document.getElementById('playerProfileSubtitle');
   if (titleEl) {
-    titleEl.innerHTML = `👤 Профиль игрока · ${renderFlagBadge(player.flag)} ${player.name}`;
+    const retiredBadge = isRetiredProfile
+      ? ` <span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(234, 179, 8, 0.35); font-weight: 700;">🏛️ Легенда тура</span>`
+      : '';
+    titleEl.innerHTML = `👤 Профиль игрока · ${renderFlagBadge(player.flag)} ${escapeHtmlText(player.name)}${retiredBadge}`;
   }
   if (subEl) {
-    subEl.innerHTML = `Мировой рейтинг ATP (52 недели), Зал Трофеев и детальная статистика сезона ${currentTourYear}`;
+    subEl.innerHTML = isRetiredProfile
+      ? `Завершил карьеру в <b>${retiredLegend.retiredYear}</b> году в возрасте <b>${retiredLegend.retiredAge}</b> лет · Зал Трофеев и карьерная статистика`
+      : `Мировой рейтинг ATP (52 недели), Зал Трофеев и детальная статистика сезона ${currentTourYear}`;
   }
+  const profileEditBtn = document.getElementById('btnProfileOpenEdit');
+  if (profileEditBtn) profileEditBtn.style.display = (isRetiredProfile || isCanonReadOnly()) ? 'none' : 'inline-flex';
 
   const seasonTotalMatches = stats.seasonWL.w + stats.seasonWL.l;
   const seasonWinPct = seasonTotalMatches > 0 ? Math.round((stats.seasonWL.w / seasonTotalMatches) * 100) : 0;
@@ -5986,43 +6426,121 @@ export function openPlayerProfileModal(playerId) {
       `).join('')
     : `<span style="color: var(--text-dim); font-size: 12.5px;">Медалей Олимпийских игр пока нет</span>`;
 
-  const titlesListHtml = stats.titlesList.length > 0
-    ? `
-      <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
-        ${stats.titlesList.map(t => `
-          <span style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 6px; padding: 4px 9px; font-size: 12px; color: var(--text-main);">
-            🏆 <b>${t.name} (${t.year})</b> · <small style="color: var(--accent);">${t.type}</small> · <span class="match-score" style="font-size: 11px;">${t.score ? formatTennisScore(t.score.split(' ')) : ''}</span>
-          </span>
-        `).join('')}
+  const trophyCardsHtml = TROPHY_CATEGORIES.map(cat => {
+    const titles = stats.titlesCount[cat.key] || 0;
+    const finals = stats.finalsByCategory[cat.key] || [];
+    const losses = finals.filter(f => f.result === 'lost').length;
+    const wins = finals.length - losses;
+    return `
+      <button type="button"
+        class="trophy-badge-card ${titles > 0 ? 'has-trophy' : ''} ${finals.length > 0 ? 'has-finals' : ''}"
+        data-category="${cat.key}"
+        aria-expanded="false"
+        aria-controls="trophyFinalsPanel"
+        title="${cat.label}: титулов ${titles}, финалов ${finals.length} (${wins}–${losses})">
+        <span class="trophy-icon">${cat.icon}</span>
+        <span class="trophy-count">${titles}</span>
+        <span class="trophy-label">${cat.label}</span>
+        <span class="trophy-finals-meta">Финалов: <b>${finals.length}</b>${finals.length > 0 ? ` <span class="trophy-record"><span class="w">${wins}</span>–<span class="l">${losses}</span></span>` : ''}</span>
+      </button>
+    `;
+  }).join('');
+
+  const renderTrophyFinalRow = (final) => {
+    const opponent = final.opponent || {};
+    const rawSets = Array.isArray(final.score) ? final.score : [];
+    const displaySets = rawSets.map(s => escapeHtmlText(s));
+    const scoreHtml = displaySets.length > 0 ? formatTennisScore(displaySets) : '—';
+    const oppFlag = opponent.flag ? renderFlagBadge(opponent.flag, { compact: true }) : '';
+    const oppRank = Number(opponent.rank) > 0 ? ` <span class="trophy-final-opp-rank">#${opponent.rank}</span>` : '';
+    const action = final.result === 'won' ? 'победа в финале над' : 'поражение в финале от';
+    return `
+      <div class="trophy-final-row ${final.result}">
+        <div class="trophy-final-main">
+          <div class="trophy-final-title">
+            <span>${escapeHtmlText(final.name)}</span>
+            <span class="trophy-final-year">${final.year}</span>
+          </div>
+          <div class="trophy-final-sub">
+            ${escapeHtmlText(final.surface || '—')} · ${action}
+            ${oppFlag}
+            <span class="trophy-final-opponent">${escapeHtmlText(opponent.name || 'Соперник')}</span>${oppRank}
+          </div>
+        </div>
+        <div class="trophy-final-score" title="Счёт от лица игрока: его цифры всегда идут первыми">${scoreHtml}</div>
       </div>
-    `
-    : `<div style="color: var(--text-dim); font-size: 12.5px; margin-top: 6px;">В одиночном разряде крупных титулов пока не завоевано.</div>`;
+    `;
+  };
+
+  const renderTrophyCategoryPanel = (categoryKey) => {
+    const meta = TROPHY_CATEGORY_BY_KEY[categoryKey];
+    const finals = stats.finalsByCategory[categoryKey] || [];
+    const wins = finals.filter(f => f.result === 'won');
+    const losses = finals.filter(f => f.result === 'lost');
+    return `
+      <div class="trophy-finals-head">
+        <div class="trophy-finals-title">${meta.icon} ${meta.label} · финалы</div>
+        <div class="trophy-finals-head-right">
+          <span class="trophy-finals-summary">Всего: <b>${finals.length}</b> · <span class="trophy-record"><span class="w">${wins.length}</span>–<span class="l">${losses.length}</span></span></span>
+          <button type="button" class="trophy-finals-close" aria-label="Свернуть финалы">✕</button>
+        </div>
+      </div>
+      <div class="trophy-finals-columns">
+        <div class="trophy-finals-col wins">
+          <h5>🏆 Выигранные финалы · ${wins.length}</h5>
+          ${wins.length > 0 ? wins.map(renderTrophyFinalRow).join('') : '<div class="trophy-finals-empty">Побед в финалах этой категории пока нет.</div>'}
+        </div>
+        <div class="trophy-finals-col losses">
+          <h5>💔 Проигранные финалы · ${losses.length}</h5>
+          ${losses.length > 0 ? losses.map(renderTrophyFinalRow).join('') : '<div class="trophy-finals-empty">Поражений в финалах этой категории нет.</div>'}
+        </div>
+      </div>
+    `;
+  };
 
   const bodyEl = document.getElementById('playerProfileBody');
   if (bodyEl) {
-    const profileSurf = activeTourney ? activeTourney.surface : 'Хард';
-    const playerLiveStats = getPlayerLiveCardAnalytics(player);
-    const utCardHtml = renderUltimateTeamCardHtml(player, profileSurf, { refDateStr: currentTourDateStr, liveStats: playerLiveStats });
-    bodyEl.innerHTML = `
-      <div style="display: grid; grid-template-columns: minmax(290px, 340px) 1fr; gap: 14px; margin-bottom: 14px; align-items: stretch;">
-        ${utCardHtml}
-        <div class="profile-header-card" style="margin-bottom: 0; flex-direction: column; justify-content: space-between; align-items: stretch;">
-          <div class="profile-identity">
-            <div class="profile-flag-badge" style="padding: 6px 10px;">${renderFlagBadge(player.flag)}</div>
-            <div>
-              <div class="profile-name-title">
-                ${player.name}
-                ${renderPlayerMedalsHtml(player)}
-                ${player.nickname ? `<span class="player-nickname-badge">«${player.nickname}»</span>` : ''}
-              </div>
-              <div class="profile-submeta">
-                Возраст: <b style="color: var(--accent);">${calculateAge(player.birthDate, currentTourDateStr)}</b> (Дата рожд.: <b>${player.birthDate || '—'}</b>)
-                · Сезонов в туре: <b>${player.seasonsPlayed || 1}</b>
-              </div>
-              ${player.playStyle ? `<div style="margin-top: 4px;"><span class="player-style-pill">🎾 Стиль игры: ${player.playStyle}</span></div>` : ''}
+    let overviewCardHtml = '';
+    if (isRetiredProfile) {
+      overviewCardHtml = `
+        <div class="profile-header-card" style="margin-bottom: 0; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 10px;">
+          <div style="font-size: 11px; letter-spacing: 0.14em; color: var(--gold); font-weight: 800;">🏛️ ЛЕГЕНДА ТУРА</div>
+          <div class="profile-flag-badge" style="padding: 10px 14px;">${renderFlagBadge(player.flag)}</div>
+          <div style="font-size: 21px; font-weight: 800; color: var(--text-main); line-height: 1.2;">${escapeHtmlText(player.name)}</div>
+          <div style="font-size: 12.5px; color: var(--text-dim);">Завершил карьеру в <b style="color: var(--gold);">${retiredLegend.retiredYear}</b> году</div>
+          <div style="font-size: 12px; color: var(--text-dim);">Возраст ухода: <b style="color: var(--text-main);">${retiredLegend.retiredAge} лет</b> · Сезонов в туре: <b style="color: var(--text-main);">${retiredLegend.seasonsPlayed || 1}</b></div>
+        </div>`;
+    } else {
+      const profileSurf = activeTourney ? activeTourney.surface : 'Хард';
+      const playerLiveStats = getPlayerLiveCardAnalytics(player);
+      overviewCardHtml = renderUltimateTeamCardHtml(player, profileSurf, { refDateStr: currentTourDateStr, liveStats: playerLiveStats });
+    }
+
+    const identitySubmetaHtml = isRetiredProfile
+      ? `Завершил карьеру: <b style="color: var(--gold);">${retiredLegend.retiredYear}</b> (в возрасте <b style="color: var(--gold);">${retiredLegend.retiredAge}</b> лет)
+         · Дата рожд.: <b>${player.birthDate || '—'}</b> · Сезонов в туре: <b>${retiredLegend.seasonsPlayed || 1}</b>`
+      : `Возраст: <b style="color: var(--accent);">${calculateAge(player.birthDate, currentTourDateStr)}</b> (Дата рожд.: <b>${player.birthDate || '—'}</b>)
+         · Сезонов в туре: <b>${player.seasonsPlayed || 1}</b>`;
+
+    const metricsRowHtml = isRetiredProfile
+      ? `
+            <div class="profile-metric-pill">
+              <small>Итоговый ранг</small>
+              <b style="color: var(--primary);">#${retiredLegend.finalRank || '—'}</b>
             </div>
-          </div>
-          <div class="profile-metrics-row" style="margin-top: 10px;">
+            <div class="profile-metric-pill">
+              <small>Пик карьеры</small>
+              <b style="color: var(--gold);">Пик: #${retiredLegend.bestRank || '—'}</b>
+            </div>
+            <div class="profile-metric-pill">
+              <small>Очки на момент ухода</small>
+              <b style="color: #fff;">${(retiredLegend.finalPoints || 0).toLocaleString()} <span style="font-size: 11px; color: var(--text-dim);">pts</span></b>
+            </div>
+            <div class="profile-metric-pill">
+              <small>Завершил карьеру</small>
+              <b style="color: var(--accent);">${retiredLegend.retiredYear}</b>
+            </div>`
+      : `
             <div class="profile-metric-pill">
               <small>Текущий ранг</small>
               <b style="color: var(--primary);">#${player.rank}</b>
@@ -6038,50 +6556,37 @@ export function openPlayerProfileModal(playerId) {
             <div class="profile-metric-pill">
               <small>Гонка ${currentTourYear} (#${raceRank})</small>
               <b style="color: var(--accent);">${(player.racePoints || 0).toLocaleString()} <span style="font-size: 11px; color: var(--text-dim);">pts</span></b>
-            </div>
-          </div>
-        </div>
-      </div>
+            </div>`;
 
-      <div class="profile-section-box">
-        <h4>🏆 Зал Трофеев (Всего титулов: <span style="color: var(--primary);">${stats.totalTitles}</span>)</h4>
-        <div class="trophy-cabinet-grid">
-          <div class="trophy-badge-card ${stats.titlesCount.slam > 0 ? 'has-trophy' : ''}">
-            <div class="trophy-icon">🏆</div>
-            <div class="trophy-count">${stats.titlesCount.slam}</div>
-            <div class="trophy-label">ТБШ (Grand Slam)</div>
-          </div>
-          <div class="trophy-badge-card ${stats.titlesCount.masters > 0 ? 'has-trophy' : ''}">
-            <div class="trophy-icon">💎</div>
-            <div class="trophy-count">${stats.titlesCount.masters}</div>
-            <div class="trophy-label">Мастерс 1000</div>
-          </div>
-          <div class="trophy-badge-card ${stats.titlesCount.olympics > 0 ? 'has-trophy' : ''}">
-            <div class="trophy-icon">🥇</div>
-            <div class="trophy-count">${stats.titlesCount.olympics}</div>
-            <div class="trophy-label">Олимпиада</div>
-          </div>
-          <div class="trophy-badge-card ${stats.titlesCount.finals > 0 ? 'has-trophy' : ''}">
-            <div class="trophy-icon">👑</div>
-            <div class="trophy-count">${stats.titlesCount.finals}</div>
-            <div class="trophy-label">Итоговый турнир</div>
-          </div>
-          <div class="trophy-badge-card ${stats.titlesCount.atp500 > 0 ? 'has-trophy' : ''}">
-            <div class="trophy-icon">🔥</div>
-            <div class="trophy-count">${stats.titlesCount.atp500}</div>
-            <div class="trophy-label">ATP 500</div>
-          </div>
-        </div>
-        ${titlesListHtml}
-        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-          <span style="font-size: 12px; color: var(--text-dim); font-weight: 600;">🏅 Олимпийские медали:</span>
-          ${medalsHtml}
-        </div>
-      </div>
+    const surfaceWLForProfile = isRetiredProfile ? stats.careerSurfaceWL : stats.surfaceWL;
+    const surfaceStatsHtml = `
+            <div style="font-size: 12px; font-weight: 600; display: flex; gap: 8px; flex-wrap: wrap;">
+              <span class="surface-text-hard">Хард: ${surfaceWLForProfile['Хард'].w}-${surfaceWLForProfile['Хард'].l}</span>
+              <span class="surface-text-clay">Грунт: ${surfaceWLForProfile['Грунт'].w}-${surfaceWLForProfile['Грунт'].l}</span>
+              <span class="surface-text-grass">Трава: ${surfaceWLForProfile['Трава'].w}-${surfaceWLForProfile['Трава'].l}</span>
+              <span class="surface-text-indoor">Зал: ${surfaceWLForProfile['Зал'].w}-${surfaceWLForProfile['Зал'].l}</span>
+            </div>`;
 
-      <div class="profile-section-box">
-        <h4>📊 Статистика матчей (W - L) и баланс по покрытиям</h4>
-        <div class="profile-stats-grid">
+    const statsGridHtml = isRetiredProfile
+      ? `
+          <div class="profile-wl-box">
+            <small>Последний сезон ${seasonYearLabel} (W - L)</small>
+            <b style="color: var(--primary);">${stats.seasonWL.w} - ${stats.seasonWL.l} <span style="font-size: 12px; color: var(--text-dim);">(${seasonWinPct}%)</span></b>
+          </div>
+          <div class="profile-wl-box">
+            <small>Карьерный баланс (2023–${currentTourYear})</small>
+            <b style="color: var(--accent);">${stats.careerWL.w} - ${stats.careerWL.l} <span style="font-size: 12px; color: var(--text-dim);">(${careerWinPct}%)</span></b>
+          </div>
+          <div class="profile-wl-box">
+            <small>По покрытиям за карьеру</small>
+            ${surfaceStatsHtml}
+          </div>
+          <div class="profile-wl-box">
+            <small>Завершение карьеры</small>
+            <b style="color: var(--gold);">Выпуск ${retiredLegend.retiredYear} · ${retiredLegend.retiredAge} лет</b>
+            <span style="font-size: 11.5px; color: var(--text-dim); display: block; margin-top: 2px;">Финальный ранг #${retiredLegend.finalRank || '—'} · Пик #${retiredLegend.bestRank || '—'}</span>
+          </div>`
+      : `
           <div class="profile-wl-box">
             <small>Баланс в сезоне ${currentTourYear} (W - L)</small>
             <b style="color: var(--primary);">${stats.seasonWL.w} - ${stats.seasonWL.l} <span style="font-size: 12px; color: var(--text-dim);">(${seasonWinPct}%)</span></b>
@@ -6092,16 +6597,55 @@ export function openPlayerProfileModal(playerId) {
           </div>
           <div class="profile-wl-box">
             <small>По покрытиям в ${currentTourYear} году</small>
-            <div style="font-size: 12px; font-weight: 600; display: flex; gap: 8px; flex-wrap: wrap;">
-              <span class="surface-text-hard">Хард: ${stats.surfaceWL['Хард'].w}-${stats.surfaceWL['Хард'].l}</span>
-              <span class="surface-text-clay">Грунт: ${stats.surfaceWL['Грунт'].w}-${stats.surfaceWL['Грунт'].l}</span>
-              <span class="surface-text-grass">Трава: ${stats.surfaceWL['Трава'].w}-${stats.surfaceWL['Трава'].l}</span>
-              <span class="surface-text-indoor">Зал: ${stats.surfaceWL['Зал'].w}-${stats.surfaceWL['Зал'].l}</span>
+            ${surfaceStatsHtml}
+          </div>`;
+
+    bodyEl.innerHTML = `
+      <div style="display: grid; grid-template-columns: minmax(290px, 340px) 1fr; gap: 14px; margin-bottom: 14px; align-items: stretch;">
+        ${overviewCardHtml}
+        <div class="profile-header-card" style="margin-bottom: 0; flex-direction: column; justify-content: space-between; align-items: stretch;">
+          <div class="profile-identity">
+            <div class="profile-flag-badge" style="padding: 6px 10px;">${renderFlagBadge(player.flag)}</div>
+            <div>
+              <div class="profile-name-title">
+                ${escapeHtmlText(player.name)}
+                ${renderPlayerMedalsHtml(player)}
+                ${renderPotentialBadgeHtml(player)}
+                ${player.nickname ? `<span class="player-nickname-badge">«${player.nickname}»</span>` : ''}
+              </div>
+              <div class="profile-submeta">
+                ${identitySubmetaHtml}
+              </div>
+              ${player.playStyle ? `<div style="margin-top: 4px;"><span class="player-style-pill">🎾 Стиль игры: ${player.playStyle}</span></div>` : ''}
             </div>
+          </div>
+          <div class="profile-metrics-row" style="margin-top: 10px;">
+            ${metricsRowHtml}
           </div>
         </div>
       </div>
 
+      <div class="profile-section-box">
+        <h4>🏆 Зал Трофеев (Всего титулов: <span style="color: var(--primary);">${stats.totalTitles}</span> · Финалов: <span style="color: var(--accent);">${stats.totalFinalsPlayed}</span>)</h4>
+        <div class="trophy-cabinet-grid">
+          ${trophyCardsHtml}
+        </div>
+        <div class="trophy-click-hint" id="trophyClickHint">💡 Нажмите на категорию, чтобы открыть все её финалы: победы и поражения.</div>
+        <div class="trophy-finals-panel" id="trophyFinalsPanel" hidden></div>
+        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <span style="font-size: 12px; color: var(--text-dim); font-weight: 600;">🏅 Олимпийские медали:</span>
+          ${medalsHtml}
+        </div>
+      </div>
+
+      <div class="profile-section-box">
+        <h4>📊 ${isRetiredProfile ? 'Карьерная статистика (W - L) и баланс по покрытиям' : 'Статистика матчей (W - L) и баланс по покрытиям'}</h4>
+        <div class="profile-stats-grid">
+          ${statsGridHtml}
+        </div>
+      </div>
+
+      ${isRetiredProfile ? '' : `
       <div class="profile-section-box">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
           <h4 style="margin: 0;">📅 Таблица набранных и защищаемых очков по всем турнирам (${currentTourYear})</h4>
@@ -6149,8 +6693,46 @@ export function openPlayerProfileModal(playerId) {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>`}
     `;
+  }
+
+  const trophyPanel = document.getElementById('trophyFinalsPanel');
+  const trophyHint = document.getElementById('trophyClickHint');
+  const trophyCards = bodyEl ? [...bodyEl.querySelectorAll('.trophy-badge-card[data-category]')] : [];
+  let selectedTrophyCategory = null;
+
+  const syncTrophyCards = () => {
+    trophyCards.forEach(card => {
+      const active = card.dataset.category === selectedTrophyCategory;
+      card.classList.toggle('is-active', active);
+      card.setAttribute('aria-expanded', active ? 'true' : 'false');
+    });
+  };
+
+  const toggleTrophyCategory = (categoryKey) => {
+    if (!trophyPanel) return;
+    selectedTrophyCategory = selectedTrophyCategory === categoryKey ? null : categoryKey;
+    syncTrophyCards();
+    if (!selectedTrophyCategory) {
+      trophyPanel.hidden = true;
+      trophyPanel.innerHTML = '';
+      if (trophyHint) trophyHint.hidden = false;
+      return;
+    }
+    trophyPanel.innerHTML = renderTrophyCategoryPanel(selectedTrophyCategory);
+    trophyPanel.hidden = false;
+    if (trophyHint) trophyHint.hidden = true;
+    trophyPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+
+  trophyCards.forEach(card => {
+    card.addEventListener('click', () => toggleTrophyCategory(card.dataset.category));
+  });
+  if (trophyPanel) {
+    trophyPanel.addEventListener('click', (e) => {
+      if (e.target.closest('.trophy-finals-close')) toggleTrophyCategory(selectedTrophyCategory);
+    });
   }
 
   document.getElementById('playerProfileModal')?.classList.add('open');
@@ -6159,6 +6741,7 @@ export function openPlayerProfileModal(playerId) {
 export function openEditFromPlayerProfile() {
   if (!activeProfilePlayerId) return;
   const targetId = activeProfilePlayerId;
+  if (!players.some(p => String(p.id) === String(targetId))) return;
   closeModal('playerProfileModal');
   openEditPlayerModal(targetId);
 }
@@ -6227,6 +6810,7 @@ export function savePlayerEdit() {
     recordCustomPlayerOverride(p);
     propagatePlayerIdentityUpdate(p, oldNameLower);
     savePlayers(false);
+    invalidatePlayerCardAnalyticsCache();
     renderPlayersTable();
     renderRaceTable();
     renderCalendarTable();
@@ -6403,23 +6987,25 @@ export function switchHallSubtab(subtab) {
   activeHallSubtab = subtab;
   const btnArch = document.getElementById('subtab-archive-btn');
   const btnLeg = document.getElementById('subtab-legends-btn');
+  const btnGoat = document.getElementById('subtab-goat-btn');
   const contentArch = document.getElementById('historyContent');
   const contentLeg = document.getElementById('legendsContent');
+  const contentGoat = document.getElementById('goatContent');
   const pickerWrap = document.getElementById('historyYearPickerWrap');
 
+  btnArch?.classList.toggle('active', subtab === 'archive');
+  btnLeg?.classList.toggle('active', subtab === 'legends');
+  btnGoat?.classList.toggle('active', subtab === 'goat');
+  if (contentArch) contentArch.style.display = subtab === 'archive' ? 'block' : 'none';
+  if (contentLeg) contentLeg.style.display = subtab === 'legends' ? 'block' : 'none';
+  if (contentGoat) contentGoat.style.display = subtab === 'goat' ? 'block' : 'none';
+  if (pickerWrap) pickerWrap.style.display = subtab === 'archive' ? 'flex' : 'none';
+
   if (subtab === 'legends') {
-    btnArch?.classList.remove('active');
-    btnLeg?.classList.add('active');
-    if (contentArch) contentArch.style.display = 'none';
-    if (contentLeg) contentLeg.style.display = 'block';
-    if (pickerWrap) pickerWrap.style.display = 'none';
     renderLegendsTab();
+  } else if (subtab === 'goat') {
+    renderGoatTab();
   } else {
-    btnLeg?.classList.remove('active');
-    btnArch?.classList.add('active');
-    if (contentLeg) contentLeg.style.display = 'none';
-    if (contentArch) contentArch.style.display = 'block';
-    if (pickerWrap) pickerWrap.style.display = 'flex';
     renderHistoryYear();
   }
 }
@@ -6441,6 +7027,8 @@ export function initHistoryUI() {
 
   if (activeHallSubtab === 'legends') {
     renderLegendsTab();
+  } else if (activeHallSubtab === 'goat') {
+    renderGoatTab();
   } else {
     renderHistoryYear();
   }
@@ -6779,7 +7367,7 @@ export function renderHistoryYear() {
             ${seasonRetirees.map(leg => `
               <div class="legend-card" style="background: #131c2e;">
                 <div class="legend-card-header">
-                  <span class="legend-name">${renderFlagBadge(leg.flag, { compact: true })} ${leg.name}</span>
+                  <button type="button" class="legend-name player-profile-link" onclick="openPlayerProfileModal('${leg.id}')" title="Открыть профиль легенды">${renderFlagBadge(leg.flag, { compact: true })} ${leg.name}</button>
                   <span style="color: var(--gold); font-size: 11.5px; font-weight: 700;">Выпуск ${leg.retiredYear}</span>
                 </div>
                 <div class="legend-meta">
@@ -6926,7 +7514,7 @@ export function renderLegendsTab() {
       ${retiredLegends.map(leg => `
         <div class="legend-card">
           <div class="legend-card-header">
-            <span class="legend-name">${renderFlagBadge(leg.flag, { compact: true })} ${leg.name}</span>
+            <button type="button" class="legend-name player-profile-link" onclick="openPlayerProfileModal('${leg.id}')" title="Открыть профиль легенды">${renderFlagBadge(leg.flag, { compact: true })} ${leg.name}</button>
             <span style="color: var(--gold); font-size: 12px; font-weight: 700;">Выпуск ${leg.retiredYear}</span>
           </div>
           <div class="legend-meta">
@@ -6938,10 +7526,109 @@ export function renderLegendsTab() {
           <div class="legend-meta">
             Финальный рейтинг: <b>#${leg.finalRank}</b> · Сыграно сезонов: <b>${leg.seasonsPlayed}</b>
           </div>
+          <div class="legend-meta">
+            Недель на №1: <b style="color: var(--gold);">${Number(leg.weeksAtNo1) || 0}</b>
+          </div>
         </div>
       `).join('')}
     </div>
   `;
+}
+
+export function renderGoatTab() {
+  const container = document.getElementById('goatContent');
+  if (!container) return;
+
+  const board = buildGoatLeaderboard(players, retiredLegends, seasonsHistory).slice(0, 25);
+
+  if (board.length === 0) {
+    container.innerHTML = `
+      <div class="history-card" style="text-align: center; padding: 40px 20px;">
+        <h3 style="font-size: 17px; color: var(--gold); margin-bottom: 8px;">🐐 Гонка GOAT и Рекорды</h3>
+        <p style="color: var(--text-dim); font-size: 13.5px; max-width: 560px; margin: 0 auto;">
+          История тура ещё не накоплена: проведите турниры и завершите сезон, чтобы легенды и действующие игроки начали борьбу за звание величайшего.
+        </p>
+      </div>
+    `;
+    return;
+  }
+
+  const rowsHtml = board.map(e => {
+    const medals = [
+      e.olympicGold > 0 ? `🥇${e.olympicGold}` : '',
+      e.olympicSilver > 0 ? `🥈${e.olympicSilver}` : '',
+      e.olympicBronze > 0 ? `🥉${e.olympicBronze}` : ''
+    ].filter(Boolean).join(' ') || '—';
+    const statusHtml = e.isRetired
+      ? `<span class="goat-status goat-status-retired">🏛️ Легенда</span>`
+      : `<span class="goat-status goat-status-active">🟢 Активен</span>`;
+    return `
+      <tr class="${e.isRetired ? 'goat-row-legend' : ''}">
+        <td><b class="${e.goatRank <= 3 ? 'goat-rank-top' : ''}">#${e.goatRank}</b></td>
+        <td>
+          <div class="goat-player-cell">
+            ${renderFlagBadge(e.flag, { compact: true })}
+            <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${e.id}')" title="Открыть профиль игрока">${escapeHtmlText(e.name)}</button>
+            ${e.careerGrandSlam ? `<span class="goat-badge-slam" title="Победы на всех четырёх ТБШ (tbsh_1..tbsh_4)">👑 Карьерный Шлем</span>` : ''}
+          </div>
+          ${e.isRetired && e.retiredYear ? `<div class="goat-player-sub">Выпуск ${e.retiredYear}</div>` : ''}
+        </td>
+        <td>${statusHtml}</td>
+        <td><b>${e.slamTitles}</b></td>
+        <td>${e.finalsTitles}</td>
+        <td>${e.mastersTitles}</td>
+        <td>${e.atp500Titles}</td>
+        <td>${medals}</td>
+        <td>${e.seasonNo1}</td>
+        <td><b style="color: var(--gold);">${e.weeksAtNo1}</b></td>
+        <td><b class="goat-score-value">${e.goatScore}</b></td>
+      </tr>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+      <div>
+        <h3 style="font-size: 17px; color: var(--gold);">🐐 Гонка Величайших (GOAT) · Топ-25</h3>
+        <small style="color: var(--text-dim);">Единый всевременной рейтинг действующих игроков и легенд тура.</small>
+      </div>
+      <div class="goat-weights-note">
+        ТБШ +8 · Итоговый +4 · Олимпийское золото +5 / серебро +2 / бронза +1 · Мастерс +3 · ATP 500 +1 ·
+        Сезон на №1 +5 · Каждые 10 недель на №1 +1 · Карьерный Шлем +10
+      </div>
+    </div>
+    <div class="goat-table-wrap">
+      <table class="custom-table goat-table">
+        <thead>
+          <tr>
+            <th style="width: 52px;">GOAT</th>
+            <th>Игрок</th>
+            <th>Статус</th>
+            <th title="Титулы ТБШ">🎾 ТБШ</th>
+            <th title="Титулы Итогового турнира">🏆 Итог.</th>
+            <th title="Титулы Мастерс 1000">🏛️ Мастерс</th>
+            <th title="Титулы ATP 500">🥈 ATP 500</th>
+            <th title="Олимпийские медали">🏅 ОИ</th>
+            <th title="Сезонов, завершённых на №1">👑 №1</th>
+            <th title="Недель на первой строчке мирового рейтинга">🗓️ Недель №1</th>
+            <th title="Суммарный GOAT Score">🐐 Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+export function renderPotentialBadgeHtml(player, currentDateStr = null) {
+  if (!player || typeof player.potential !== 'number' || !Number.isFinite(player.potential)) return '';
+  const refDate = currentDateStr || (viewingYear < currentTourYear ? `${viewingYear}-06-15` : currentTourDateStr);
+  if (calculateAgeNum(player.birthDate, refDate) > 23) return '';
+  const pot = Math.round(player.potential);
+  const isElite = pot >= 93;
+  return `<span class="potential-badge ${isElite ? 'potential-elite' : ''}" title="Потенциал развития (POT): ${pot}${isElite ? ' · Поколенческий талант / NextGen Star' : ''}">🌟 POT: ${pot}</span>`;
 }
 
 // --- 9.5. ИНТЕРАКТИВНАЯ КИБЕР-ГАЗЕТА «📰 ЛЕНТА ТУРА (TENNIS FEED)» ---
@@ -7312,6 +7999,10 @@ export function applyStateSnapshot(stateObj) {
     retiredLegends = JSON.parse(JSON.stringify(stateObj.retiredLegends));
   }
 
+  // Старые чекпоинты хранят плоские недели на №1 — пересчитываем по истории при откате
+  // (с отсечкой по дате точки, чтобы откат на январь 2024 не показывал весь сезон)
+  ensureWeeksAtNo1State(players, { seasonsHistory, syncYears: [2023, 2024], asOfDate: currentTourDateStr });
+
   const maxYr = Math.max(2024, currentTourYear + 1);
   const allTourneys = getSeasonTournaments(currentTourYear, FULL_CALENDAR_TEMPLATE);
   if (!allTourneys.some(t => t.id === 'olympics')) {
@@ -7554,7 +8245,12 @@ export function saveSeasonCheckpoint(cpId, customName, options = {}) {
       nickname: p.nickname,
       playStyle: p.playStyle,
       isNewgen: p.isNewgen,
-      isCleanReplacement: p.isCleanReplacement
+      isCleanReplacement: p.isCleanReplacement,
+      weeksAtNo1: p.weeksAtNo1 || 0,
+      weeksAtNo1Earned: p.weeksAtNo1Earned || 0,
+      weeksAtNo1Model: p.weeksAtNo1Model,
+      potential: p.potential,
+      potentialModel: p.potentialModel
     }));
 
     // В чекпоинте храним историю только активного года (прошлые сезоны уже в сохраненной глобальной базе)
@@ -7863,6 +8559,7 @@ export function restoreSeasonCheckpoint(cpId) {
     repairCanonicalPlayersAndDraws();
     backfill2023HistoryFromDraws(false);
     repairOvercountedPoints();
+    repairCareerHighRanksFromHistory(players, seasonsHistory);
     found.players = JSON.parse(JSON.stringify(players));
     if (players[0]) {
       found.worldNo1 = `${players[0].flag} ${players[0].name} (${(players[0].points || 0).toLocaleString()} pts)`;
@@ -8265,9 +8962,9 @@ if (typeof window !== 'undefined') {
   const restoreAuthorCanonPositionsOnce = async () => {
     try {
       await ensureMasterArchivesLoaded();
-      if (typeof window === 'undefined' || !window.location || typeof localStorage === 'undefined') return;
-      const host = String(window.location.hostname || '').toLowerCase();
-      if (host !== 'localhost' && host !== '127.0.0.1') return;
+      if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+      // Гидратация канона нужна Автору и на localhost, и на GitHub Pages
+      if (!isAuthorOwnerMode()) return;
 
       const canonData = CANON_MASTER_SNAPSHOT;
       if (!canonData) return;
@@ -8455,7 +9152,53 @@ if (typeof window !== 'undefined') {
     }
   };
 
+  authorCanonRestoreHook = restoreAuthorCanonPositionsOnce;
+
+  function setupPwa() {
+    const installButton = document.getElementById('btnInstallPwa');
+    let deferredPrompt = null;
+    const isStandalone = window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone === true;
+
+    if (installButton) {
+      if (isStandalone) installButton.style.display = 'none';
+
+      window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        deferredPrompt = event;
+        if (!isStandalone) installButton.style.display = '';
+      });
+
+      installButton.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        const promptEvent = deferredPrompt;
+        deferredPrompt = null;
+        installButton.style.display = 'none';
+        promptEvent.prompt();
+        try {
+          await promptEvent.userChoice;
+        } catch {}
+      });
+
+      window.addEventListener('appinstalled', () => {
+        deferredPrompt = null;
+        installButton.style.display = 'none';
+      });
+    }
+
+    if ('serviceWorker' in navigator) {
+      const registerServiceWorker = () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      };
+      if (document.readyState === 'complete') {
+        registerServiceWorker();
+      } else {
+        window.addEventListener('load', registerServiceWorker, { once: true });
+      }
+    }
+  }
+
   const bootstrapApp = async () => {
+    setupPwa();
     runStorageGarbageCollector();
     await ensureMasterArchivesLoaded();
     await fetchOverridesFromLocalServer();

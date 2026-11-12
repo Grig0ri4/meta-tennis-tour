@@ -8,7 +8,7 @@
 import { calculateGroupStandings } from './drawEngine.js';
 import { FULL_CALENDAR_TEMPLATE, rNames128, rNames64, rNamesOlympics, rNames32 } from '../data/tournaments.js';
 import { buildInitial300Players } from '../data/players.js';
-import { getPlayerSkills } from './rankingEngine.js';
+import { getPlayerSkills, calculateAgeNum, getYoungTalentWinBonus } from './rankingEngine.js';
 
 const CANONICAL_ID_BY_NAME = (() => {
   const map = new Map();
@@ -296,18 +296,30 @@ export function calculateMatchStaminaCost(scoresOrStr, bestOf = 3) {
 }
 
 /**
- * Применяет расход выносливости к участникам матча
+ * Применяет расход выносливости к участникам матча.
+ * Игроки старше 34 лет в затяжных 3-сетовых и 5-сетовых матчах теряют на 15% больше сил.
  */
-export function applyMatchFatigueToPlayers(p1, p2, scoresOrStr, bestOf = 3) {
+export function applyMatchFatigueToPlayers(p1, p2, scoresOrStr, bestOf = 3, options = {}) {
   const drain = calculateMatchStaminaCost(scoresOrStr, bestOf);
-  if (p1 && typeof p1 === 'object') {
-    const cur1 = typeof p1.stamina === 'number' ? p1.stamina : 100;
-    p1.stamina = Math.max(15, Math.min(100, cur1 - drain));
-  }
-  if (p2 && typeof p2 === 'object') {
-    const cur2 = typeof p2.stamina === 'number' ? p2.stamina : 100;
-    p2.stamina = Math.max(15, Math.min(100, cur2 - drain));
-  }
+  const arr = Array.isArray(scoresOrStr)
+    ? scoresOrStr
+    : String(scoresOrStr || '').trim().split(/\s+/).filter(Boolean);
+  const playedSets = arr.filter(t => String(t).toUpperCase() !== 'RET').length;
+  const isLongMatch = bestOf === 5 || playedSets >= 3;
+  const refDateStr = options.currentDateStr || '2024-06-30';
+
+  const applyOne = (p) => {
+    if (!p || typeof p !== 'object') return;
+    let personalDrain = drain;
+    if (isLongMatch && calculateAgeNum(p.birthDate, refDateStr) > 34) {
+      personalDrain = Math.min(60, Math.round(drain * 1.15));
+    }
+    const cur = typeof p.stamina === 'number' ? p.stamina : 100;
+    p.stamina = Math.max(15, Math.min(100, cur - personalDrain));
+  };
+
+  applyOne(p1);
+  applyOne(p2);
   return drain;
 }
 
@@ -440,7 +452,11 @@ export function computeSimMatchScores(m, bestOf = 3, forcedWinnerNumber = 0, sur
   } else if (forcedWinnerNumber === 2) {
     p1WinsMatch = false;
   } else {
-    const upsetProb = Math.min(0.42, Math.max(0.12, 0.20 + (p1IsFavorite ? (-surfSkillDiff - clutchEdge - staminaEdge) : (surfSkillDiff + clutchEdge + staminaEdge))));
+    const talentRefDate = options.currentDateStr || '2024-06-30';
+    const talentBonus1 = getYoungTalentWinBonus(m.p1, talentRefDate);
+    const talentBonus2 = getYoungTalentWinBonus(m.p2, talentRefDate);
+    const talentEdge = p1IsFavorite ? -talentBonus2 : talentBonus1;
+    const upsetProb = Math.min(0.42, Math.max(0.12, 0.20 + (p1IsFavorite ? (-surfSkillDiff - clutchEdge - staminaEdge) : (surfSkillDiff + clutchEdge + staminaEdge)) + talentEdge));
     const isUpset = Math.random() < upsetProb;
     p1WinsMatch = p1IsFavorite ? !isUpset : isUpset;
   }
@@ -463,7 +479,7 @@ export function computeSimMatchScores(m, bestOf = 3, forcedWinnerNumber = 0, sur
     const effectiveStage = stage || m?.stageLabel || '';
     const narrative = generateMatchNarrative(winner, loser, retScores, surface, tourneyName, effectiveStage);
     const { winnerQuote, loserQuote } = generateMatchQuotes(winner, loser, retScores, surface, tourneyName, effectiveStage);
-    const staminaCost = applyMatchFatigueToPlayers(m.p1, m.p2, retScores, bestOf);
+    const staminaCost = applyMatchFatigueToPlayers(m.p1, m.p2, retScores, bestOf, options);
     return {
       winner,
       scores: retScores,
@@ -542,7 +558,7 @@ export function computeSimMatchScores(m, bestOf = 3, forcedWinnerNumber = 0, sur
   const effectiveStage = stage || m?.stageLabel || '';
   const narrative = generateMatchNarrative(winner, loser, scores, surface, tourneyName, effectiveStage);
   const { winnerQuote, loserQuote } = generateMatchQuotes(winner, loser, scores, surface, tourneyName, effectiveStage);
-  const staminaCost = applyMatchFatigueToPlayers(m.p1, m.p2, scores, bestOf);
+  const staminaCost = applyMatchFatigueToPlayers(m.p1, m.p2, scores, bestOf, options);
 
   return {
     winner,

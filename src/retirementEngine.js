@@ -7,7 +7,7 @@
  * - На место каждого завершившего карьеру генерируется ровно 1 молодой ньюген (17–23 года, 20–45 очков, уникальное латинское имя без цифр).
  */
 
-import { calculateAgeNum } from './rankingEngine.js';
+import { calculateAgeNum, generatePlayerPotential, POTENTIAL_MODEL_VERSION } from './rankingEngine.js';
 
 export const NEWGEN_FIRST_NAMES = [
   "Lucas", "Mateo", "Enzo", "Leo", "Hugo", "Gabriel", "Adrian", "Julian", "Tomas", "Nico",
@@ -154,7 +154,10 @@ export function createNewgenPlayer(nextSeasonYear, existingNamesSet, nextIdNumbe
     isNewgen: true,
     debutYear: nextSeasonYear,
     nickname,
-    playStyle
+    playStyle,
+    // POT генерируется после всех полей, чтобы не сдвигать детерминированную последовательность rng
+    potential: generatePlayerPotential(rng, { age }),
+    potentialModel: POTENTIAL_MODEL_VERSION
   };
 }
 
@@ -191,7 +194,9 @@ export function processEndOfSeasonRetirements(players, endingSeasonYear, existin
         finalRank: p.rank,
         bestRank: bestRank,
         finalPoints: p.points,
-        seasonsPlayed: seasonsPlayed
+        seasonsPlayed: seasonsPlayed,
+        weeksAtNo1: Math.max(0, Number(p.weeksAtNo1) || 0),
+        medals: p.medals ? { ...p.medals } : { gold: 0, silver: 0, bronze: 0 }
       });
     } else {
       remainingPlayers.push({

@@ -230,7 +230,16 @@ async function startServer() {
           exportedAt: new Date().toISOString()
         };
 
-        fs.writeFileSync(canonPath, JSON.stringify(mergedCanon, null, 2), "utf8");
+        const serializedCanon = JSON.stringify(mergedCanon, null, 2);
+        fs.writeFileSync(canonPath, serializedCanon, "utf8");
+
+        // Мастер-копия всегда байт-в-байт совпадает с опубликованным public/canon.json.
+        try {
+          const masterCanonPath = path.join(__dirname, "data", "canon_nov15_master.json");
+          fs.writeFileSync(masterCanonPath, serializedCanon, "utf8");
+        } catch (masterErr) {
+          console.warn("canon master sync err:", masterErr);
+        }
       res.json({ ok: true });
     } catch (e) {
       console.warn("canon-snapshot err:", e);

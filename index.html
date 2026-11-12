@@ -8,7 +8,64 @@
     <meta property="og:title" content="Meta Tennis Tour — Профессиональный Тур 300">
     <meta property="og:description" content="Симулятор виртуальной теннисной вселенной с пулом из 300 игроков, 26 турнирами сезона и Олимпийскими играми, 52-недельным рейтингом ATP, Чемпионской гонкой, мультивселенными и ИИ-симуляцией матчей.">
     <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Meta Tennis Tour">
+    <meta property="og:locale" content="ru_RU">
+    <meta property="og:url" content="https://grig0ri4.github.io/meta-tennis-tour/">
+    <meta property="og:image" content="https://grig0ri4.github.io/meta-tennis-tour/icon.svg">
     <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Meta Tennis Tour — Профессиональный Тур 300">
+    <meta name="twitter:description" content="Симулятор виртуальной теннисной вселенной с пулом из 300 игроков, 26 турнирами сезона и Олимпийскими играми, 52-недельным рейтингом ATP, Чемпионской гонкой, мультивселенными и ИИ-симуляцией матчей.">
+    <meta name="twitter:image" content="https://grig0ri4.github.io/meta-tennis-tour/icon.svg">
+    <meta name="keywords" content="теннисный симулятор, теннисный менеджер онлайн, симулятор тенниса, ATP тур симулятор, турнирная сетка теннис, tennis simulator browser game, tennis manager online, Meta Tennis Tour">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#0d1015">
+    <link rel="canonical" href="https://grig0ri4.github.io/meta-tennis-tour/">
+    <link rel="icon" type="image/svg+xml" href="./icon.svg">
+    <link rel="apple-touch-icon" href="./icon.svg">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "VideoGame",
+          "name": "Meta Tennis Tour — Профессиональный Тур 300",
+          "description": "Симулятор виртуальной теннисной вселенной с пулом из 300 игроков, 26 турнирами сезона и Олимпийскими играми, 52-недельным рейтингом ATP, Чемпионской гонкой, мультивселенными и ИИ-симуляцией матчей.",
+          "genre": "Sports Simulation / Tennis Manager",
+          "applicationCategory": "GameApplication",
+          "operatingSystem": "Windows, macOS, Android, iOS, Web Browser",
+          "gamePlatform": ["Web Browser", "Windows", "macOS", "Android", "iOS"],
+          "url": "https://grig0ri4.github.io/meta-tennis-tour/",
+          "image": "https://grig0ri4.github.io/meta-tennis-tour/icon.svg",
+          "inLanguage": "ru",
+          "author": { "@type": "Person", "name": "Grig0ri4" },
+          "publisher": { "@type": "Organization", "name": "Meta Tennis Tour" },
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "RUB",
+            "availability": "https://schema.org/InStock"
+          }
+        },
+        {
+          "@type": "WebApplication",
+          "name": "Meta Tennis Tour",
+          "description": "Браузерный теннисный менеджер и симулятор ATP-тура: турнирные сетки, рейтинг 52 недели, Чемпионская гонка и Зал Славы.",
+          "genre": "Sports Simulation / Tennis Manager",
+          "applicationCategory": "GameApplication",
+          "operatingSystem": "Windows, macOS, Android, iOS, Web Browser",
+          "browserRequirements": "Requires JavaScript and a modern web browser",
+          "url": "https://grig0ri4.github.io/meta-tennis-tour/",
+          "inLanguage": "ru",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "RUB"
+          }
+        }
+      ]
+    }
+    </script>
     <link rel="stylesheet" href="/styles/style.css">
 </head>
 <body>
@@ -30,6 +87,7 @@
                 </select>
                 <button type="button" class="btn-green btn-compact" id="btnOpenCreateUniverse" onclick="openCreateUniverseModal()" title="Создать новую параллельную теннисную вселенную">+ Создать новую вселенную</button>
                 <button type="button" class="btn-edit btn-compact" id="btnCheckpoints" onclick="openCheckpointsModal()" title="Точки сохранения сезона (после ТБШ и Итогового)">🕒 Чекпоинты сезона</button>
+                <button type="button" class="btn-green btn-compact" id="btnInstallPwa" style="display: none;" title="Установить Meta Tennis Tour как приложение на ПК или смартфон">📲 Установить на ПК</button>
                 <details class="header-tools-dropdown">
                     <summary class="btn-edit btn-compact">⚙️ Меню и инструменты ▾</summary>
                     <div class="header-tools-menu">
@@ -74,6 +132,7 @@
                 👑 <b style="color: var(--primary);">Режим Автора активен:</b> полное управление «Вселенной Автора (Канон)». Гости на GitHub видят этот мир строго в режиме чтения.
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" class="btn-green btn-compact" onclick="exportCurrentUniverse(true)" style="font-size: 11.5px; padding: 3px 9px;" title="Скачать полный файл canon.json для публикации прогресса Автора на GitHub Pages">📡 Скачать canon.json (Для публикации)</button>
                 <button type="button" class="btn-edit btn-compact" onclick="toggleGuestReadOnlyPreview(true)" style="font-size: 11.5px; padding: 3px 9px;">👁️ Проверить режим Гостя (Read-Only)</button>
             </div>
         </div>
@@ -129,6 +188,7 @@
             </div>
 
             <div class="round-nav" id="roundTabs" role="tablist" aria-label="Раунды турнира"></div>
+            <div id="tourneyIntrigueBar" class="tourney-intrigue-bar" style="display: none;"></div>
             <div id="finalsGroupTablesContainer" style="display: none; margin-bottom: 18px;"></div>
             <div class="matches-grid" id="matchesContainer"></div>
         </section>
@@ -239,6 +299,7 @@
                 <div class="hall-subtabs" role="tablist" aria-label="Разделы Зала Славы" style="margin-bottom: 0;">
                     <button type="button" class="hall-subtab-btn active" id="subtab-archive-btn" onclick="switchHallSubtab('archive')">Архив сезонов и Срезы Топ-50</button>
                     <button type="button" class="hall-subtab-btn" id="subtab-legends-btn" onclick="switchHallSubtab('legends')">Завершившие карьеру (Легенды тура)</button>
+                    <button type="button" class="hall-subtab-btn" id="subtab-goat-btn" onclick="switchHallSubtab('goat')">🐐 Гонка GOAT и Рекорды</button>
                 </div>
                 <div id="historyYearPickerWrap" style="display: flex; align-items: center; gap: 10px;">
                     <label for="historyYearSelect"><b>Выберите сезон архива:</b></label>
@@ -250,6 +311,7 @@
             </div>
             <div id="historyContent"></div>
             <div id="legendsContent" style="display: none;"></div>
+            <div id="goatContent" style="display: none;"></div>
         </section>
 
         <!-- ВКЛАДКА ИНТЕРАКТИВНОЙ КИБЕР-ГАЗЕТЫ «📰 ЛЕНТА ТУРА (TENNIS FEED)» -->

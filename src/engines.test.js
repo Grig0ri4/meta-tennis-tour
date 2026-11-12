@@ -32,7 +32,7 @@ import {
   restoreMatchFatigue,
   computeMatchMomentumPercent
 } from './matchEngine.js';
-import { isFutureLockedTournament } from './app.js';
+import { isFutureLockedTournament, orientFinalScoreToWinner, orientFinalScoreForPlayer } from './app.js';
 import {
   POINTS_SCALE,
   OLYMPICS_POINTS_SCALE,
@@ -51,13 +51,28 @@ import {
   calculateTournamentEarnedPoints,
   calculateAgeNum,
   sortAndRankPlayers,
+  repairCareerHighRanksFromHistory,
   applyTournamentPointsToPlayers,
   runBackgroundATP250Tournaments,
-  createTop50Snapshot
+  createTop50Snapshot,
+  getWeeksAtNo1Award,
+  ensureWeeksAtNo1State,
+  computeSeasonWeeksAtNo1,
+  awardWeeksAtNo1,
+  WEEKS_AT_NO1_MODEL_VERSION,
+  generatePlayerPotential,
+  ensureYoungPlayerPotentials,
+  getYoungTalentWinBonus,
+  POTENTIAL_MODEL_VERSION,
+  GOAT_SCORE_WEIGHTS,
+  calculateGoatScore,
+  buildGoatLeaderboard,
+  computeSeasonAwards
 } from './rankingEngine.js';
 import {
   getRetirementProbability,
-  processEndOfSeasonRetirements
+  processEndOfSeasonRetirements,
+  createNewgenPlayer
 } from './retirementEngine.js';
 import {
   HISTORICAL_2023_TOP10,
@@ -451,6 +466,74 @@ test('Раздел 4 и 5: Срезы Топ-50 с динамикой, сюже�
   assert.ok(simMatch.narrative.length > 10);
   assert.ok(simMatch.winnerQuote.length > 10);
   assert.ok(simMatch.loserQuote.length > 10);
+});
+
+test('Пик карьеры: пересчёт по архивным снимкам истории сезонов (Ussistian Shifter #1)', () => {
+  const players = [
+    { id: 'p_22', name: 'Ussistian Shifter', rank: 2, bestRank: 2, seasonStartRank: 2 },
+    { id: 'p_27', name: 'Shaun Salkar', rank: 12, bestRank: 5, seasonStartRank: 12 },
+    { id: 'p_x', name: 'Down The List', rank: 80, bestRank: 40, seasonStartRank: 80 }
+  ];
+  const seasonsHistory = {
+    2024: {
+      seasonStartTop50: [],
+      slamSnapshots: {
+        tbsh_4: {
+          top50: [
+            { name: 'Ussistian Shifter', rank: 1, points: 11470 },
+            { name: 'Down The List', rank: 60, points: 900 }
+          ]
+        }
+      },
+      yearEndTop50: [
+        { name: 'Ussistian Shifter', rank: 3 },
+        { name: 'Shaun Salkar', rank: 12 }
+      ]
+    }
+  };
+
+  const repaired = repairCareerHighRanksFromHistory(players, seasonsHistory);
+  assert.equal(repaired, 1, 'Улучшается только заниженный пик');
+  assert.equal(players[0].bestRank, 1, 'Пик Ussistian Shifter должен стать #1');
+  assert.equal(players[1].bestRank, 5, 'Корректный пик Shaun Salkar (#5) не должен пострадать');
+  assert.equal(players[2].bestRank, 40, 'Пик не ухудшается, если в истории игрок стоял ниже');
+
+  // Даже при падении в рейтинге подтверждённый историей №1 не сбрасывается,
+  // а старый ошибочный №1 без подтверждения (Salkar) по-прежнему исправляется на канонический пик.
+  const field = players.concat(
+    Array.from({ length: 7 }, (_, i) => ({
+      id: 'p_f' + i, name: 'Filler ' + i, rank: 3 + i, bestRank: 3 + i, seasonStartRank: 3 + i,
+      points: 1000 - i * 100
+    }))
+  );
+  field.find(p => p.id === 'p_22').points = 100;
+  field.find(p => p.id === 'p_22').seasonStartRank = 6;
+  field.find(p => p.id === 'p_27').points = 200;
+  field.find(p => p.id === 'p_27').bestRank = 1;
+  field.find(p => p.id === 'p_27').seasonStartRank = 9;
+  field.find(p => p.id === 'p_x').points = 300;
+  sortAndRankPlayers(field, false);
+
+  assert.equal(field.find(p => p.id === 'p_22').bestRank, 1, 'Исторический №1 Ussistian Shifter не теряется при падении в рейтинге');
+  assert.equal(field.find(p => p.id === 'p_27').bestRank, 5, 'Ошибочный №1 Shaun Salkar без подтверждения историей сбрасывается к каноническому пику');
+});
+
+test('Счёт финала: сеты ориентируются по победителю (первые цифры всегда больше вторых)', () => {
+  assert.deepEqual(orientFinalScoreToWinner('6-7(5) 6-7(3)'), ['7-6(5)', '7-6(3)']);
+  assert.deepEqual(orientFinalScoreToWinner('6-4 7-6(4)'), ['6-4', '7-6(4)']);
+  assert.deepEqual(orientFinalScoreToWinner('1-6 0-6 5-7'), ['6-1', '6-0', '7-5']);
+  assert.deepEqual(orientFinalScoreToWinner('3-6 5-7'), ['6-3', '7-5']);
+  assert.deepEqual(orientFinalScoreToWinner('6-4 3-1 RET'), ['6-4', '3-1', 'RET']);
+  assert.deepEqual(orientFinalScoreToWinner('4-6 1-3 RET'), ['6-4', '3-1', 'RET']);
+  assert.deepEqual(orientFinalScoreToWinner(''), []);
+});
+
+test('Счёт финала в профиле: при победе первые цифры больше, при поражении — меньше', () => {
+  assert.deepEqual(orientFinalScoreForPlayer('6-7(5) 6-7(3)', true), ['7-6(5)', '7-6(3)']);
+  assert.deepEqual(orientFinalScoreForPlayer('6-3 6-4', false), ['3-6', '4-6']);
+  assert.deepEqual(orientFinalScoreForPlayer('4-6 6-4 5-7', false), ['4-6', '6-4', '5-7']);
+  assert.deepEqual(orientFinalScoreForPlayer('6-3 7-5', true), ['6-3', '7-5']);
+  assert.deepEqual(orientFinalScoreForPlayer('', false), []);
 });
 
 test('Блок 1: Интеграция Groq API (aiService.js) — нижний регистр модели, очистка Markdown ```json, защита ключа и строгий перехват ошибок', async () => {
@@ -1698,6 +1781,309 @@ test('Стресс-тест 10 сезонов тура (2024–2033): балан
 
   // 4. Зал Славы накопил вышедших на пенсию легенд
   assert.ok(retiredLegendsHistory.length > 0, 'В Зале Славы должны появиться завершившие карьеру ветераны');
+});
+
+test('30. Гонка GOAT: недели на №1, потенциал молодых талантов и лауреаты сезона', () => {
+  // --- ФИЧА 1: канонические недели на №1 идемпотентно инициализируются один раз ---
+  const canonicalPlayers = [
+    { id: 'p_istep', name: 'Istep Fofol', rank: 3 },
+    { id: 'p_kyupan', name: 'Max Kyupan', rank: 1 },
+    { id: 'p_wentra', name: 'Will Wentra', rank: 2 },
+    { id: 'p_rookie', name: 'Random Rookie', rank: 40 }
+  ];
+  assert.equal(ensureWeeksAtNo1State(canonicalPlayers), 4, 'Игроки инициализируются даже без истории');
+  assert.equal(canonicalPlayers[0].weeksAtNo1, 0, 'Без сыгранной истории недель нет: выдуманной базы 142 больше нет');
+  assert.equal(canonicalPlayers[1].weeksAtNo1, 0, 'У Kyupan нет искусственных 96 недель');
+  assert.equal(canonicalPlayers[2].weeksAtNo1, 0, 'У Wentra нет искусственных 48 недель');
+  assert.equal(canonicalPlayers[3].weeksAtNo1, 0, 'Игрок без истории начинает с нуля');
+
+  // 2023: лидерство делили Istep (23 недели), Wentra (13) и Kyupan (16)
+  const history2023 = {
+    seasonStartTop50: [{ id: 'p_istep', name: 'Istep Fofol', rank: 1 }],
+    slamSnapshots: {
+      'Cartom Calamb': { date: '2023-02-05', top50: [{ id: 'p_istep', name: 'Istep Fofol', rank: 1 }] },
+      'Poland Open': { date: '2023-06-11', top50: [{ id: 'p_wentra', name: 'Will Wentra', rank: 1 }] },
+      'Polovchis': { date: '2023-07-23', top50: [{ id: 'p_wentra', name: 'Will Wentra', rank: 1 }] },
+      'Okeanskiy Open': { date: '2023-09-10', top50: [{ id: 'p_kyupan', name: 'Max Kyupan', rank: 1 }] }
+    },
+    yearEndTop50: [{ id: 'p_kyupan', name: 'Max Kyupan', rank: 1 }]
+  };
+  const rebuilt2023 = computeSeasonWeeksAtNo1(history2023, 2023);
+  assert.equal(rebuilt2023.get('p_istep'), 23, '2023: Istep — 5 + 18 недель на №1 до Roland Garros');
+  assert.equal(rebuilt2023.get('p_wentra'), 13, '2023: Wentra — 6 + 7 недель на №1 до US Open');
+  assert.equal(rebuilt2023.get('p_kyupan'), 16, '2023: Kyupan — 9 + 7 недель на №1 с сентября');
+  assert.equal([...rebuilt2023.values()].reduce((a, b) => a + b, 0), 52, '2023: все 52 недели распределены между лидерами');
+
+  // 2024: три реальных смены лидера — реконструкция по старту сезона, снимкам ТБШ и финишу
+  const history2024 = {
+    seasonStartTop50: [{ id: 'p_kyupan', name: 'Max Kyupan', rank: 1 }],
+    slamSnapshots: {
+      'Australian Open': { date: '2024-01-16', top50: [{ id: 'p_wentra', name: 'Will Wentra', rank: 1 }] },
+      'Roland Garros': { date: '2024-05-28', top50: [{ id: 'p_kyupan', name: 'Max Kyupan', rank: 1 }] },
+      'Wimbledon': { date: '2024-07-08', top50: [{ id: 'p_kyupan', name: 'Max Kyupan', rank: 1 }] },
+      'US Open': { date: '2024-08-28', top50: [{ id: 'p_ussistian', name: 'Ussistian Shifter', rank: 1 }] }
+    },
+    yearEndTop50: [{ id: 'p_kyupan', name: 'Max Kyupan', rank: 1 }]
+  };
+  const rebuilt2024 = computeSeasonWeeksAtNo1(history2024, 2024);
+  assert.equal(rebuilt2024.get('p_kyupan'), 22, '2024: Kyupan — 2 + 6 + 7 + 7 недель на №1');
+  assert.equal(rebuilt2024.get('p_wentra'), 19, '2024: Wentra — 19 недель на №1 до Roland Garros');
+  assert.equal(rebuilt2024.get('p_ussistian'), 11, '2024: Ussistian Shifter — 11 недель на №1 после US Open');
+  assert.equal([...rebuilt2024.values()].reduce((a, b) => a + b, 0), 52, 'Все 52 недели сезона распределены между реальными лидерами');
+
+  const syncedPlayers = [
+    { id: 'p_istep', name: 'Istep Fofol', rank: 3 },
+    { id: 'p_kyupan', name: 'Max Kyupan', rank: 1 },
+    { id: 'p_wentra', name: 'Will Wentra', rank: 2 },
+    { id: 'p_ussistian', name: 'Ussistian Shifter', rank: 4 }
+  ];
+  const syncOptions = { seasonsHistory: { 2023: history2023, 2024: history2024 }, syncYears: [2023, 2024] };
+  ensureWeeksAtNo1State(syncedPlayers, syncOptions);
+  assert.equal(syncedPlayers[0].weeksAtNo1, 23, 'Istep: 23 недели реального лидерства в 2023');
+  assert.equal(syncedPlayers[1].weeksAtNo1, 38, 'Kyupan: 16 недель 2023 + 22 недели 2024');
+  assert.equal(syncedPlayers[2].weeksAtNo1, 32, 'Wentra: 13 недель 2023 + 19 недель 2024');
+  assert.equal(syncedPlayers[3].weeksAtNo1, 11, 'Ussistian: 11 недель за отрезок №1 в 2024');
+  assert.equal(syncedPlayers.reduce((sum, p) => sum + p.weeksAtNo1, 0), 104, 'За два сыгранных сезона ровно 104 недели');
+  assert.equal(syncedPlayers[3].weeksAtNo1Model, WEEKS_AT_NO1_MODEL_VERSION);
+  assert.equal(ensureWeeksAtNo1State(syncedPlayers, syncOptions), 0, 'Повторная синхронизация не должна начислять недели заново');
+  assert.equal(syncedPlayers[3].weeksAtNo1, 11, 'Повторная синхронизация не меняет счётчик недель');
+
+  // Откат на старт 2024 года не должен показывать недели, набранные позже в том же сезоне
+  const seasonStart2024 = [
+    { id: 'p_istep', name: 'Istep Fofol', rank: 3 },
+    { id: 'p_kyupan', name: 'Max Kyupan', rank: 1 },
+    { id: 'p_wentra', name: 'Will Wentra', rank: 2 },
+    { id: 'p_ussistian', name: 'Ussistian Shifter', rank: 4 }
+  ];
+  ensureWeeksAtNo1State(seasonStart2024, { ...syncOptions, asOfDate: '2024-01-02' });
+  assert.equal(seasonStart2024[0].weeksAtNo1, 23, 'На 02.01.2024 у Istep 23 недели 2023 года');
+  assert.equal(seasonStart2024[1].weeksAtNo1, 16, 'На 02.01.2024 у Kyupan 16 недель 2023 года');
+  assert.equal(seasonStart2024[2].weeksAtNo1, 13, 'На 02.01.2024 у Wentra 13 недель 2023 года');
+  assert.equal(seasonStart2024[3].weeksAtNo1, 0, 'Ussistian ещё не был №1 на старте 2024 года');
+
+  // Миграция v1 (каноническая база + плоские 52 недели лидеру 2024) на реальную хронологию
+  const legacyPlayers = [
+    { id: 'p_kyupan', name: 'Max Kyupan', rank: 1, weeksAtNo1: 148 },
+    { id: 'p_ussistian', name: 'Ussistian Shifter', rank: 2, weeksAtNo1: 0 },
+    { id: 'p_wentra', name: 'Will Wentra', rank: 3, weeksAtNo1: 48 }
+  ];
+  ensureWeeksAtNo1State(legacyPlayers, syncOptions);
+  assert.equal(legacyPlayers[0].weeksAtNo1, 38, 'Старые 148 (96 + 52) пересчитываются в 16 + 22 реальных недель');
+  assert.equal(legacyPlayers[1].weeksAtNo1, 11, 'Старый ноль Ussistian исправляется на 11 недель');
+  assert.equal(legacyPlayers[2].weeksAtNo1, 32, 'Старые 48 Wentra заменяются реальными 13 + 19');
+  assert.equal(legacyPlayers[0].weeksAtNo1Earned, 0, 'Выдуманная база не считается заработанными неделями');
+
+  // Миграция переходных моделей v2/v3: остаётся только реальная история тура
+  const v2Players = [{ id: 'p_kyupan', name: 'Max Kyupan', rank: 1, weeksAtNo1: 118, weeksAtNo1Earned: 0, weeksAtNo1Model: 2 }];
+  ensureWeeksAtNo1State(v2Players, syncOptions);
+  assert.equal(v2Players[0].weeksAtNo1, 38, 'v2-значение 96 + 22 заменяется реальными 16 + 22');
+
+  const earnedPlayers = [{ id: 'p_kyupan', name: 'Max Kyupan', rank: 1, weeksAtNo1: 152 }];
+  ensureWeeksAtNo1State(earnedPlayers, syncOptions);
+  assert.equal(earnedPlayers[0].weeksAtNo1Earned, 0, 'Переходные значения старых моделей не считаются заработанными неделями');
+  assert.equal(earnedPlayers[0].weeksAtNo1, 38, 'Остаются только реальные 16 + 22 недели истории');
+  assert.equal(ensureWeeksAtNo1State(earnedPlayers, syncOptions), 0, 'Мигрированные значения не пересчитываются повторно');
+  assert.equal(earnedPlayers[0].weeksAtNo1, 38);
+
+  const v2Earned = [{ id: 'p_kyupan', name: 'Max Kyupan', rank: 1, weeksAtNo1: 122, weeksAtNo1Earned: 4, weeksAtNo1Model: 2 }];
+  ensureWeeksAtNo1State(v2Earned, syncOptions);
+  assert.equal(v2Earned[0].weeksAtNo1, 38, 'Переходные v2-значения тоже очищаются до реальной истории');
+  assert.equal(v2Earned[0].weeksAtNo1Earned, 0);
+
+  const v3Players = [{ id: 'p_kyupan', name: 'Max Kyupan', rank: 1, weeksAtNo1: 22, weeksAtNo1Earned: 0, weeksAtNo1Model: 3 }];
+  ensureWeeksAtNo1State(v3Players, syncOptions);
+  assert.equal(v3Players[0].weeksAtNo1, 38, 'Промежуточная модель 3 (только 2024) пересчитывается в полные 16 + 22');
+
+  // В текущей модели заработанные недели доверенные и переживают повторную инициализацию
+  const currentPlayer = [{ id: 'p_kyupan', name: 'Max Kyupan', rank: 1, weeksAtNo1: 38, weeksAtNo1Earned: 0, weeksAtNo1Model: WEEKS_AT_NO1_MODEL_VERSION }];
+  awardWeeksAtNo1(currentPlayer, { type: 'ТБШ' });
+  assert.equal(currentPlayer[0].weeksAtNo1, 40);
+  assert.equal(ensureWeeksAtNo1State(currentPlayer, syncOptions), 0, 'Текущая модель не пересчитывается');
+  assert.equal(currentPlayer[0].weeksAtNo1, 40, 'Заработанные недели сохраняются');
+  assert.equal(currentPlayer[0].weeksAtNo1Earned, 2);
+
+  // --- ФИЧА 1: начисление недель за выигранные турниры действующему №1 ---
+  assert.equal(getWeeksAtNo1Award({ type: 'ТБШ' }), 2);
+  assert.equal(getWeeksAtNo1Award({ type: 'Мастерс' }), 2);
+  assert.equal(getWeeksAtNo1Award({ type: 'Итоговый' }), 2);
+  assert.equal(getWeeksAtNo1Award({ type: 'Олимпиада' }), 2);
+  assert.equal(getWeeksAtNo1Award({ type: 'ATP 500' }), 1);
+  assert.equal(getWeeksAtNo1Award({ type: 'ATP 250' }), 0);
+  assert.equal(getWeeksAtNo1Award(null), 0);
+
+  const liveRanking = [
+    { id: 'p_leader', name: 'Leader', rank: 1, weeksAtNo1: 10 },
+    { id: 'p_second', name: 'Challenger', rank: 2 }
+  ];
+  const slamAward = awardWeeksAtNo1(liveRanking, { type: 'ТБШ' });
+  assert.equal(slamAward.weeks, 2);
+  assert.equal(slamAward.player.id, 'p_leader');
+  assert.equal(liveRanking[0].weeksAtNo1, 12, 'Титул ТБШ добавляет лидеру 2 недели на №1');
+  awardWeeksAtNo1(liveRanking, { type: 'ATP 500' });
+  assert.equal(liveRanking[0].weeksAtNo1, 13, 'Титул ATP 500 добавляет лидеру 1 неделю на №1');
+  assert.equal(liveRanking[0].weeksAtNo1Earned, 3, 'Заработанные в игре недели учитываются отдельно от исторических');
+  assert.equal(liveRanking[1].weeksAtNo1, undefined, 'Недели начисляются только первой ракетке мира');
+  assert.equal(awardWeeksAtNo1(liveRanking, { type: 'ATP 250' }).weeks, 0, 'ATP 250 не приносит недель на №1');
+
+  // --- ФИЧА 1: формула GOAT-индекса ---
+  const sampleStats = {
+    slamTitles: 1,
+    finalsTitles: 1,
+    olympicGold: 1,
+    olympicSilver: 1,
+    olympicBronze: 1,
+    mastersTitles: 1,
+    atp500Titles: 1,
+    seasonNo1: 1,
+    weeksAtNo1: 25,
+    careerGrandSlam: true
+  };
+  // 8 + 4 + 5 + 2 + 1 + 3 + 1 + 5 + floor(25/10)=2 + 10 = 41
+  assert.equal(calculateGoatScore(sampleStats), 41, 'GOAT-индекс строго соответствует весам');
+  assert.equal(calculateGoatScore({ ...sampleStats, weeksAtNo1: 9 }), 39, 'Каждые 10 недель на №1 дают +1 к GOAT');
+  assert.equal(calculateGoatScore({ ...sampleStats, weeksAtNo1: 19 }), 40);
+  assert.equal(calculateGoatScore(null), 0);
+  assert.equal(GOAT_SCORE_WEIGHTS.careerGrandSlam, 10);
+
+  // --- ФИЧА 1: единый всевременной рейтинг активных и легенд ---
+  const activeStar = { id: 'p_kyupan', name: 'Max Kyupan', flag: 'AUT', rank: 1, weeksAtNo1: 148 };
+  const legendStar = {
+    id: 'p_istep',
+    name: 'Istep Fofol',
+    flag: 'SRB',
+    weeksAtNo1: 142,
+    retiredYear: 2022,
+    medals: { gold: 0, silver: 0, bronze: 0 }
+  };
+  const goatHistory = {
+    2023: {
+      yearEndTop50: [{ id: 'p_istep', name: 'Istep Fofol', rank: 1 }],
+      tournamentsData: [
+        { id: 'tbsh_1', type: 'ТБШ', winner: { id: 'p_istep', name: 'Istep Fofol' } },
+        { id: 'tbsh_2', type: 'ТБШ', winner: { id: 'p_istep', name: 'Istep Fofol' } }
+      ]
+    },
+    2024: {
+      yearEndTop50: [{ id: 'p_kyupan', name: 'Max Kyupan', rank: 1 }],
+      tournamentsData: [
+        { id: 'tbsh_1', type: 'ТБШ', winner: { id: 'p_kyupan', name: 'Max Kyupan' } },
+        { id: 'tbsh_2', type: 'ТБШ', winner: { id: 'p_kyupan', name: 'Max Kyupan' } },
+        { id: 'tbsh_3', type: 'ТБШ', winner: { id: 'p_kyupan', name: 'Max Kyupan' } },
+        { id: 'tbsh_4', type: 'ТБШ', winner: { id: 'p_kyupan', name: 'Max Kyupan' } },
+        { id: 'miami_open', type: 'Мастерс', winner: { id: 'p_kyupan', name: 'Max Kyupan' } },
+        { id: 'finals', type: 'Итоговый', winner: { id: 'p_kyupan', name: 'Max Kyupan' } }
+      ]
+    }
+  };
+  const goatBoard = buildGoatLeaderboard([activeStar], [legendStar], goatHistory);
+  assert.equal(goatBoard.length, 2, 'В рейтинг GOAT попадают и активные игроки, и легенды');
+  const kyupanEntry = goatBoard[0];
+  assert.equal(kyupanEntry.name, 'Max Kyupan');
+  assert.equal(kyupanEntry.goatRank, 1);
+  assert.equal(kyupanEntry.statusLabel, 'Активен');
+  assert.equal(kyupanEntry.slamTitles, 4);
+  assert.equal(kyupanEntry.mastersTitles, 1);
+  assert.equal(kyupanEntry.finalsTitles, 1);
+  assert.equal(kyupanEntry.seasonNo1, 1, 'Сезон на №1 считается только по завершённому году');
+  assert.equal(kyupanEntry.careerGrandSlam, true, 'Победы на всех четырёх ТБШ дают Карьерный Шлем');
+  assert.equal(kyupanEntry.goatScore, 4 * 8 + 3 + 4 + 5 + Math.floor(148 / 10) + 10);
+  const istepEntry = goatBoard[1];
+  assert.equal(istepEntry.name, 'Istep Fofol');
+  assert.equal(istepEntry.goatRank, 2);
+  assert.equal(istepEntry.statusLabel, 'Легенда');
+  assert.equal(istepEntry.slamTitles, 2);
+  assert.equal(istepEntry.careerGrandSlam, false);
+  assert.equal(istepEntry.seasonNo1, 1);
+  assert.equal(istepEntry.goatScore, 2 * 8 + 5 + Math.floor(142 / 10));
+  assert.ok(goatBoard[0].goatScore >= goatBoard[1].goatScore, 'Рейтинг GOAT отсортирован по очкам');
+
+  // --- ФИЧА 2: генерация и назначение потенциала ---
+  assert.equal(generatePlayerPotential(() => 0), 93, 'Поколенческий талант получает потенциал 93+');
+  assert.equal(generatePlayerPotential(() => 0.5), 85, 'Обычный талант получает потенциал из диапазона 78–92');
+  assert.equal(generatePlayerPotential(() => 0.99), 92);
+
+  const youngTalent = { id: 'p_young', name: 'Young Gun', rank: 180, points: 120, birthDate: '2005-03-10' };
+  const veteran = { id: 'p_vet', name: 'Old Guard', rank: 30, points: 2000, birthDate: '1988-05-05' };
+  assert.equal(ensureYoungPlayerPotentials([youngTalent, veteran], '2024-01-02'), 1, 'POT назначается только игрокам до 23 лет');
+  assert.ok(youngTalent.potential >= 78 && youngTalent.potential <= 98);
+  assert.equal(youngTalent.potentialModel, POTENTIAL_MODEL_VERSION, 'POT помечается версией скаутской модели');
+  assert.equal(veteran.potential, undefined, 'Ветераны не получают POT');
+  assert.equal(ensureYoungPlayerPotentials([youngTalent, veteran], '2024-01-02'), 0, 'Повторный вызов не перегенерирует POT');
+
+  // Скаутская модель: потолок растёт от текущего уровня и запаса по возрасту
+  const youngStar = { id: 'p_star', name: 'Young Star', rank: 5, points: 6000, birthDate: '2005-03-10' };
+  const youngJourneyman = { id: 'p_jour', name: 'Young Journeyman', rank: 180, points: 120, birthDate: '2005-03-10' };
+  const teenProdigy = { id: 'p_teen', name: 'Teen Prodigy', rank: 180, points: 120, birthDate: '2007-03-10' };
+  const adultPro = { id: 'p_adult', name: 'Adult Pro', rank: 180, points: 120, birthDate: '2001-03-10' };
+  ensureYoungPlayerPotentials([youngStar, youngJourneyman, teenProdigy, adultPro], '2024-01-02');
+  assert.ok(youngStar.potential > youngJourneyman.potential, 'У игрока Топ-5 потолок выше, чем у №180 того же возраста');
+  assert.ok(teenProdigy.potential > adultPro.potential, 'В 16 лет запас роста больше, чем в 22 года');
+
+  youngTalent.potential = 95;
+  const talentBonus = getYoungTalentWinBonus(youngTalent, '2024-06-30');
+  assert.ok(talentBonus > 0 && talentBonus <= 0.18, 'Молодой талант получает бонус к победе от разницы POT и OVR');
+  assert.equal(getYoungTalentWinBonus({ ...veteran, potential: 99 }, '2024-06-30'), 0, 'После 23 лет бонус не действует');
+  assert.equal(getYoungTalentWinBonus({ ...youngTalent, potential: undefined }, '2024-06-30'), 0);
+  assert.equal(
+    getYoungTalentWinBonus({ id: 'p_champ', rank: 1, points: 12000, birthDate: '2005-03-10', potential: 90 }, '2024-06-30'),
+    0,
+    'Если потенциал ниже текущего OVR, бонуса нет'
+  );
+
+  const newgen = createNewgenPlayer(2025, new Set(), 1, () => 0.2);
+  assert.equal(newgen.potential, 85, 'Ньюген получает POT при генерации: 81 + бонус за молодость (+4 в 18 лет)');
+  assert.equal(newgen.potentialModel, POTENTIAL_MODEL_VERSION);
+  assert.ok(newgen.ageAtEntry >= 17 && newgen.ageAtEntry <= 23);
+
+  // --- ФИЧА 4: лауреаты сезона ---
+  const awardPlayers = [];
+  for (let i = 0; i < 55; i++) {
+    const rank = i + 1;
+    awardPlayers.push({
+      id: `p_award_${rank}`,
+      name: `Award Player ${rank}`,
+      flag: 'ITA',
+      rank,
+      points: 12000 - rank * 100,
+      seasonStartRank: rank,
+      birthDate: rank === 7 ? '2003-04-12' : (rank === 1 ? '1996-06-01' : '1995-01-01')
+    });
+  }
+  awardPlayers[7].seasonStartRank = 45;
+
+  const ironDraw = [
+    [
+      { p1: { id: 'p_award_12', name: 'Award Player 12' }, p2: { id: 'p_award_13', name: 'Award Player 13' }, winner: { id: 'p_award_12', name: 'Award Player 12' }, score: ['6-4', '6-3'] },
+      { p1: { id: 'p_award_14', name: 'Award Player 14' }, p2: { id: 'p_award_15', name: 'Award Player 15' }, winner: { id: 'p_award_14', name: 'Award Player 14' }, score: ['6-2', '6-2'] }
+    ],
+    [
+      { p1: { id: 'p_award_12', name: 'Award Player 12' }, p2: { id: 'p_award_14', name: 'Award Player 14' }, winner: { id: 'p_award_12', name: 'Award Player 12' }, score: ['7-5', '6-4'] }
+    ]
+  ];
+  const awardSeasonTourneys = [
+    { id: 'award_open', type: 'ATP 500', completed: true, winner: { id: 'p_award_12', name: 'Award Player 12' } }
+  ];
+  const seasonAwards = computeSeasonAwards(awardPlayers, 2024, {
+    seasonsHistory: {},
+    seasonTourneys: awardSeasonTourneys,
+    getDraw: (tid, yr) => (tid === 'award_open' && yr === 2024 ? ironDraw : null)
+  });
+  assert.ok(seasonAwards, 'Лауреаты сезона должны вычисляться');
+  assert.equal(seasonAwards.year, 2024);
+  assert.equal(seasonAwards.playerOfYear.id, 'p_award_1', 'Игрок Года — первая ракетка мира');
+  assert.equal(seasonAwards.breakthrough.id, 'p_award_8', 'Прорыв Года — максимальный подъём в Топ-50');
+  assert.equal(seasonAwards.breakthrough.rise, 37);
+  assert.equal(seasonAwards.nextGen.id, 'p_award_7', 'NextGen Года — лучший игрок не старше 22 лет');
+  assert.ok(seasonAwards.nextGen.age <= 22);
+  assert.equal(seasonAwards.ironMan.id, 'p_award_12', 'Железный Человек — больше всех побед в сезоне');
+  assert.equal(seasonAwards.ironMan.wins, 2);
+  assert.equal(seasonAwards.ironMan.titles, 1);
+
+  const fallbackAwards = computeSeasonAwards(awardPlayers, 2024, { seasonTourneys: awardSeasonTourneys });
+  assert.equal(fallbackAwards.ironMan.id, 'p_award_12', 'Без сохранённых сеток Железный Человек определяется по титулам');
+  assert.equal(fallbackAwards.ironMan.wins, 0);
+  assert.equal(fallbackAwards.ironMan.titles, 1);
+  assert.equal(computeSeasonAwards([], 2024), null, 'Пустой пул игроков не даёт лауреатов');
 });
 
 

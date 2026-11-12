@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Meta Tennis Tour — золотой теннисный трофей на графитовом щите">
+  <defs>
+    <linearGradient id="shieldFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#161c24"/>
+      <stop offset="0.6" stop-color="#0d1015"/>
+      <stop offset="1" stop-color="#090b0f"/>
+    </linearGradient>
+    <linearGradient id="goldLinear" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fde047"/>
+      <stop offset="0.45" stop-color="#eab308"/>
+      <stop offset="1" stop-color="#a86f04"/>
+    </linearGradient>
+    <radialGradient id="ballGold" cx="0.32" cy="0.28" r="0.85">
+      <stop offset="0" stop-color="#fef08a"/>
+      <stop offset="0.38" stop-color="#eab308"/>
+      <stop offset="0.82" stop-color="#ca8a04"/>
+      <stop offset="1" stop-color="#8a5c04"/>
+    </radialGradient>
+    <radialGradient id="emeraldGlow" cx="0.5" cy="0.45" r="0.55">
+      <stop offset="0" stop-color="#22c55e" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#22c55e" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="#0d1015"/>
+  <path d="M256 22 L454 86 V272 C454 372 370 446 256 492 C142 446 58 372 58 272 V86 Z" fill="url(#shieldFill)" stroke="#eab308" stroke-opacity="0.38" stroke-width="7"/>
+  <path d="M256 22 L454 86 V272 C454 372 370 446 256 492 C142 446 58 372 58 272 V86 Z" fill="url(#emeraldGlow)"/>
+
+  <g fill="none" stroke="#22c55e" stroke-width="10" stroke-linejoin="round" stroke-linecap="round" opacity="0.34">
+    <path d="M104 418 H408"/>
+    <path d="M148 352 H364"/>
+    <path d="M104 418 L148 352"/>
+    <path d="M408 418 L364 352"/>
+    <path d="M256 352 V418"/>
+  </g>
+
+  <g fill="none" stroke="url(#goldLinear)" stroke-width="18" stroke-linecap="round">
+    <path d="M172 176 C112 164 100 244 158 278"/>
+    <path d="M340 176 C400 164 412 244 354 278"/>
+  </g>
+
+  <g>
+    <path d="M238 298 H274 L286 332 H226 Z" fill="url(#goldLinear)"/>
+    <rect x="210" y="326" width="92" height="16" rx="8" fill="url(#goldLinear)"/>
+    <rect x="192" y="368" width="128" height="26" rx="10" fill="url(#goldLinear)"/>
+    <rect x="208" y="390" width="96" height="12" rx="6" fill="#a86f04"/>
+  </g>
+
+  <circle cx="256" cy="212" r="96" fill="url(#ballGold)"/>
+  <g fill="none" stroke="#0d1015" stroke-width="10" stroke-linecap="round" opacity="0.5">
+    <path d="M208 130 C258 174 258 250 208 294"/>
+    <path d="M304 130 C254 174 254 250 304 294"/>
+  </g>
+  <ellipse cx="220" cy="168" rx="26" ry="15" transform="rotate(-36 220 168)" fill="#ffffff" opacity="0.35"/>
+</svg>

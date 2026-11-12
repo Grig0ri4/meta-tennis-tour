@@ -946,7 +946,7 @@ button:disabled {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 8px;
-    margin-bottom: 12px;
+    margin: 10px 0 12px;
 }
 
 .trophy-badge-card {
@@ -969,6 +969,266 @@ button:disabled {
     font-size: 11px;
     color: var(--text-dim);
     font-weight: 600;
+}
+
+.trophy-badge-card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-family: inherit;
+    color: var(--text-main);
+    white-space: normal;
+    line-height: 1.25;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.trophy-badge-card:hover:not(:disabled) {
+    opacity: 1;
+    background: #121b2a;
+    border-color: rgba(234, 179, 8, 0.45);
+    transform: translateY(-1px);
+}
+
+.trophy-badge-card.has-finals {
+    border-color: rgba(96, 165, 250, 0.22);
+}
+
+.trophy-badge-card.is-active {
+    background: #151d2b;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.35), 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.trophy-badge-card .trophy-icon {
+    font-size: 17px;
+    line-height: 1.1;
+}
+
+.trophy-badge-card:not(.has-trophy) .trophy-count {
+    color: var(--text-dim);
+}
+
+.trophy-badge-card .trophy-finals-meta {
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+.trophy-record .w {
+    color: var(--primary);
+    font-weight: 800;
+}
+
+.trophy-record .l {
+    color: var(--danger);
+    font-weight: 800;
+}
+
+.trophy-click-hint {
+    margin-top: 2px;
+    padding: 6px 9px;
+    border: 1px dashed rgba(96, 165, 250, 0.22);
+    border-radius: 6px;
+    background: rgba(96, 165, 250, 0.04);
+    color: var(--text-dim);
+    font-size: 11.5px;
+    text-align: center;
+}
+
+.trophy-finals-panel {
+    margin-top: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #0f1621;
+    padding: 10px 12px 12px;
+    animation: trophyPanelIn 0.16s ease-out;
+}
+
+@keyframes trophyPanelIn {
+    from { opacity: 0; transform: translateY(-3px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.trophy-finals-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.trophy-finals-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.trophy-finals-head-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.trophy-finals-summary {
+    font-size: 11.5px;
+    color: var(--text-dim);
+    font-weight: 600;
+}
+
+.trophy-finals-summary b {
+    color: var(--text-main);
+}
+
+.trophy-finals-close {
+    padding: 2px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-dim);
+}
+
+.trophy-finals-close:hover:not(:disabled) {
+    color: var(--text-main);
+    border-color: rgba(255, 255, 255, 0.18);
+    opacity: 1;
+}
+
+.trophy-finals-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.trophy-finals-col {
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: #121a27;
+    padding: 8px 10px;
+}
+
+.trophy-finals-col.wins {
+    border-left: 3px solid rgba(34, 197, 94, 0.65);
+}
+
+.trophy-finals-col.losses {
+    border-left: 3px solid rgba(248, 113, 113, 0.65);
+}
+
+.trophy-finals-col h5 {
+    font-size: 12px;
+    font-weight: 800;
+    margin: 0 0 4px;
+    color: var(--text-main);
+}
+
+.trophy-finals-col.wins h5 {
+    color: #86efac;
+}
+
+.trophy-finals-col.losses h5 {
+    color: #fca5a5;
+}
+
+.trophy-final-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 7px 0;
+    border-top: 1px solid var(--border);
+}
+
+.trophy-finals-col h5 + .trophy-final-row {
+    border-top: none;
+}
+
+.trophy-final-main {
+    min-width: 0;
+    flex: 1;
+}
+
+.trophy-final-title {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.3;
+}
+
+.trophy-final-year {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--gold);
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.trophy-final-sub {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+    font-size: 10.5px;
+    color: var(--text-dim);
+    line-height: 1.35;
+}
+
+.trophy-final-sub svg {
+    flex-shrink: 0;
+}
+
+.trophy-final-opponent {
+    color: var(--text-main);
+    font-weight: 700;
+}
+
+.trophy-final-opp-rank {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+}
+
+.trophy-final-score {
+    flex-shrink: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #d1fae5;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    border-radius: 5px;
+    padding: 3px 7px;
+    white-space: nowrap;
+}
+
+.trophy-finals-col.losses .trophy-final-score {
+    color: #fee2e2;
+    background: rgba(248, 113, 113, 0.07);
+    border-color: rgba(248, 113, 113, 0.24);
+}
+
+.trophy-final-score sup {
+    font-size: 8px;
+    color: var(--text-dim);
+    vertical-align: super;
+}
+
+.trophy-finals-empty {
+    padding: 7px 0 3px;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-style: italic;
 }
 
 .profile-stats-grid {
@@ -1335,6 +1595,9 @@ button:disabled {
     }
     .trophy-cabinet-grid {
         grid-template-columns: repeat(2, 1fr);
+    }
+    .trophy-finals-columns {
+        grid-template-columns: 1fr;
     }
     .sim-actions-grid {
         grid-template-columns: 1fr;
@@ -2265,4 +2528,458 @@ button:disabled {
         padding: 8px 11px;
         font-size: 13px;
     }
+}
+
+/* ==========================================================================
+   ФИЧА 1–4: POT-БЕЙДЖИ, ИНТРИГИ ТУРНИРА, ДЕРЕВО ПЛЕЙ-ОФФ, GOAT И НАГРАДЫ СЕЗОНА
+   ========================================================================== */
+
+/* --- POT (потенциал молодого таланта) --- */
+.potential-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 6px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    color: #7dd3fc;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.potential-badge.potential-elite {
+    color: #fde047;
+    background: rgba(250, 204, 21, 0.12);
+    border-color: rgba(250, 204, 21, 0.45);
+    box-shadow: 0 0 10px rgba(250, 204, 21, 0.15);
+}
+
+/* --- Плашка интриг над сеткой турнира --- */
+.tourney-intrigue-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 4px 0 14px;
+    padding: 10px 14px;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(17, 24, 39, 0.88));
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    border-radius: 8px;
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.intrigue-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.intrigue-label {
+    color: var(--gold);
+    font-weight: 700;
+}
+
+.intrigue-muted {
+    color: var(--text-dim);
+    font-size: 11.5px;
+}
+
+.intrigue-vs {
+    color: #f87171;
+    font-weight: 800;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.intrigue-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+}
+
+/* --- Вкладка дерева плей-офф --- */
+.round-tab-tree {
+    border-color: rgba(96, 165, 250, 0.4) !important;
+    color: var(--accent) !important;
+}
+
+.round-tab-tree.active {
+    background: rgba(96, 165, 250, 0.16) !important;
+    color: #fff !important;
+}
+
+.playoff-tree {
+    grid-column: 1 / -1;
+    padding: 18px 20px 24px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.playoff-tree-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.playoff-tree-head h3 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    color: var(--gold);
+}
+
+.playoff-tree-head small {
+    color: var(--text-dim);
+    font-size: 12px;
+}
+
+.playoff-tree-hint {
+    font-size: 11.5px;
+    color: var(--text-dim);
+    padding: 5px 10px;
+    border: 1px dashed var(--border);
+    border-radius: 999px;
+}
+
+.playoff-tree-grid {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr 0.95fr;
+    gap: 40px;
+    align-items: stretch;
+}
+
+.bracket-column {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.bracket-column-title {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+}
+
+.bracket-col-final .bracket-column-title {
+    color: var(--gold);
+}
+
+.bracket-round-list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    gap: 14px;
+    position: relative;
+}
+
+.bracket-col-qf .bracket-round-list::before {
+    content: '';
+    position: absolute;
+    right: -20px;
+    top: 12.5%;
+    height: 75%;
+    border-right: 2px solid rgba(96, 165, 250, 0.28);
+}
+
+.bracket-col-sf .bracket-round-list::before {
+    content: '';
+    position: absolute;
+    right: -20px;
+    top: 25%;
+    height: 50%;
+    border-right: 2px solid rgba(96, 165, 250, 0.28);
+}
+
+.bracket-col-qf .bracket-match::after,
+.bracket-col-sf .bracket-match::after {
+    content: '';
+    position: absolute;
+    right: -20px;
+    top: 50%;
+    width: 20px;
+    border-top: 2px solid rgba(96, 165, 250, 0.28);
+}
+
+.bracket-match {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    padding: 9px 11px;
+    background: #0b1220;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-main);
+    font-family: inherit;
+    transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bracket-match:hover {
+    border-color: rgba(96, 165, 250, 0.65);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+}
+
+.bracket-match.bracket-gold {
+    border-color: rgba(234, 179, 8, 0.55);
+    box-shadow: 0 0 14px rgba(234, 179, 8, 0.1);
+}
+
+.bracket-match.bracket-bronze {
+    border-style: dashed;
+    border-color: rgba(251, 146, 60, 0.5);
+}
+
+.bracket-match-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+.bracket-player {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 3px 5px;
+    border-radius: 4px;
+    font-size: 12.5px;
+}
+
+.bracket-player.bracket-winner {
+    background: rgba(34, 197, 94, 0.1);
+    color: #86efac;
+    font-weight: 700;
+}
+
+.bracket-player.bracket-tbd {
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+.bracket-player-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bracket-match-score {
+    margin-top: 2px;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(148, 163, 184, 0.16);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--accent);
+    text-align: right;
+}
+
+@media (max-width: 900px) {
+    .playoff-tree-grid {
+        grid-template-columns: 1fr;
+        gap: 22px;
+    }
+
+    .bracket-column-title {
+        text-align: left;
+    }
+
+    .bracket-col-qf .bracket-round-list::before,
+    .bracket-col-sf .bracket-round-list::before,
+    .bracket-col-qf .bracket-match::after,
+    .bracket-col-sf .bracket-match::after {
+        display: none;
+    }
+}
+
+/* --- Гонка GOAT: таблица и бейджи --- */
+.goat-weights-note {
+    max-width: 520px;
+    padding: 8px 12px;
+    background: rgba(234, 179, 8, 0.06);
+    border: 1px solid rgba(234, 179, 8, 0.22);
+    border-radius: 8px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-dim);
+}
+
+.goat-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.goat-table th {
+    white-space: nowrap;
+    text-align: center;
+}
+
+.goat-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.goat-table td:nth-child(2) {
+    text-align: left;
+}
+
+.goat-player-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.goat-player-sub {
+    margin-top: 2px;
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
+
+.goat-rank-top {
+    color: var(--gold);
+    font-size: 15px;
+}
+
+.goat-status {
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.goat-status-active {
+    color: var(--primary);
+}
+
+.goat-status-retired {
+    color: var(--gold);
+}
+
+.goat-row-legend {
+    background: rgba(234, 179, 8, 0.035);
+}
+
+.goat-badge-slam {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    color: #fde047;
+    background: rgba(250, 204, 21, 0.12);
+    border: 1px solid rgba(250, 204, 21, 0.4);
+    white-space: nowrap;
+}
+
+.goat-score-value {
+    color: var(--gold);
+    font-size: 15px;
+}
+
+/* --- ATP Season Awards в отчёте о завершении сезона --- */
+.season-awards-block {
+    margin-bottom: 16px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, rgba(234, 179, 8, 0.08), rgba(15, 23, 42, 0.6));
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    border-radius: 10px;
+}
+
+.season-awards-block h4 {
+    margin: 0 0 12px;
+    font-size: 15px;
+    color: var(--gold);
+}
+
+.season-awards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+}
+
+.season-award-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #0d1420;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.season-award-card.gold {
+    border-color: rgba(234, 179, 8, 0.45);
+}
+
+.season-award-card.green {
+    border-color: rgba(34, 197, 94, 0.4);
+}
+
+.season-award-card.blue {
+    border-color: rgba(96, 165, 250, 0.4);
+}
+
+.season-award-card.orange {
+    border-color: rgba(251, 146, 60, 0.4);
+}
+
+.season-award-icon {
+    font-size: 22px;
+    line-height: 1;
+}
+
+.season-award-body {
+    min-width: 0;
+}
+
+.season-award-title {
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 3px;
+}
+
+.season-award-winner {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13.5px;
+    flex-wrap: wrap;
+}
+
+.season-award-summary {
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.35;
 }
