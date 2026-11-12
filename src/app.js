@@ -2,7 +2,7 @@
  * Meta Tennis Tour — Главный контроллер приложения (src/app.js)
  * Инициализация базы 300 игроков, 26/27 турниров (включая Олимпийские игры раз в 4 года),
  * система Мультивселенных (Save Slots) и Экспорт/Импорт (.json),
- * двухрежимный симулятор матчей (локальный + Groq API Llama 3.3 70B / 3.1 8B), рейтинги, Зал Славы и смена поколений.
+ * двухрежимный симулятор матчей (локальный + Groq API GPT-OSS 120B / 20B), рейтинги, Зал Славы и смена поколений.
  */
 
 import { PRESERVED_BASE, CLEAN_UNIQUE_POOL, PROCEDURAL_FLAGS, buildInitial300Players, generateRandom300Players } from '../data/players.js';
@@ -4485,7 +4485,7 @@ export function handleLiveScoreInputForMomentum() {
   updateMomentumBarUI(val, activeMatchScore.match.p1.name, activeMatchScore.match.p2.name);
 }
 
-function renderMatchAiReportBlock(storyline = '', winnerQuote = '', loserQuote = '', winnerName = 'Победитель', loserName = 'Соперник', sourceLabel = 'ИИ-репортаж (Groq / Llama 3.3)') {
+function renderMatchAiReportBlock(storyline = '', winnerQuote = '', loserQuote = '', winnerName = 'Победитель', loserName = 'Соперник', sourceLabel = 'ИИ-репортаж (Groq / GPT-OSS 120B)') {
   const reportCard = document.getElementById('aiMatchReportCard');
   const narrativeBox = document.getElementById('aiMatchNarrative');
   const quotesBox = document.getElementById('aiMatchQuotes');

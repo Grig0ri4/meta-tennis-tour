@@ -541,13 +541,13 @@ test('Блок 1: Интеграция Groq API (aiService.js) — нижний 
   assert.equal(GROQ_API_ENDPOINT, 'https://api.groq.com/openai/v1/chat/completions');
   assert.equal(typeof DEFAULT_GROQ_API_KEY, 'string', 'DEFAULT_GROQ_API_KEY не хранит зашитый секрет в открытом коде');
   assert.equal(getGroqApiKey(memStore), DEFAULT_GROQ_API_KEY, 'По умолчанию возвращается DEFAULT_GROQ_API_KEY из окружения');
-  assert.equal(getGroqModel(memStore), 'llama-3.3-70b-versatile');
+  assert.equal(getGroqModel(memStore), 'openai/gpt-oss-120b');
 
   // Проверка принудительного нижнего регистра имени модели
-  assert.equal(normalizeGroqModelName('Llama-3.3-70b-versatile'), 'llama-3.3-70b-versatile');
-  assert.equal(normalizeGroqModelName('LLAMA-3.1-8B-INSTANT'), 'llama-3.1-8b-instant');
+  assert.equal(normalizeGroqModelName('Llama-3.3-70b-versatile'), 'openai/gpt-oss-120b');
+  assert.equal(normalizeGroqModelName('LLAMA-3.1-8B-INSTANT'), 'openai/gpt-oss-20b');
   setGroqModel('Llama-3.3-70B-Versatile', memStore);
-  assert.equal(getGroqModel(memStore), 'llama-3.3-70b-versatile');
+  assert.equal(getGroqModel(memStore), 'openai/gpt-oss-120b');
 
   // Проверка очистки Markdown-оберток ```json ... ```
   const rawMarkdown = '```json\n{"winnerId": "p_1", "score": "6-4 6-4"}\n```';
@@ -556,8 +556,8 @@ test('Блок 1: Интеграция Groq API (aiService.js) — нижний 
   assert.deepEqual(JSON.parse(cleaned), { winnerId: 'p_1', score: '6-4 6-4' });
 
   // Проверка честного заголовка источника
-  assert.equal(getGroqSourceHeaderLabel('llama-3.3-70b-versatile'), 'ИИ-репортаж (Groq / Llama 3.3)');
-  assert.equal(getGroqSourceHeaderLabel('llama-3.1-8b-instant'), 'ИИ-репортаж (Groq / Llama 3.1)');
+  assert.equal(getGroqSourceHeaderLabel('openai/gpt-oss-120b'), 'ИИ-репортаж (Groq / GPT-OSS 120B)');
+  assert.equal(getGroqSourceHeaderLabel('openai/gpt-oss-20b'), 'ИИ-репортаж (Groq / GPT-OSS 20B)');
 
   setGroqApiKey('gsk_test_123456', memStore);
   assert.equal(getGroqApiKey(memStore), 'gsk_test_123456');
@@ -611,10 +611,10 @@ test('Блок 1: Интеграция Groq API (aiService.js) — нижний 
 
   assert.equal(capturedUrl, 'https://api.groq.com/openai/v1/chat/completions');
   assert.equal(capturedHeaders['Authorization'], 'Bearer gsk_test_123456');
-  assert.equal(capturedBody.model, 'llama-3.3-70b-versatile');
+  assert.equal(capturedBody.model, 'openai/gpt-oss-120b');
   assert.equal(capturedBody.response_format.type, 'json_object');
   assert.equal(groqSim.source, 'groq');
-  assert.equal(groqSim.sourceLabel, 'ИИ-репортаж (Groq / Llama 3.3)');
+  assert.equal(groqSim.sourceLabel, 'ИИ-репортаж (Groq / GPT-OSS 120B)');
   assert.equal(groqSim.winnerId, p1.id);
   assert.equal(groqSim.score, '6-4 4-6 7-6(5)');
 
@@ -800,7 +800,7 @@ test('Раздел 2 (Умный ИИ-модуль матча): Запрет ш�
   assert.equal(commentRes.winnerId, p1.id);
   assert.equal(commentRes.score, '6-0 6-7(5) 7-6(8)');
   assert.ok(commentRes.storyline.includes('6-0'));
-  assert.equal(commentRes.sourceLabel, 'ИИ-репортаж (Groq / Llama 3.3)');
+  assert.equal(commentRes.sourceLabel, 'ИИ-репортаж (Groq / GPT-OSS 120B)');
 });
 
 test('Раздел 3 (Мультивселенные): Процедурная генерация 300 уникальных случайных игроков (возраст 17–35 лет)', () => {

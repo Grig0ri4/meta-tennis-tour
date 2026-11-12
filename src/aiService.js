@@ -1,7 +1,7 @@
 /**
  * Meta Tennis Tour — Модуль работы со сверхбыстрым Groq API (src/aiService.js)
  * Эндпоинт: https://api.groq.com/openai/v1/chat/completions
- * Модели (СТРОГО в нижнем регистре): 'llama-3.3-70b-versatile' (по умолчанию) или 'llama-3.1-8b-instant'.
+ * Модели (СТРОГО в нижнем регистре): 'openai/gpt-oss-120b' (по умолчанию) или 'openai/gpt-oss-20b'.
  * Очистка ответа от Markdown (```json ... ```) перед JSON.parse().
  * Поддерживает два сценария в Матч-центре:
  *  - Сценарий А: ИИ-комментарий к введенному пользователем счету (generateCommentaryForEnteredScore)
@@ -20,8 +20,8 @@ import {
 import { NEWGEN_NICKNAMES, NEWGEN_PLAY_STYLES } from './retirementEngine.js';
 
 export const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-export const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
-export const FAST_GROQ_MODEL = 'llama-3.1-8b-instant';
+export const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
+export const FAST_GROQ_MODEL = 'openai/gpt-oss-20b';
 
 // Дефолтный ключ берется из локального .env.local (VITE_GROQ_API_KEY), который не попадает в публичный Git
 export const DEFAULT_GROQ_API_KEY = (() => {
@@ -40,11 +40,12 @@ const GROQ_MODEL_STORAGE = 'meta_groq_model_v1';
 
 /**
  * Принудительно приводит имя модели к нижнему регистру и валидирует допустимые имена Groq API.
- * Запрещает заглавные буквы вроде 'Llama-3.3-70b-versatile'.
+ * Запрещает заглавные буквы вроде 'GPT-OSS-120B'.
  */
 export function normalizeGroqModelName(modelId) {
   const clean = String(modelId || DEFAULT_GROQ_MODEL).trim().toLowerCase();
-  if (clean === FAST_GROQ_MODEL || clean.includes('8b')) {
+  const isFast = clean === FAST_GROQ_MODEL || clean === 'gpt-oss-20b' || clean.endsWith('/gpt-oss-20b');
+  if (isFast || clean.includes('8b')) {
     return FAST_GROQ_MODEL;
   }
   return DEFAULT_GROQ_MODEL;
@@ -72,9 +73,9 @@ export function cleanGroqJsonString(rawContent) {
 export function getGroqSourceHeaderLabel(modelId = DEFAULT_GROQ_MODEL) {
   const norm = normalizeGroqModelName(modelId);
   if (norm === FAST_GROQ_MODEL) {
-    return 'ИИ-репортаж (Groq / Llama 3.1)';
+    return 'ИИ-репортаж (Groq / GPT-OSS 20B)';
   }
-  return 'ИИ-репортаж (Groq / Llama 3.3)';
+  return 'ИИ-репортаж (Groq / GPT-OSS 120B)';
 }
 
 /**
@@ -173,7 +174,7 @@ export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
     throw new Error('Fetch API недоступен в текущем окружении.');
   }
 
-  const timeoutMs = options.timeoutMs ?? 15000;
+  const timeoutMs = options.timeoutMs ?? 30000;
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timerId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
 
@@ -454,7 +455,7 @@ export async function generateCommentaryForEnteredScore({
 }
 
 /**
- * СЦЕНАРИЙ Б: Полная ИИ-симуляция матча через Groq ('llama-3.3-70b-versatile')
+ * СЦЕНАРИЙ Б: Полная ИИ-симуляция матча через Groq ('openai/gpt-oss-120b')
  * ЖЕСТКИЕ ПРАВИЛА ПРОМПТА:
  * - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выдавать шаблонные счета 6-3 6-2 / 3-6 2-6!
  * - В 45% матчей генерировать 3-сетовые триллеры (например: 4-6 7-6(5) 6-3, 7-5 3-6 6-4).
