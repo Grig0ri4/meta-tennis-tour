@@ -275,6 +275,7 @@ export function buildMatchPromptContext({
 
   const pWinnerName = (winner || player1)?.name || 'Победитель';
   const pLoserName = (loser || player2)?.name || 'Проигравший';
+  const hasH2HHistory = totalH2H > 0 && !/^\s*0\s*:\s*0\s*$/.test(String(h2hSummary || '').trim());
 
   // 1. Динамическая тональность в зависимости от турнирного значения
   let stageToneInstruction = '';
@@ -300,7 +301,12 @@ export function buildMatchPromptContext({
 
   // 2. Реалистичный фактор соперничества (Rivalry)
   let rivalryInstruction = '';
-  if (isRivalry) {
+  if (!hasH2HHistory) {
+    rivalryInstruction = `
+ПЕРВАЯ ОЧНАЯ ВСТРЕЧА:
+- Очных матчей между игроками не было. Запрещено упоминать H2H, счёт личных встреч, прошлые матчи и писать «0:0».
+- Говори только о сегодняшнем матче: покрытие, счёт, собственный уровень.`;
+  } else if (isRivalry) {
     rivalryInstruction = `
 ФАКТОР ЛИЧНЫХ ВСТРЕЧ (H2H ${h2hSummary}, матчей: ${totalH2H}):
 - Используй только сам счёт H2H. Запрещено придумывать прошлые матчи, турниры, счёт по сетам и «излюбленные точки подачи».
@@ -332,6 +338,7 @@ export function buildMatchPromptContext({
 
 ФАКТИЧЕСКИЙ ПРОТОКОЛ:
 - Использовать только данные контекста: имена, ранги, возраст, покрытие, стадия, H2H и счёт по сетам.
+${hasH2HHistory ? '' : '- Очных встреч не было: запрещено упоминать H2H, историю встреч и писать «0:0».'}
 - Разрешено описывать тактический рисунок в общих терминах (глубина удара, работа ног, позиция на задней линии, выход к сетке), если он не противоречит счёту и покрытию.
 - Запрещено называть конкретные номера геймов, статистику и эпизоды, которых нет в данных: эйсы, двойные ошибки, проценты первой подачи, брейк-пойнты, время матча, погоду, зрителей, судейские решения, тайм-ауты, счёт прошлых матчей.
 - Используй только реальные теннисные термины: подача, приём, удар справа и слева, укороченный, свеча, смэш, выход к сетке, игра на задней линии. Не изобретай «скользящие удары» и подобные конструкции.
@@ -373,6 +380,7 @@ export async function generateCommentaryForEnteredScore({
   const strictGroq = Boolean(options.strictGroq);
   const totalH2H = parseH2HMatchesCount(h2hSummary, h2hTotalMatches);
   const isRivalry = explicitRivalry !== undefined ? Boolean(explicitRivalry) : totalH2H >= 2;
+  const hasH2HHistory = totalH2H > 0 && !/^\s*0\s*:\s*0\s*$/.test(String(h2hSummary || '').trim());
 
   if (!player1 || !player2) {
     throw new Error('Участники матча не определены.');
@@ -414,7 +422,9 @@ export async function generateCommentaryForEnteredScore({
       `Формат матча: best-of-${bestOf}`,
       `Игрок 1: ${player1.name} (${player1.flag || 'ATP'}, ранг #${player1.rank || 50}, возраст ${player1.age || '24 г.'})`,
       `Игрок 2: ${player2.name} (${player2.flag || 'ATP'}, ранг #${player2.rank || 50}, возраст ${player2.age || '24 г.'})`,
-      `История очных встреч (H2H): ${h2hSummary} (isRivalry: ${isRivalry})`,
+      hasH2HHistory
+        ? `История очных встреч (H2H): ${h2hSummary} (isRivalry: ${isRivalry})`
+        : `Очных встреч ранее не было (H2H отсутствует — не упоминать)`,
       `ИТОГОВЫЙ СЧЕТ МАТЧА (со стороны Игрока 1 к Игроку 2): ${finalScoreStr}`,
       `ПОБЕДИТЕЛЬ МАТЧА: ${winner.name} (${winner.flag || 'ATP'}, ранг #${winner.rank || 50})`,
       `ПРОИГРАВШИЙ: ${loser.name} (${loser.flag || 'ATP'}, ранг #${loser.rank || 50})`
@@ -507,6 +517,7 @@ export async function simulateMatchWithGroq({
   const strictGroq = Boolean(options.strictGroq);
   const totalH2H = parseH2HMatchesCount(h2hSummary, h2hTotalMatches);
   const isRivalry = explicitRivalry !== undefined ? Boolean(explicitRivalry) : totalH2H >= 2;
+  const hasH2HHistory = totalH2H > 0 && !/^\s*0\s*:\s*0\s*$/.test(String(h2hSummary || '').trim());
 
   const buildLocalFallback = () => {
     const sim = computeSimMatchScores(
@@ -581,7 +592,9 @@ export async function simulateMatchWithGroq({
       `- Формат: best-of-${bestOf} (до ${reqSets} выигранных сетов)`,
       `- Игрок 1: ID="${player1.id}", ${player1.name} (ранг: #${player1.rank || 50}, возраст: ${player1.age || '24 г.'}, страна: ${player1.flag || 'ATP'})`,
       `- Игрок 2: ID="${player2.id}", ${player2.name} (ранг: #${player2.rank || 50}, возраст: ${player2.age || '24 г.'}, страна: ${player2.flag || 'ATP'})`,
-      `- История личных встреч (H2H): ${h2hSummary} (isRivalry: ${isRivalry})`
+      hasH2HHistory
+        ? `- История личных встреч (H2H): ${h2hSummary} (isRivalry: ${isRivalry})`
+        : `- Очных встреч ранее не было (H2H отсутствует — не упоминать)`
     ].join('\n');
 
     const systemPrompt = [
