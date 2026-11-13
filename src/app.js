@@ -6062,11 +6062,14 @@ let playerSortKey = 'rank';
 let playerSortDir = 1;
 
 export function sortPlayersTable(key) {
-  if (key !== 'age' && key !== 'birthDate') return;
-  if (playerSortKey === key) {
+  if (key !== 'rank' && key !== 'birthDate') return;
+  if (key === 'rank') {
+    playerSortKey = 'rank';
+    playerSortDir = 1;
+  } else if (playerSortKey === 'birthDate') {
     playerSortDir = -playerSortDir;
   } else {
-    playerSortKey = key;
+    playerSortKey = 'birthDate';
     playerSortDir = 1;
   }
   renderPlayersTable();
@@ -6157,7 +6160,7 @@ export function renderPlayersTable() {
     return matchesPlayerSearchQuery(p, rawSearch);
   });
 
-  if (playerSortKey === 'age' || playerSortKey === 'birthDate') {
+  if (playerSortKey === 'birthDate') {
     const birthOf = (p) => String(p.birthDate || '').trim();
     filtered.sort((a, b) => {
       const aBirth = birthOf(a);
@@ -6165,19 +6168,16 @@ export function renderPlayersTable() {
       if (!aBirth && !bBirth) return a.rank - b.rank;
       if (!aBirth) return 1;
       if (!bBirth) return -1;
-      let cmp;
-      if (playerSortKey === 'age') {
-        cmp = calculateAgeNum(aBirth, currentTourDateStr) - calculateAgeNum(bBirth, currentTourDateStr);
-      } else {
-        cmp = aBirth.localeCompare(bBirth);
-      }
+      const cmp = aBirth.localeCompare(bBirth);
       if (cmp !== 0) return cmp * playerSortDir;
       return a.rank - b.rank;
     });
+  } else {
+    filtered.sort((a, b) => a.rank - b.rank);
   }
 
-  const ageTh = document.getElementById('thPlayerAge');
-  if (ageTh) ageTh.textContent = `Возраст${playerSortKey === 'age' ? (playerSortDir > 0 ? ' ▲' : ' ▼') : ''}`;
+  const rankTh = document.getElementById('thPlayerRank');
+  if (rankTh) rankTh.textContent = `Ранг${playerSortKey === 'rank' ? ' ▲' : ''}`;
   const birthTh = document.getElementById('thPlayerBirth');
   if (birthTh) birthTh.textContent = `Дата рожд.${playerSortKey === 'birthDate' ? (playerSortDir > 0 ? ' ▲' : ' ▼') : ''}`;
 
