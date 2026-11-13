@@ -1320,6 +1320,125 @@
       "birthDate": "2003-04-30",
       "nickname": "",
       "playStyle": ""
+    },
+    "id:p_new_2025_3": {
+      "name": "Enzo Turgenev",
+      "flag": "GER",
+      "birthDate": "2007-11-14",
+      "nickname": "",
+      "playStyle": "Темповик с тяжелым топ-спином и плотным бэкхендом"
+    },
+    "name:enzo turgenev": {
+      "name": "Enzo Turgenev",
+      "flag": "GER",
+      "birthDate": "2007-11-14",
+      "nickname": "",
+      "playStyle": "Темповик с тяжелым топ-спином и плотным бэкхендом"
+    },
+    "id:p_new_2025_4": {
+      "name": "Dante Baumann",
+      "flag": "NED",
+      "birthDate": "2007-06-05",
+      "nickname": "",
+      "playStyle": "Атакующий сеточник новой волны (Serve & Volley)"
+    },
+    "name:dante baumann": {
+      "name": "Dante Baumann",
+      "flag": "NED",
+      "birthDate": "2007-06-05",
+      "nickname": "",
+      "playStyle": "Атакующий сеточник новой волны (Serve & Volley)"
+    },
+    "name:tobias watanabe": {
+      "name": "Tobias Watanabe",
+      "flag": "BUL",
+      "birthDate": "2004-03-03",
+      "nickname": "",
+      "playStyle": "Взрывной панчер с сокрушительным форхендом навылет"
+    },
+    "id:p_50": {
+      "name": "Mateo Valiente",
+      "flag": "ESP",
+      "birthDate": "2003-04-18",
+      "nickname": "",
+      "playStyle": "Агрессивный бейслайнер с тяжелым топ-спином"
+    },
+    "name:mateo valiente": {
+      "name": "Mateo Valiente",
+      "flag": "ESP",
+      "birthDate": "2003-04-18",
+      "nickname": "",
+      "playStyle": "Агрессивный бейслайнер с тяжелым топ-спином"
+    },
+    "id:p_61": {
+      "name": "Lukas Vondracek",
+      "flag": "CZE",
+      "birthDate": "2002-09-11",
+      "nickname": "",
+      "playStyle": "Универсал с плоским бэкхендом по линии"
+    },
+    "name:lukas vondracek": {
+      "name": "Lukas Vondracek",
+      "flag": "CZE",
+      "birthDate": "2002-09-11",
+      "nickname": "",
+      "playStyle": "Универсал с плоским бэкхендом по линии"
+    },
+    "id:p_76": {
+      "name": "Thiago Monteiro-Silva",
+      "flag": "POR",
+      "birthDate": "2003-07-22",
+      "nickname": "",
+      "playStyle": "Цепкий грунтовый контрпанчер"
+    },
+    "name:thiago monteiro-silva": {
+      "name": "Thiago Monteiro-Silva",
+      "flag": "POR",
+      "birthDate": "2003-07-22",
+      "nickname": "",
+      "playStyle": "Цепкий грунтовый контрпанчер"
+    },
+    "id:p_83": {
+      "name": "Kamil Kowalski",
+      "flag": "POL",
+      "birthDate": "2005-02-14",
+      "nickname": "",
+      "playStyle": "Скоростная оборона и острый прием"
+    },
+    "name:kamil kowalski": {
+      "name": "Kamil Kowalski",
+      "flag": "POL",
+      "birthDate": "2005-02-14",
+      "nickname": "",
+      "playStyle": "Скоростная оборона и острый прием"
+    },
+    "id:p_new_2025_1": {
+      "name": "Soren Sedlak",
+      "flag": "NED",
+      "birthDate": "2002-02-16",
+      "nickname": "",
+      "playStyle": "Специалист быстрых покрытий с плоской подачей за 225 км/ч"
+    },
+    "name:soren sedlak": {
+      "name": "Soren Sedlak",
+      "flag": "NED",
+      "birthDate": "2002-02-16",
+      "nickname": "",
+      "playStyle": "Специалист быстрых покрытий с плоской подачей за 225 км/ч"
+    },
+    "id:p_218": {
+      "name": "Yuki Morita",
+      "flag": "JPN",
+      "birthDate": "2005-08-04",
+      "nickname": "",
+      "playStyle": ""
+    },
+    "name:yuki morita": {
+      "name": "Yuki Morita",
+      "flag": "JPN",
+      "birthDate": "2005-08-04",
+      "nickname": "",
+      "playStyle": ""
     }
   },
   "1794415963477": {

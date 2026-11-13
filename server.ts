@@ -48,7 +48,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: "10mb" }));
+  app.use(express.json({ limit: "30mb" }));
 
   app.get("/canon.json", (_req, res) => {
     const canonPath = path.join(__dirname, "public", "canon.json");
