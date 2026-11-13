@@ -440,11 +440,11 @@ export function createTournamentDraw(tourney, players) {
 
   if (tourney.type === 'ATP 500') {
     players.slice(0, 15).forEach(p => {
-      if (Math.random() < 0.25) committedPlayers.push(p);
+      if (Math.random() < 0.80) committedPlayers.push(p);
       else withdrawals.push(p.name);
     });
     players.slice(15, 40).forEach(p => {
-      if (Math.random() < 0.35) committedPlayers.push(p);
+      if (Math.random() < 0.72) committedPlayers.push(p);
       else if (p.rank <= 25) withdrawals.push(p.name);
     });
     players.slice(40, 85).forEach(p => {

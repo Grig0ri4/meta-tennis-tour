@@ -3634,7 +3634,7 @@ export function renderATP250ModalContent() {
   `).join('');
 
   const roundMatches = details.draw[rIdx] || [];
-  const refDateStr = `${String(tourneyObj?.endDay || 10).padStart(2, '0')}.${String((tourneyObj?.endMonth || 0) + 1).padStart(2, '0')}.${year}`;
+  const refDateStr = `${Number(year) || 2024}-${String((tourneyObj?.endMonth || 0) + 1).padStart(2, '0')}-${String(tourneyObj?.endDay || 10).padStart(2, '0')}`;
 
   matchesEl.innerHTML = roundMatches.map((m, idx) => {
     const p1Live = m.p1 && !m.p1.isBye ? (players.find(x => x.id === m.p1.id) || m.p1) : m.p1;

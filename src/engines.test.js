@@ -1568,7 +1568,7 @@ test('Идемпотентность и детерминизм синхрони�
   );
 });
 
-test('Автоматическая сетка турнира ATP 250 (28 игроков, BYE у первых 4 сеяных, участие Топ 5-30) и защита от спама 6-0', async () => {
+test('Автоматическая сетка турнира ATP 250 (28 игроков, BYE у первых 4 сеяных, состав вне Топ-24 в неделю ATP 500) и защита от спама 6-0', async () => {
   const { computeWeeklyParallelTourPoints, simulateDeterministicATP250Bracket, PARALLEL_TOUR_SCALES } = await import('./rankingEngine.js');
   const players = buildInitial300Players();
   applyCanonical2023StartStateToPlayers(players);
@@ -1592,7 +1592,8 @@ test('Автоматическая сетка турнира ATP 250 (28 игр�
     'Авто-проход BYE во 2-й круг получают строго сеяные #1, #2, #3 и #4'
   );
 
-  // 3) Игроки Топ-4 мира пропускают ATP 250, а свободные игроки из Топ 5-30 участвуют вне основного турнира
+  // 3) Игроки Топ-4 мира пропускают ATP 250, а в неделю ATP 500 параллельная
+  //     сетка собирается только из игроков вне Топ-24 — «сбежавшие» топы не играют 250
   const tourney = FULL_CALENDAR_TEMPLATE.find(t => t.id === '500_2');
   const inMainPlayers = [...players.slice(0, 4), ...players.slice(12, 40)];
   const inMainSet = new Set(inMainPlayers.map(p => p.id));
@@ -1607,7 +1608,13 @@ test('Автоматическая сетка турнира ATP 250 (28 игр�
     assert.equal(parallelEarnedMap[players[i].id], undefined, `Игрок Топ-4 мира #${i + 1} (${players[i].name}) всегда пропускает турниры ATP 250`);
   }
   const top5to12In250 = players.slice(4, 12).filter(p => parallelEarnedMap[p.id] > 0);
-  assert.ok(top5to12In250.length >= 4, 'Свободные игроки из Топ 5–30 принимают участие в турнирах серии ATP 250');
+  assert.equal(top5to12In250.length, 0, 'В неделю ATP 500 игроки Топ-5–12 не заявляются в параллельный ATP 250');
+  const freeLowerIn250 = players.slice(40, 60).filter(p => parallelEarnedMap[p.id] > 0);
+  assert.ok(freeLowerIn250.length >= 4, 'Свободные игроки вне Топ-24 принимают участие в параллельном ATP 250');
+  const all250Entrants = leadBracketDetails.draw[0]
+    .flatMap(m => [m.p1, m.p2])
+    .filter(p => p && !p.isBye);
+  assert.ok(all250Entrants.every(p => Number(p.rank) >= 25), 'В сетке параллельного ATP 250 нет игроков из Топ-24 мира');
   assert.ok(leadBracketDetails && leadBracketDetails.winner && leadBracketDetails.draw.length === 5);
 
   // 4) Проверка редкости «баранок» 6-0 / 0-6 при автоматическом счете

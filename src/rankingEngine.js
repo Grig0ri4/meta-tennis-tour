@@ -788,6 +788,13 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
   // - Топ-4 мирового рейтинга (orderRank <= 4) ВСЕГДА пропускают турниры ATP 250!
   // - Ни один игрок основной сетки (inMainSet) НЕ может играть в параллельном турнире недели!
   // - Игроки с рангом > 4 заявляются и сеются строго по актуальному мировому рейтингу (live rank)
+  // - В неделю ATP 500 параллельная сетка собирается из игроков вне Топ-24,
+  //   в неделю Мастерса/ТБШ — вне Топ-34: игроки, пропустившие крупный турнир,
+  //   не должны «падать» в 250-ку сильнее основной сетки недели.
+  const mainType = String(tourney.type || '');
+  const minParallel250Rank = mainType === 'ATP 500'
+    ? 25
+    : ((mainType === 'Мастерс' || mainType === 'ТБШ') ? 35 : 5);
   const atp250Candidates = (players || [])
     .filter(p => {
       if (!p || !p.id) return false;
@@ -798,8 +805,7 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
       if (excludedNamesLower.has(nameL)) return false;
 
       const orderRank = getPlayerRank(p);
-      // Первые 4 игрока мира ВСЕГДА пропускают ATP 250
-      if (orderRank <= 4) return false;
+      if (orderRank < minParallel250Rank) return false;
 
       return orderRank <= 95;
     })
@@ -809,7 +815,7 @@ export function computeWeeklyParallelTourPoints(tourney, players, mainDrawPartic
   if (atp250Candidates.length < 28) {
     const inCandIds = new Set(atp250Candidates.map(x => x.id));
     const backups = (players || [])
-      .filter(p => p && p.id && !inCandIds.has(p.id) && !inMainSet.has(p.id) && getPlayerRank(p) > 4)
+      .filter(p => p && p.id && !inCandIds.has(p.id) && !inMainSet.has(p.id) && getPlayerRank(p) >= minParallel250Rank)
       .sort(compareCandidates);
     while (atp250Candidates.length < 28 && backups.length > 0) {
       atp250Candidates.push(backups.shift());
