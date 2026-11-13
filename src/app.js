@@ -4084,13 +4084,21 @@ export function renderMatches() {
       </div>
     `;
 
+    // Полуфинальные пары фиксируются в advanceWinnerInDraw() при завершении групп.
+    // Здесь только дозаполняем пустые слоты старых сохранений и никогда не
+    // перезаписываем уже сыгранные пары: иначе имена в архивной сетке перестают
+    // совпадать со счётом, победителем и отчётом матча.
     const isGroupAComplete = currentDraw[0].every(m => m.winner);
     const isGroupBComplete = currentDraw[1].every(m => m.winner);
     if (isGroupAComplete && isGroupBComplete && groupAStats.length >= 2 && groupBStats.length >= 2) {
-      currentDraw[2][0].p1 = groupAStats[0].player;
-      currentDraw[2][0].p2 = groupBStats[1].player;
-      currentDraw[2][1].p1 = groupBStats[0].player;
-      currentDraw[2][1].p2 = groupAStats[1].player;
+      const fillEmptySlot = (match, slot, player) => {
+        if (!match || match.winner || match[slot] || !player) return;
+        match[slot] = player;
+      };
+      fillEmptySlot(currentDraw[2][0], 'p1', groupAStats[0].player);
+      fillEmptySlot(currentDraw[2][0], 'p2', groupBStats[1].player);
+      fillEmptySlot(currentDraw[2][1], 'p1', groupBStats[0].player);
+      fillEmptySlot(currentDraw[2][1], 'p2', groupAStats[1].player);
     }
   } else {
     tablesContainer.style.display = 'none';
