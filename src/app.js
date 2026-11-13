@@ -6058,27 +6058,17 @@ export function renderRaceDeltaBadge(raceDelta, player = null) {
 }
 
 let filterOnlyUnknownCountry = false;
+let playerSortKey = 'rank';
+let playerSortDir = 1;
 
-function readPlayerAgeBirthFilters() {
-  const read = (id) => String(document.getElementById(id)?.value || '').trim();
-  const parseBound = (raw) => {
-    if (raw === '') return null;
-    const num = Number(raw);
-    return Number.isFinite(num) ? num : null;
-  };
-  return {
-    ageMin: parseBound(read('playerFilterAgeMin')),
-    ageMax: parseBound(read('playerFilterAgeMax')),
-    birthFrom: read('playerFilterBirthFrom'),
-    birthTo: read('playerFilterBirthTo')
-  };
-}
-
-export function resetPlayerAgeBirthFilters() {
-  ['playerFilterAgeMin', 'playerFilterAgeMax', 'playerFilterBirthFrom', 'playerFilterBirthTo'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
+export function sortPlayersTable(key) {
+  if (key !== 'age' && key !== 'birthDate') return;
+  if (playerSortKey === key) {
+    playerSortDir = -playerSortDir;
+  } else {
+    playerSortKey = key;
+    playerSortDir = 1;
+  }
   renderPlayersTable();
 }
 
@@ -6162,33 +6152,38 @@ export function renderPlayersTable() {
     filterBtn.textContent = `❓ Без страны (?) · ${unknownCount}`;
   }
 
-  const range = readPlayerAgeBirthFilters();
-  const hasAgeFilter = range.ageMin !== null || range.ageMax !== null;
-  const hasBirthFilter = Boolean(range.birthFrom || range.birthTo);
-  const hasRangeFilter = hasAgeFilter || hasBirthFilter;
-  const resetRangeBtn = document.getElementById('btnResetAgeBirthFilters');
-  if (resetRangeBtn) resetRangeBtn.style.display = hasRangeFilter ? '' : 'none';
-
   const filtered = players.filter(p => {
     if (filterOnlyUnknownCountry && p.flag && p.flag !== '?') return false;
-    if (!matchesPlayerSearchQuery(p, rawSearch)) return false;
-    const birthDate = String(p.birthDate || '').trim();
-    if ((hasAgeFilter || hasBirthFilter) && !birthDate) return false;
-    if (hasAgeFilter) {
-      const age = calculateAgeNum(birthDate, currentTourDateStr);
-      if (range.ageMin !== null && age < range.ageMin) return false;
-      if (range.ageMax !== null && age > range.ageMax) return false;
-    }
-    if (hasBirthFilter) {
-      if (range.birthFrom && birthDate < range.birthFrom) return false;
-      if (range.birthTo && birthDate > range.birthTo) return false;
-    }
-    return true;
+    return matchesPlayerSearchQuery(p, rawSearch);
   });
+
+  if (playerSortKey === 'age' || playerSortKey === 'birthDate') {
+    const birthOf = (p) => String(p.birthDate || '').trim();
+    filtered.sort((a, b) => {
+      const aBirth = birthOf(a);
+      const bBirth = birthOf(b);
+      if (!aBirth && !bBirth) return a.rank - b.rank;
+      if (!aBirth) return 1;
+      if (!bBirth) return -1;
+      let cmp;
+      if (playerSortKey === 'age') {
+        cmp = calculateAgeNum(aBirth, currentTourDateStr) - calculateAgeNum(bBirth, currentTourDateStr);
+      } else {
+        cmp = aBirth.localeCompare(bBirth);
+      }
+      if (cmp !== 0) return cmp * playerSortDir;
+      return a.rank - b.rank;
+    });
+  }
+
+  const ageTh = document.getElementById('thPlayerAge');
+  if (ageTh) ageTh.textContent = `Возраст${playerSortKey === 'age' ? (playerSortDir > 0 ? ' ▲' : ' ▼') : ''}`;
+  const birthTh = document.getElementById('thPlayerBirth');
+  if (birthTh) birthTh.textContent = `Дата рожд.${playerSortKey === 'birthDate' ? (playerSortDir > 0 ? ' ▲' : ' ▼') : ''}`;
 
   const countEl = document.getElementById('playerSearchCount');
   if (countEl) {
-    if (rawSearch.trim().length > 0 || filterOnlyUnknownCountry || hasRangeFilter) {
+    if (rawSearch.trim().length > 0 || filterOnlyUnknownCountry) {
       countEl.innerHTML = `Показано: <b style="color: var(--accent);">${filtered.length}</b> из ${players.length}`;
     } else {
       countEl.textContent = '';
@@ -6199,7 +6194,7 @@ export function renderPlayersTable() {
     tbody.innerHTML = `
       <tr>
         <td colspan="8" style="text-align: center; padding: 24px; color: var(--text-dim);">
-          Игроки не найдены. Измените поисковый запрос или диапазоны возраста/даты рождения, либо отключите фильтры.
+          Игроки по запросу не найдены. Попробуйте изменить запрос или отключить фильтр «❓ Без страны (?)».
         </td>
       </tr>
     `;
@@ -9151,7 +9146,7 @@ if (typeof window !== 'undefined') {
   window.quickSaveInlineFlag = quickSaveInlineFlag;
   window.clearPlayerSearch = clearPlayerSearch;
   window.toggleUnknownCountryFilter = toggleUnknownCountryFilter;
-  window.resetPlayerAgeBirthFilters = resetPlayerAgeBirthFilters;
+  window.sortPlayersTable = sortPlayersTable;
   window.updateEditPlayerFlagPreview = updateEditPlayerFlagPreview;
   window.renderFlagBadge = renderFlagBadge;
   window.renderRaceTable = renderRaceTable;

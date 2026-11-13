@@ -212,21 +212,6 @@
                     <button type="button" class="btn-gold" id="btnEndSeason" onclick="endSeasonAndDecayPoints()">Завершить сезон (Перейти в след. год)</button>
                 </div>
             </div>
-            <div style="display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; font-size: 12.5px; color: var(--text-dim);">
-                <span style="display: flex; gap: 6px; align-items: center;">
-                    <b style="color: var(--text-main);">Возраст:</b>
-                    <input type="number" id="playerFilterAgeMin" min="0" max="99" inputmode="numeric" placeholder="от" oninput="renderPlayersTable()" aria-label="Минимальный возраст" style="width: 64px;">
-                    <span>—</span>
-                    <input type="number" id="playerFilterAgeMax" min="0" max="99" inputmode="numeric" placeholder="до" oninput="renderPlayersTable()" aria-label="Максимальный возраст" style="width: 64px;">
-                </span>
-                <span style="display: flex; gap: 6px; align-items: center;">
-                    <b style="color: var(--text-main);">Дата рождения:</b>
-                    <input type="date" id="playerFilterBirthFrom" onchange="renderPlayersTable()" aria-label="Дата рождения от" style="width: 150px;">
-                    <span>—</span>
-                    <input type="date" id="playerFilterBirthTo" onchange="renderPlayersTable()" aria-label="Дата рождения до" style="width: 150px;">
-                </span>
-                <button type="button" class="btn-edit" id="btnResetAgeBirthFilters" onclick="resetPlayerAgeBirthFilters()" title="Очистить фильтры по возрасту и дате рождения" style="display: none;">✕ Сбросить фильтры</button>
-            </div>
             <div>
                 <table class="custom-table">
                     <thead>
@@ -234,8 +219,8 @@
                             <th style="width: 90px;">Ранг</th>
                             <th style="width: 95px;">Страна</th>
                             <th>Имя Фамилия / Профиль игрока</th>
-                            <th style="width: 90px;">Возраст</th>
-                            <th style="width: 115px;">Дата рожд.</th>
+                            <th style="width: 90px; cursor: pointer; user-select: none;" id="thPlayerAge" onclick="sortPlayersTable('age')" title="Сортировать по возрасту (клик — по возрастанию, повторно — по убыванию)">Возраст</th>
+                            <th style="width: 115px; cursor: pointer; user-select: none;" id="thPlayerBirth" onclick="sortPlayersTable('birthDate')" title="Сортировать по дате рождения (клик — по возрастанию, повторно — по убыванию)">Дата рожд.</th>
                             <th style="width: 115px;">Пик ранга</th>
                             <th>Очки (52 недели) · Δ за неделю</th>
                             <th style="width: 155px;">Действие</th>
