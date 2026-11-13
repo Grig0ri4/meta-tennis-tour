@@ -811,6 +811,7 @@ function loadUniverseStateFromStorage() {
   } catch {
     retiredLegends = [];
   }
+  pruneRetiredLegendsAgainstActiveRoster();
 }
 
 const CUSTOM_PLAYER_OVERRIDES_KEY = 'meta_custom_player_overrides_v1';
@@ -1025,6 +1026,11 @@ function repairCanonicalPlayersAndDraws() {
   const customOverrides = loadCustomPlayerOverrides();
   let overridesModified = false;
 
+  const retiredIds = new Set((retiredLegends || []).filter(Boolean).map(r => String(r.id)));
+  const retiredNames = new Set(
+    (retiredLegends || []).filter(Boolean).map(r => String(r.name || '').trim().toLowerCase()).filter(Boolean)
+  );
+
   const resolvePlayerFields = (source, canon) => {
     const normName = String((source && source.name) || canon.name || '').trim().toLowerCase();
     const canonNormName = String(canon.name || '').trim().toLowerCase();
@@ -1116,6 +1122,8 @@ function repairCanonicalPlayersAndDraws() {
     });
     canonicalRoster.forEach(canon => {
       if (!usedIds.has(String(canon.id)) && repairedPlayers.length < 300) {
+        // Легенды не воскрешаем: завершивший карьеру не возвращается в активный состав
+        if (retiredIds.has(String(canon.id)) || retiredNames.has(String(canon.name || '').trim().toLowerCase())) return;
         repairedPlayers.push(resolvePlayerFields(canon, canon));
         usedIds.add(String(canon.id));
       }
@@ -1123,6 +1131,7 @@ function repairCanonicalPlayersAndDraws() {
   }
 
   players = repairedPlayers;
+  pruneRetiredLegendsAgainstActiveRoster();
   const liveById = new Map(players.map(p => [String(p.id), p]));
   const liveByName = new Map(players.map(p => [String(p.name || '').trim().toLowerCase(), p]));
 
@@ -1728,6 +1737,32 @@ function saveHistory() {
 
 function saveRetiredLegends() {
   universeStorage.setItem('meta_retired_legends', JSON.stringify(retiredLegends));
+}
+
+// Завершивший карьеру игрок не может одновременно находиться в активном рейтинге.
+// Если оба списка пересеклись (например, после ремонта состава или отката к чекпоинту),
+// активный состав считается приоритетным и запись из списка легенд удаляется.
+function pruneRetiredLegendsAgainstActiveRoster(persist = true) {
+  if (!Array.isArray(retiredLegends) || retiredLegends.length === 0) return 0;
+  if (!Array.isArray(players) || players.length === 0) return 0;
+  const activeIds = new Set();
+  const activeNames = new Set();
+  players.forEach(p => {
+    if (!p) return;
+    if (p.id !== undefined && p.id !== null) activeIds.add(String(p.id));
+    const name = String(p.name || '').trim().toLowerCase();
+    if (name) activeNames.add(name);
+  });
+  const before = retiredLegends.length;
+  retiredLegends = retiredLegends.filter(leg => {
+    if (!leg) return false;
+    const id = leg.id !== undefined && leg.id !== null ? String(leg.id) : '';
+    const name = String(leg.name || '').trim().toLowerCase();
+    return !((id && activeIds.has(id)) || (name && activeNames.has(name)));
+  });
+  const removedCount = before - retiredLegends.length;
+  if (removedCount > 0 && persist) saveRetiredLegends();
+  return removedCount;
 }
 
 function saveDate() {
@@ -2624,6 +2659,7 @@ export function handleImportUniverseFile(event) {
       );
       seasonsHistory = sanitizeImportedHistory(data.seasonsHistory || {});
       retiredLegends = sanitizeImportedPlayers(data.retiredLegends || []);
+      pruneRetiredLegendsAgainstActiveRoster();
       viewingYear = currentTourYear;
 
       if (data.draws && typeof data.draws === 'object') {
@@ -8312,6 +8348,8 @@ export function applyStateSnapshot(stateObj) {
   if (stateObj.retiredLegends) {
     retiredLegends = JSON.parse(JSON.stringify(stateObj.retiredLegends));
   }
+  // Старые чекпоинты могут не содержать список легенд: чистим пересечение с активным составом
+  pruneRetiredLegendsAgainstActiveRoster();
 
   // Старые чекпоинты хранят плоские недели на №1 — пересчитываем по истории при откате
   // (с отсечкой по дате точки, чтобы откат на январь 2024 не показывал весь сезон)
