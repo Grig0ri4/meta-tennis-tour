@@ -546,7 +546,9 @@ function freeRedundantLocalStorageSpace() {
         archiveCandidates.push(k);
       }
       for (const k of archiveCandidates) {
-        const master = masterDraws[k] || (RESTORED_2024_DRAWS && RESTORED_2024_DRAWS[k]);
+        const canonDrawKey = k.replace(/^draw_1_/, 'draw_');
+        const master = masterDraws[canonDrawKey] || masterDraws[k] ||
+          (RESTORED_2024_DRAWS && (RESTORED_2024_DRAWS[canonDrawKey] || RESTORED_2024_DRAWS[k]));
         if (!Array.isArray(master)) continue;
         const raw = localStorage.getItem(k);
         if (raw == null) continue;
@@ -9260,6 +9262,12 @@ if (typeof window !== 'undefined') {
       activeTourneyId = targetTourneyId;
       viewingYear = targetYear;
 
+      // Второй проход уже с известным targetYear: освобождаем архивные сетки,
+      // байт-в-байт совпадающие с мастер-снимком (их отдаёт фоллбэк readSavedDraw).
+      try {
+        freeRedundantLocalStorageSpace();
+      } catch {}
+
       // Синхронизируем историю сезонов (включая 2023 и завершенный 2024):
       if (canonData.seasonsHistory && typeof canonData.seasonsHistory === 'object') {
         const strHist = JSON.stringify(canonData.seasonsHistory);
@@ -9331,8 +9339,9 @@ if (typeof window !== 'undefined') {
         memoryUniverseStore[`universe_1_${drawKey}`] = str;
         memoryUniverseStore[drawKey] = str;
 
-        // В localStorage сохраняем сетки активного и прошлого сезона (динамически targetYear и targetYear - 1):
-        if (rest.endsWith(`_${targetYear}`) || rest.endsWith(`_${targetYear - 1}`)) {
+        // В localStorage сохраняем только сетки активного сезона: архивные
+        // читаются из памяти/мастер-снимка и не должны раздувать квоту.
+        if (rest.endsWith(`_${targetYear}`)) {
           try {
             localStorage.setItem(fullKey, str);
           } catch {}
