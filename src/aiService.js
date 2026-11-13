@@ -2,7 +2,7 @@
  * Meta Tennis Tour — Модуль работы с ИИ-провайдерами (src/aiService.js)
  * Поддерживаются два OpenAI-совместимых провайдера:
  *  - Groq: https://api.groq.com/openai/v1/chat/completions ('openai/gpt-oss-120b' / 'openai/gpt-oss-20b')
- *  - Mistral: https://api.mistral.ai/v1/chat/completions ('mistral-small-latest' / 'mistral-medium-latest' / 'mistral-large-latest')
+ *  - Gemini: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions ('gemini-3.5-flash-lite' и др.)
  * Очистка ответа от Markdown (```json ... ```) перед JSON.parse().
  * Поддерживает два сценария в Матч-центре:
  *  - Сценарий А: ИИ-комментарий к введенному пользователем счету (generateCommentaryForEnteredScore)
@@ -24,12 +24,12 @@ export const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completion
 export const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
 export const FAST_GROQ_MODEL = 'openai/gpt-oss-20b';
 
-export const MISTRAL_API_ENDPOINT = 'https://api.mistral.ai/v1/chat/completions';
-export const DEFAULT_MISTRAL_MODEL = 'mistral-small-latest';
-export const MISTRAL_MODELS = [
-  { id: 'mistral-small-latest', label: 'mistral-small-latest (быстрая и экономичная)' },
-  { id: 'mistral-medium-latest', label: 'mistral-medium-latest (баланс качества и скорости)' },
-  { id: 'mistral-large-latest', label: 'mistral-large-latest (максимальное качество)' }
+export const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
+export const GEMINI_MODELS = [
+  { id: 'gemini-3.5-flash-lite', label: 'gemini-3.5-flash-lite (быстрая, бесплатный лимит)' },
+  { id: 'gemini-3.1-flash-lite', label: 'gemini-3.1-flash-lite (лёгкая)' },
+  { id: 'gemini-3.8-flash', label: 'gemini-3.8-flash (умнее, лимит меньше)' }
 ];
 
 // Дефолтный ключ берется из локального .env.local (VITE_GROQ_API_KEY), который не попадает в публичный Git
@@ -43,10 +43,10 @@ export const DEFAULT_GROQ_API_KEY = (() => {
   return '';
 })();
 
-export const DEFAULT_MISTRAL_API_KEY = (() => {
+export const DEFAULT_GEMINI_API_KEY = (() => {
   try {
-    const envKey = (import.meta?.env?.VITE_MISTRAL_API_KEY || '').trim();
-    if (envKey && envKey !== 'YOUR_MISTRAL_API_KEY') return envKey;
+    const envKey = (import.meta?.env?.VITE_GEMINI_API_KEY || '').trim();
+    if (envKey && envKey !== 'YOUR_GEMINI_API_KEY') return envKey;
   } catch {
     // ignore
   }
@@ -57,8 +57,8 @@ const GROQ_KEY_STORAGE = 'groq_api_key';
 const LEGACY_GROQ_KEY_STORAGE = 'meta_groq_api_key_v1';
 const GROQ_MODEL_STORAGE = 'meta_groq_model_v1';
 const AI_PROVIDER_STORAGE = 'meta_ai_provider_v1';
-const MISTRAL_KEY_STORAGE = 'mistral_api_key';
-const MISTRAL_MODEL_STORAGE = 'meta_mistral_model_v1';
+const GEMINI_KEY_STORAGE = 'gemini_api_key';
+const GEMINI_MODEL_STORAGE = 'meta_gemini_model_v1';
 
 /**
  * Принудительно приводит имя модели к нижнему регистру и валидирует допустимые имена Groq API.
@@ -101,17 +101,17 @@ export function getGroqSourceHeaderLabel(modelId = DEFAULT_GROQ_MODEL) {
 }
 
 /**
- * Заголовок источника репортажа с учетом активного провайдера (Groq или Mistral)
+ * Заголовок источника репортажа с учетом активного провайдера (Groq или Gemini)
  */
 export function getAiSourceHeaderLabel(modelId = DEFAULT_GROQ_MODEL, provider = 'groq') {
-  if (normalizeAiProvider(provider) === 'mistral') {
-    const norm = normalizeMistralModelName(modelId);
+  if (normalizeAiProvider(provider) === 'gemini') {
+    const norm = normalizeGeminiModelName(modelId);
     const names = {
-      'mistral-small-latest': 'Mistral Small',
-      'mistral-medium-latest': 'Mistral Medium',
-      'mistral-large-latest': 'Mistral Large'
+      'gemini-3.5-flash-lite': 'Gemini 3.5 Flash-Lite',
+      'gemini-3.1-flash-lite': 'Gemini 3.1 Flash-Lite',
+      'gemini-3.8-flash': 'Gemini 3.8 Flash'
     };
-    return `ИИ-репортаж (Mistral / ${names[norm] || norm})`;
+    return `ИИ-репортаж (Gemini / ${names[norm] || norm})`;
   }
   return getGroqSourceHeaderLabel(modelId);
 }
@@ -197,10 +197,10 @@ export function setGroqModel(modelId, storage = null) {
 }
 
 /**
- * Активный ИИ-провайдер: 'groq' (по умолчанию) или 'mistral'
+ * Активный ИИ-провайдер: 'groq' (по умолчанию) или 'gemini'
  */
 export function normalizeAiProvider(providerId) {
-  return String(providerId || '').trim().toLowerCase() === 'mistral' ? 'mistral' : 'groq';
+  return String(providerId || '').trim().toLowerCase() === 'gemini' ? 'gemini' : 'groq';
 }
 
 export function getAiProvider(storage = null) {
@@ -230,22 +230,22 @@ export function setAiProvider(providerId, storage = null) {
 }
 
 /**
- * Приводит имя модели Mistral к допустимому списку (по умолчанию 'mistral-small-latest')
+ * Приводит имя модели Gemini к допустимому списку (по умолчанию 'gemini-3.5-flash-lite')
  */
-export function normalizeMistralModelName(modelId) {
-  const clean = String(modelId || DEFAULT_MISTRAL_MODEL).trim().toLowerCase();
-  return MISTRAL_MODELS.some(m => m.id === clean) ? clean : DEFAULT_MISTRAL_MODEL;
+export function normalizeGeminiModelName(modelId) {
+  const clean = String(modelId || DEFAULT_GEMINI_MODEL).trim().toLowerCase();
+  return GEMINI_MODELS.some(m => m.id === clean) ? clean : DEFAULT_GEMINI_MODEL;
 }
 
 /**
- * Чтение Mistral API Key из localStorage.getItem('mistral_api_key'), переменной окружения или дефолта
+ * Чтение Gemini API Key из localStorage.getItem('gemini_api_key'), переменной окружения или дефолта
  */
-export function getMistralApiKey(storage = null) {
+export function getGeminiApiKey(storage = null) {
   const customStore = storage !== null;
   try {
     const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
     if (store) {
-      const primaryKey = store.getItem(MISTRAL_KEY_STORAGE);
+      const primaryKey = store.getItem(GEMINI_KEY_STORAGE);
       if (primaryKey !== null && primaryKey.trim() !== '') {
         return primaryKey.trim();
       }
@@ -258,21 +258,21 @@ export function getMistralApiKey(storage = null) {
   }
 
   try {
-    const envKey = (import.meta?.env?.VITE_MISTRAL_API_KEY || '').trim();
-    if (envKey && envKey !== 'YOUR_MISTRAL_API_KEY') return envKey;
+    const envKey = (import.meta?.env?.VITE_GEMINI_API_KEY || '').trim();
+    if (envKey && envKey !== 'YOUR_GEMINI_API_KEY') return envKey;
   } catch {
     // ignore env access
   }
 
-  return DEFAULT_MISTRAL_API_KEY;
+  return DEFAULT_GEMINI_API_KEY;
 }
 
-export function setMistralApiKey(apiKey, storage = null) {
+export function setGeminiApiKey(apiKey, storage = null) {
   const cleanKey = String(apiKey || '').trim();
   try {
     const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
     if (store) {
-      store.setItem(MISTRAL_KEY_STORAGE, cleanKey);
+      store.setItem(GEMINI_KEY_STORAGE, cleanKey);
     }
   } catch {
     // ignore storage errors
@@ -280,31 +280,31 @@ export function setMistralApiKey(apiKey, storage = null) {
   return cleanKey;
 }
 
-export function hasMistralApiKey(storage = null) {
-  return Boolean(getMistralApiKey(storage));
+export function hasGeminiApiKey(storage = null) {
+  return Boolean(getGeminiApiKey(storage));
 }
 
-export function getMistralModel(storage = null) {
+export function getGeminiModel(storage = null) {
   try {
     const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
     if (store) {
-      const saved = store.getItem(MISTRAL_MODEL_STORAGE);
+      const saved = store.getItem(GEMINI_MODEL_STORAGE);
       if (saved) {
-        return normalizeMistralModelName(saved);
+        return normalizeGeminiModelName(saved);
       }
     }
   } catch {
     // ignore
   }
-  return DEFAULT_MISTRAL_MODEL;
+  return DEFAULT_GEMINI_MODEL;
 }
 
-export function setMistralModel(modelId, storage = null) {
-  const validModel = normalizeMistralModelName(modelId);
+export function setGeminiModel(modelId, storage = null) {
+  const validModel = normalizeGeminiModelName(modelId);
   try {
     const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
     if (store) {
-      store.setItem(MISTRAL_MODEL_STORAGE, validModel);
+      store.setItem(GEMINI_MODEL_STORAGE, validModel);
     }
   } catch {
     // ignore
@@ -313,26 +313,26 @@ export function setMistralModel(modelId, storage = null) {
 }
 
 /**
- * Базовый JSON-вызов к активному ИИ-провайдеру (Groq или Mistral, OpenAI-совместимый формат).
+ * Базовый JSON-вызов к активному ИИ-провайдеру (Groq или Gemini, OpenAI-совместимый формат).
  * Не скрывает ошибки: выбрасывает Error с подробным сообщением от API провайдера.
  */
 export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
   const provider = normalizeAiProvider(options.provider || getAiProvider(options.storage));
-  const isMistral = provider === 'mistral';
-  const providerTitle = isMistral ? 'Mistral' : 'Groq';
+  const isGemini = provider === 'gemini';
+  const providerTitle = isGemini ? 'Gemini' : 'Groq';
 
   const apiKey = options.apiKey !== undefined
     ? String(options.apiKey).trim()
-    : (isMistral ? getMistralApiKey(options.storage) : getGroqApiKey(options.storage));
+    : (isGemini ? getGeminiApiKey(options.storage) : getGroqApiKey(options.storage));
   if (!apiKey) {
     throw new Error(`Ключ ${providerTitle} API не задан! Укажите ключ в окне «⚙️ Настройки API».`);
   }
 
-  const model = isMistral
-    ? normalizeMistralModelName(options.model || getMistralModel(options.storage))
+  const model = isGemini
+    ? normalizeGeminiModelName(options.model || getGeminiModel(options.storage))
     : normalizeGroqModelName(options.model || getGroqModel(options.storage));
 
-  const endpoint = isMistral ? MISTRAL_API_ENDPOINT : GROQ_API_ENDPOINT;
+  const endpoint = isGemini ? GEMINI_API_ENDPOINT : GROQ_API_ENDPOINT;
   const fetchImpl = options.fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
   if (!fetchImpl) {
     throw new Error('Fetch API недоступен в текущем окружении.');
@@ -346,16 +346,14 @@ export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
     const buildFetchOptions = (targetModel) => {
       const payload = {
         model: targetModel,
-        temperature: options.temperature ?? 0.85,
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ]
       };
-      if (isMistral) {
-        payload.max_tokens = options.maxTokens ?? 1000;
-      } else {
+      if (!isGemini) {
+        payload.temperature = options.temperature ?? 0.85;
         // gpt-oss по умолчанию тратит тысячи скрытых reasoning-токенов на запрос,
         // а они списываются из минутного лимита Groq. Нам нужен только короткий JSON.
         payload.reasoning_effort = options.reasoningEffort ?? 'low';
@@ -378,8 +376,12 @@ export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
     let response = await fetchImpl(endpoint, buildFetchOptions(model));
 
     // Если кластер Groq вернул 404 для модели, пробуем резервную быструю модель FAST_GROQ_MODEL
-    if (!isMistral && response.status === 404 && !options.disableModelFallback && model !== FAST_GROQ_MODEL) {
+    if (!isGemini && response.status === 404 && !options.disableModelFallback && model !== FAST_GROQ_MODEL) {
       response = await fetchImpl(endpoint, buildFetchOptions(FAST_GROQ_MODEL));
+    }
+    // Недоступная для ключа модель Gemini — пробуем базовую Flash-Lite
+    if (isGemini && response.status === 404 && !options.disableModelFallback && model !== DEFAULT_GEMINI_MODEL) {
+      response = await fetchImpl(endpoint, buildFetchOptions(DEFAULT_GEMINI_MODEL));
     }
 
     if (!response.ok) {
@@ -586,8 +588,8 @@ export async function generateCommentaryForEnteredScore({
   const loser = validation.p1WinsMatch ? player2 : player1;
   const finalScoreStr = validation.sets.join(' ');
   const activeProvider = normalizeAiProvider(options.provider || getAiProvider(options.storage));
-  const activeModel = activeProvider === 'mistral'
-    ? normalizeMistralModelName(options.model || getMistralModel(options.storage))
+  const activeModel = activeProvider === 'gemini'
+    ? normalizeGeminiModelName(options.model || getGeminiModel(options.storage))
     : normalizeGroqModelName(options.model || getGroqModel(options.storage));
 
   const fallbackStoryline = generateMatchNarrative(winner, loser, validation.sets, surface, tourneyName, stage);
@@ -739,8 +741,8 @@ export async function simulateMatchWithGroq({
   }
 
   const activeProvider = normalizeAiProvider(options.provider || getAiProvider(options.storage));
-  const activeModel = activeProvider === 'mistral'
-    ? normalizeMistralModelName(options.model || getMistralModel(options.storage))
+  const activeModel = activeProvider === 'gemini'
+    ? normalizeGeminiModelName(options.model || getGeminiModel(options.storage))
     : normalizeGroqModelName(options.model || getGroqModel(options.storage));
 
   // Генерируем вероятностные директивы для этого конкретного розыгрыша (45% 3-сетовый триллер, 20% апсет аутсайдера)
@@ -1102,12 +1104,12 @@ if (typeof window !== 'undefined') {
   window.getAiSourceHeaderLabel = getAiSourceHeaderLabel;
   window.getAiProvider = getAiProvider;
   window.setAiProvider = setAiProvider;
-  window.getMistralApiKey = getMistralApiKey;
-  window.setMistralApiKey = setMistralApiKey;
-  window.hasMistralApiKey = hasMistralApiKey;
-  window.getMistralModel = getMistralModel;
-  window.setMistralModel = setMistralModel;
-  window.normalizeMistralModelName = normalizeMistralModelName;
+  window.getGeminiApiKey = getGeminiApiKey;
+  window.setGeminiApiKey = setGeminiApiKey;
+  window.hasGeminiApiKey = hasGeminiApiKey;
+  window.getGeminiModel = getGeminiModel;
+  window.setGeminiModel = setGeminiModel;
+  window.normalizeGeminiModelName = normalizeGeminiModelName;
   window.generateCommentaryForEnteredScore = generateCommentaryForEnteredScore;
   window.simulateMatchWithGroq = simulateMatchWithGroq;
   window.generateFinalPressColumn = generateFinalPressColumn;

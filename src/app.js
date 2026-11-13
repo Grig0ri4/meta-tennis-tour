@@ -109,11 +109,11 @@ import {
   getAiSourceHeaderLabel,
   getAiProvider,
   setAiProvider,
-  getMistralApiKey,
-  setMistralApiKey,
-  getMistralModel,
-  setMistralModel,
-  normalizeMistralModelName,
+  getGeminiApiKey,
+  setGeminiApiKey,
+  getGeminiModel,
+  setGeminiModel,
+  normalizeGeminiModelName,
   simulateMatchWithGroq,
   generateCommentaryForEnteredScore,
   generateFinalPressColumn,
@@ -455,9 +455,9 @@ export function runStorageGarbageCollector() {
         'groq_api_key',
         'meta_groq_api_key_v1',
         'meta_groq_model_v1',
-        'mistral_api_key',
+        'gemini_api_key',
         'meta_ai_provider_v1',
-        'meta_mistral_model_v1'
+        'meta_gemini_model_v1'
       ].includes(k);
     };
     const keysToRemove = [];
@@ -5118,7 +5118,7 @@ export async function generateCommentaryForScoreWithAI() {
     pendingAiNarrative = result.storyline || '';
     pendingWinnerQuote = result.winnerQuote || '';
     pendingLoserQuote = result.loserQuote || '';
-    const sourceTag = result.sourceLabel || getAiSourceHeaderLabel(result.model, result.source === 'mistral' ? 'mistral' : getAiProvider());
+    const sourceTag = result.sourceLabel || getAiSourceHeaderLabel(result.model, result.source === 'gemini' ? 'gemini' : getAiProvider());
     pendingAiSourceLabel = sourceTag;
     match.aiSourceLabel = sourceTag;
 
@@ -5226,7 +5226,7 @@ export async function simulateMatchWithAI() {
       pendingAiNarrative = result.storyline || '';
       pendingWinnerQuote = result.winnerQuote || '';
       pendingLoserQuote = result.loserQuote || '';
-      const sourceTag = result.sourceLabel || getAiSourceHeaderLabel(result.model, result.source === 'mistral' ? 'mistral' : getAiProvider());
+      const sourceTag = result.sourceLabel || getAiSourceHeaderLabel(result.model, result.source === 'gemini' ? 'gemini' : getAiProvider());
       pendingAiSourceLabel = sourceTag;
       match.aiSourceLabel = sourceTag;
       if (stillActiveMatch) {
@@ -7162,11 +7162,11 @@ function maskApiKey(apiKey) {
 
 function updateAiSettingsBlocksVisibility() {
   const providerSel = document.getElementById('aiProviderSelect');
-  const provider = providerSel && providerSel.value === 'mistral' ? 'mistral' : 'groq';
+  const provider = providerSel && providerSel.value === 'gemini' ? 'gemini' : 'groq';
   const groqBlock = document.getElementById('groqSettingsBlock');
-  const mistralBlock = document.getElementById('mistralSettingsBlock');
-  if (groqBlock) groqBlock.style.display = provider === 'mistral' ? 'none' : 'block';
-  if (mistralBlock) mistralBlock.style.display = provider === 'mistral' ? 'block' : 'none';
+  const geminiBlock = document.getElementById('geminiSettingsBlock');
+  if (groqBlock) groqBlock.style.display = provider === 'gemini' ? 'none' : 'block';
+  if (geminiBlock) geminiBlock.style.display = provider === 'gemini' ? 'block' : 'none';
 }
 
 function updateAiStatusBadgesUI() {
@@ -7185,18 +7185,18 @@ function updateAiStatusBadgesUI() {
     }
   }
 
-  const mistralBadge = document.getElementById('mistralKeyStatusBadge');
-  if (mistralBadge) {
-    const mistralKey = getMistralApiKey();
-    const model = normalizeMistralModelName(getMistralModel());
-    if (mistralKey) {
-      mistralBadge.style.borderColor = 'var(--primary)';
-      mistralBadge.style.color = 'var(--primary)';
-      mistralBadge.innerHTML = `🟢 <b>Ключ Mistral API активен</b> (${maskApiKey(mistralKey)}) · Модель: <b>${model}</b>`;
+  const geminiBadge = document.getElementById('geminiKeyStatusBadge');
+  if (geminiBadge) {
+    const geminiKey = getGeminiApiKey();
+    const model = normalizeGeminiModelName(getGeminiModel());
+    if (geminiKey) {
+      geminiBadge.style.borderColor = 'var(--primary)';
+      geminiBadge.style.color = 'var(--primary)';
+      geminiBadge.innerHTML = `🟢 <b>Ключ Gemini API активен</b> (${maskApiKey(geminiKey)}) · Модель: <b>${model}</b>`;
     } else {
-      mistralBadge.style.borderColor = 'var(--gold)';
-      mistralBadge.style.color = 'var(--gold)';
-      mistralBadge.innerHTML = `🟡 <b>Ключ Mistral не задан</b> — бесплатный ключ выдается на console.mistral.ai`;
+      geminiBadge.style.borderColor = 'var(--gold)';
+      geminiBadge.style.color = 'var(--gold)';
+      geminiBadge.innerHTML = `🟡 <b>Ключ Gemini не задан</b> — бесплатный ключ выдается на aistudio.google.com`;
     }
   }
 }
@@ -7208,10 +7208,10 @@ export function openApiSettingsModal() {
   const groqModelSel = document.getElementById('groqModelSelect');
   if (groqInput) groqInput.value = getGroqApiKey();
   if (groqModelSel) groqModelSel.value = normalizeGroqModelName(getGroqModel());
-  const mistralInput = document.getElementById('mistralApiKeyInput');
-  const mistralModelSel = document.getElementById('mistralModelSelect');
-  if (mistralInput) mistralInput.value = getMistralApiKey();
-  if (mistralModelSel) mistralModelSel.value = normalizeMistralModelName(getMistralModel());
+  const geminiInput = document.getElementById('geminiApiKeyInput');
+  const geminiModelSel = document.getElementById('geminiModelSelect');
+  if (geminiInput) geminiInput.value = getGeminiApiKey();
+  if (geminiModelSel) geminiModelSel.value = normalizeGeminiModelName(getGeminiModel());
   updateAiSettingsBlocksVisibility();
   updateAiStatusBadgesUI();
   document.getElementById('apiSettingsModal')?.classList.add('open');
@@ -7228,28 +7228,28 @@ export function saveGroqApiSettings() {
   const groqModelSel = document.getElementById('groqModelSelect');
   if (groqInput) setGroqApiKey(groqInput.value);
   if (groqModelSel) setGroqModel(normalizeGroqModelName(groqModelSel.value));
-  const mistralInput = document.getElementById('mistralApiKeyInput');
-  const mistralModelSel = document.getElementById('mistralModelSelect');
-  if (mistralInput) setMistralApiKey(mistralInput.value);
-  if (mistralModelSel) setMistralModel(normalizeMistralModelName(mistralModelSel.value));
+  const geminiInput = document.getElementById('geminiApiKeyInput');
+  const geminiModelSel = document.getElementById('geminiModelSelect');
+  if (geminiInput) setGeminiApiKey(geminiInput.value);
+  if (geminiModelSel) setGeminiModel(normalizeGeminiModelName(geminiModelSel.value));
   updateAiStatusBadgesUI();
   closeModal('apiSettingsModal');
-  const activeModel = provider === 'mistral' ? getMistralModel() : getGroqModel();
-  const activeKey = provider === 'mistral' ? getMistralApiKey() : getGroqApiKey();
+  const activeModel = provider === 'gemini' ? getGeminiModel() : getGroqModel();
+  const activeKey = provider === 'gemini' ? getGeminiApiKey() : getGroqApiKey();
   if (!activeKey) {
-    showToast('⚠️ Провайдер <b>Mistral</b> выбран, но ключ Mistral не задан — ИИ временно работает на авто-движке.');
+    showToast('⚠️ Провайдер <b>Gemini</b> выбран, но ключ Gemini не задан — ИИ временно работает на авто-движке.');
   } else {
-    showToast(`⚙️ Настройки ИИ сохранены! Провайдер: <b>${provider === 'mistral' ? 'Mistral' : 'Groq'}</b>, модель: <b>${activeModel}</b>.`);
+    showToast(`⚙️ Настройки ИИ сохранены! Провайдер: <b>${provider === 'gemini' ? 'Gemini' : 'Groq'}</b>, модель: <b>${activeModel}</b>.`);
   }
 }
 
 export function clearGroqApiKeySettings() {
-  if (getAiProvider() === 'mistral') {
-    setMistralApiKey('');
-    const mistralInput = document.getElementById('mistralApiKeyInput');
-    if (mistralInput) mistralInput.value = '';
+  if (getAiProvider() === 'gemini') {
+    setGeminiApiKey('');
+    const geminiInput = document.getElementById('geminiApiKeyInput');
+    if (geminiInput) geminiInput.value = '';
     updateAiStatusBadgesUI();
-    showToast('🔄 Ключ Mistral API очищен.');
+    showToast('🔄 Ключ Gemini API очищен.');
     return;
   }
   setGroqApiKey(DEFAULT_GROQ_API_KEY);

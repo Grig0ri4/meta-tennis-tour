@@ -91,13 +91,13 @@ import {
   setGroqApiKey,
   getGroqModel,
   setGroqModel,
-  MISTRAL_API_ENDPOINT,
-  DEFAULT_MISTRAL_MODEL,
-  normalizeMistralModelName,
-  getMistralApiKey,
-  setMistralApiKey,
-  getMistralModel,
-  setMistralModel,
+  GEMINI_API_ENDPOINT,
+  DEFAULT_GEMINI_MODEL,
+  normalizeGeminiModelName,
+  getGeminiApiKey,
+  setGeminiApiKey,
+  getGeminiModel,
+  setGeminiModel,
   getAiProvider,
   setAiProvider,
   getAiSourceHeaderLabel,
@@ -655,23 +655,23 @@ test('Блок 1: Интеграция Groq API (aiService.js) — нижний 
   );
 });
 
-test('Блок 1b: Интеграция Mistral API — провайдер, отдельный ключ, max_tokens без reasoning и честная метка источника', async () => {
+test('Блок 1b: Интеграция Gemini API — провайдер, отдельный ключ, совместимый JSON-запрос и честная метка источника', async () => {
   const memStore = createMemoryStorage();
-  assert.equal(MISTRAL_API_ENDPOINT, 'https://api.mistral.ai/v1/chat/completions');
-  assert.equal(DEFAULT_MISTRAL_MODEL, 'mistral-small-latest');
+  assert.equal(GEMINI_API_ENDPOINT, 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+  assert.equal(DEFAULT_GEMINI_MODEL, 'gemini-3.5-flash-lite');
   assert.equal(getAiProvider(memStore), 'groq');
-  assert.equal(setAiProvider('mistral', memStore), 'mistral');
-  assert.equal(getAiProvider(memStore), 'mistral');
-  assert.equal(getMistralModel(memStore), DEFAULT_MISTRAL_MODEL);
+  assert.equal(setAiProvider('gemini', memStore), 'gemini');
+  assert.equal(getAiProvider(memStore), 'gemini');
+  assert.equal(getGeminiModel(memStore), DEFAULT_GEMINI_MODEL);
 
-  assert.equal(normalizeMistralModelName('Mistral-Large-Latest'), 'mistral-large-latest');
-  assert.equal(normalizeMistralModelName('unknown-model'), DEFAULT_MISTRAL_MODEL);
-  setMistralModel('mistral-large-latest', memStore);
-  assert.equal(getMistralModel(memStore), 'mistral-large-latest');
+  assert.equal(normalizeGeminiModelName('Gemini-3.8-Flash'), 'gemini-3.8-flash');
+  assert.equal(normalizeGeminiModelName('unknown-model'), DEFAULT_GEMINI_MODEL);
+  setGeminiModel('gemini-3.8-flash', memStore);
+  assert.equal(getGeminiModel(memStore), 'gemini-3.8-flash');
 
-  setMistralApiKey('ms_test_654321', memStore);
-  assert.equal(getMistralApiKey(memStore), 'ms_test_654321');
-  assert.equal(getGroqApiKey(memStore), DEFAULT_GROQ_API_KEY, 'Ключ Groq не подменяется ключом Mistral');
+  setGeminiApiKey('gm_test_654321', memStore);
+  assert.equal(getGeminiApiKey(memStore), 'gm_test_654321');
+  assert.equal(getGroqApiKey(memStore), DEFAULT_GROQ_API_KEY, 'Ключ Groq не подменяется ключом Gemini');
 
   const players = buildInitial300Players();
   const p1 = players[0];
@@ -680,7 +680,7 @@ test('Блок 1b: Интеграция Mistral API — провайдер, от
   let capturedUrl = '';
   let capturedHeaders = {};
   let capturedBody = null;
-  const mockFetchMistral = async (url, init) => {
+  const mockFetchGemini = async (url, init) => {
     capturedUrl = url;
     capturedHeaders = init.headers;
     capturedBody = JSON.parse(init.body);
@@ -707,31 +707,31 @@ test('Блок 1b: Интеграция Mistral API — провайдер, от
     };
   };
 
-  const mistralSim = await simulateMatchWithGroq({
+  const geminiSim = await simulateMatchWithGroq({
     p1,
     p2,
     tourneyName: 'Париж Masters',
     surface: 'Зал',
     bestOf: 3,
     stage: 'Финал',
-    options: { storage: memStore, fetchImpl: mockFetchMistral, strictGroq: true }
+    options: { storage: memStore, fetchImpl: mockFetchGemini, strictGroq: true }
   });
 
-  assert.equal(capturedUrl, 'https://api.mistral.ai/v1/chat/completions');
-  assert.equal(capturedHeaders['Authorization'], 'Bearer ms_test_654321');
-  assert.equal(capturedBody.model, 'mistral-large-latest');
-  assert.equal(capturedBody.max_tokens, 1000, 'Mistral получает max_tokens');
+  assert.equal(capturedUrl, 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+  assert.equal(capturedHeaders['Authorization'], 'Bearer gm_test_654321');
+  assert.equal(capturedBody.model, 'gemini-3.8-flash');
   assert.equal(capturedBody.max_completion_tokens, undefined);
   assert.equal(capturedBody.reasoning_effort, undefined);
+  assert.equal(capturedBody.temperature, undefined, 'Gemini получает только проверенные поля OpenAI-совместимого API');
   assert.equal(capturedBody.response_format.type, 'json_object');
-  assert.equal(mistralSim.source, 'mistral');
-  assert.equal(mistralSim.sourceLabel, 'ИИ-репортаж (Mistral / Mistral Large)');
-  assert.equal(getAiSourceHeaderLabel('mistral-small-latest', 'mistral'), 'ИИ-репортаж (Mistral / Mistral Small)');
-  assert.equal(getAiSourceHeaderLabel('mistral-small-latest', 'groq'), 'ИИ-репортаж (Groq / GPT-OSS 120B)');
+  assert.equal(geminiSim.source, 'gemini');
+  assert.equal(geminiSim.sourceLabel, 'ИИ-репортаж (Gemini / Gemini 3.8 Flash)');
+  assert.equal(getAiSourceHeaderLabel('gemini-3.5-flash-lite', 'gemini'), 'ИИ-репортаж (Gemini / Gemini 3.5 Flash-Lite)');
+  assert.equal(getAiSourceHeaderLabel('gemini-3.5-flash-lite', 'groq'), 'ИИ-репортаж (Groq / GPT-OSS 120B)');
 
-  // Без ключа Mistral — явная ошибка вместо тихого переключения на Groq
+  // Без ключа Gemini — явная ошибка вместо тихого переключения на Groq
   const emptyStore = createMemoryStorage();
-  setAiProvider('mistral', emptyStore);
+  setAiProvider('gemini', emptyStore);
   await assert.rejects(
     async () => {
       await simulateMatchWithGroq({
@@ -740,11 +740,11 @@ test('Блок 1b: Интеграция Mistral API — провайдер, от
         tourneyName: 'Париж Masters',
         surface: 'Зал',
         bestOf: 3,
-        options: { storage: emptyStore, fetchImpl: mockFetchMistral, strictGroq: true }
+        options: { storage: emptyStore, fetchImpl: mockFetchGemini, strictGroq: true }
       });
     },
     (err) => {
-      assert.ok(err.message.includes('Ключ Mistral API не задан'));
+      assert.ok(err.message.includes('Ключ Gemini API не задан'));
       return true;
     }
   );
