@@ -189,6 +189,10 @@ export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
         body: JSON.stringify({
           model: targetModel,
           temperature: options.temperature ?? 0.85,
+          // gpt-oss по умолчанию тратит тысячи скрытых reasoning-токенов на запрос,
+          // а они списываются из минутного лимита Groq. Нам нужен только короткий JSON.
+          reasoning_effort: options.reasoningEffort ?? 'low',
+          max_completion_tokens: options.maxCompletionTokens ?? 1000,
           response_format: { type: 'json_object' },
           messages: [
             { role: 'system', content: systemPrompt },
@@ -210,6 +214,19 @@ export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
     }
 
     if (!response.ok) {
+      if (response.status === 429) {
+        let limitDetail = '';
+        try {
+          const errJson = await response.json();
+          const apiMsg = String(errJson?.error?.message || '').trim();
+          if (apiMsg) limitDetail = ` ${apiMsg.slice(0, 220)}`;
+        } catch {}
+        const retryAfter = Number(response.headers?.get?.('retry-after'));
+        const waitHint = Number.isFinite(retryAfter) && retryAfter > 0
+          ? ` Повтор через ~${Math.ceil(retryAfter)} с.`
+          : ' Подождите минуту и повторите.';
+        throw new Error(`Лимит Groq исчерпан (429).${limitDetail}${waitHint}`);
+      }
       let errDetail = `HTTP ${response.status}`;
       try {
         const errJson = await response.json();
@@ -454,9 +471,6 @@ export async function generateCommentaryForEnteredScore({
 
     const userPrompt = [
       matchContext,
-      stageToneInstruction,
-      rivalryInstruction,
-      antiClichéDirective,
       `Разбери счёт "${finalScoreStr}" (победил ${winner.name}) на стадии "${stage}" без домыслов и напиши редакторски жёсткую сводку и две живые цитаты.`
     ].join('\n');
 
@@ -629,11 +643,7 @@ export async function simulateMatchWithGroq({
     ].join('\n');
 
     const userPrompt = [
-      matchParamsBlock,
-      stageToneInstruction,
-      rivalryInstruction,
-      antiClichéDirective,
-      scenarioDirective,
+      `Пара: ${player1.name} — ${player2.name}.`,
       'Сгенерируй нешаблонный, физически возможный счёт (ЗАПРЕЩЕНЫ 6-3 6-2 и 3-6 2-6), затем жёсткую сводку и две живые цитаты, которые не противоречат этому счёту.'
     ].join('\n');
 
