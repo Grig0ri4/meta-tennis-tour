@@ -91,6 +91,16 @@ import {
   setGroqApiKey,
   getGroqModel,
   setGroqModel,
+  MISTRAL_API_ENDPOINT,
+  DEFAULT_MISTRAL_MODEL,
+  normalizeMistralModelName,
+  getMistralApiKey,
+  setMistralApiKey,
+  getMistralModel,
+  setMistralModel,
+  getAiProvider,
+  setAiProvider,
+  getAiSourceHeaderLabel,
   simulateMatchWithGroq,
   generateCommentaryForEnteredScore,
   generateFinalPressColumn,
@@ -640,6 +650,101 @@ test('Блок 1: Интеграция Groq API (aiService.js) — нижний 
     },
     (err) => {
       assert.ok(err.message.includes('Invalid API Key provided'));
+      return true;
+    }
+  );
+});
+
+test('Блок 1b: Интеграция Mistral API — провайдер, отдельный ключ, max_tokens без reasoning и честная метка источника', async () => {
+  const memStore = createMemoryStorage();
+  assert.equal(MISTRAL_API_ENDPOINT, 'https://api.mistral.ai/v1/chat/completions');
+  assert.equal(DEFAULT_MISTRAL_MODEL, 'mistral-small-latest');
+  assert.equal(getAiProvider(memStore), 'groq');
+  assert.equal(setAiProvider('mistral', memStore), 'mistral');
+  assert.equal(getAiProvider(memStore), 'mistral');
+  assert.equal(getMistralModel(memStore), DEFAULT_MISTRAL_MODEL);
+
+  assert.equal(normalizeMistralModelName('Mistral-Large-Latest'), 'mistral-large-latest');
+  assert.equal(normalizeMistralModelName('unknown-model'), DEFAULT_MISTRAL_MODEL);
+  setMistralModel('mistral-large-latest', memStore);
+  assert.equal(getMistralModel(memStore), 'mistral-large-latest');
+
+  setMistralApiKey('ms_test_654321', memStore);
+  assert.equal(getMistralApiKey(memStore), 'ms_test_654321');
+  assert.equal(getGroqApiKey(memStore), DEFAULT_GROQ_API_KEY, 'Ключ Groq не подменяется ключом Mistral');
+
+  const players = buildInitial300Players();
+  const p1 = players[0];
+  const p2 = players[1];
+
+  let capturedUrl = '';
+  let capturedHeaders = {};
+  let capturedBody = null;
+  const mockFetchMistral = async (url, init) => {
+    capturedUrl = url;
+    capturedHeaders = init.headers;
+    capturedBody = JSON.parse(init.body);
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  winnerId: p2.id,
+                  score: '3-6 6-4 7-6(4)',
+                  storyline: 'Матч решился на тай-брейке третьей партии.',
+                  winnerQuote: 'Тай-брейк — это лотерея, сегодня билет достался мне.',
+                  loserQuote: 'На приеме не хватило агрессии в решающий момент.'
+                })
+              }
+            }
+          ]
+        };
+      }
+    };
+  };
+
+  const mistralSim = await simulateMatchWithGroq({
+    p1,
+    p2,
+    tourneyName: 'Париж Masters',
+    surface: 'Зал',
+    bestOf: 3,
+    stage: 'Финал',
+    options: { storage: memStore, fetchImpl: mockFetchMistral, strictGroq: true }
+  });
+
+  assert.equal(capturedUrl, 'https://api.mistral.ai/v1/chat/completions');
+  assert.equal(capturedHeaders['Authorization'], 'Bearer ms_test_654321');
+  assert.equal(capturedBody.model, 'mistral-large-latest');
+  assert.equal(capturedBody.max_tokens, 1000, 'Mistral получает max_tokens');
+  assert.equal(capturedBody.max_completion_tokens, undefined);
+  assert.equal(capturedBody.reasoning_effort, undefined);
+  assert.equal(capturedBody.response_format.type, 'json_object');
+  assert.equal(mistralSim.source, 'mistral');
+  assert.equal(mistralSim.sourceLabel, 'ИИ-репортаж (Mistral / Mistral Large)');
+  assert.equal(getAiSourceHeaderLabel('mistral-small-latest', 'mistral'), 'ИИ-репортаж (Mistral / Mistral Small)');
+  assert.equal(getAiSourceHeaderLabel('mistral-small-latest', 'groq'), 'ИИ-репортаж (Groq / GPT-OSS 120B)');
+
+  // Без ключа Mistral — явная ошибка вместо тихого переключения на Groq
+  const emptyStore = createMemoryStorage();
+  setAiProvider('mistral', emptyStore);
+  await assert.rejects(
+    async () => {
+      await simulateMatchWithGroq({
+        p1,
+        p2,
+        tourneyName: 'Париж Masters',
+        surface: 'Зал',
+        bestOf: 3,
+        options: { storage: emptyStore, fetchImpl: mockFetchMistral, strictGroq: true }
+      });
+    },
+    (err) => {
+      assert.ok(err.message.includes('Ключ Mistral API не задан'));
       return true;
     }
   );

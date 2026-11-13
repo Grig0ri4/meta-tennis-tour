@@ -101,12 +101,19 @@ import {
 import {
   DEFAULT_GROQ_API_KEY,
   normalizeGroqModelName,
-  getGroqSourceHeaderLabel,
   getGroqApiKey,
   setGroqApiKey,
   hasGroqApiKey,
   getGroqModel,
   setGroqModel,
+  getAiSourceHeaderLabel,
+  getAiProvider,
+  setAiProvider,
+  getMistralApiKey,
+  setMistralApiKey,
+  getMistralModel,
+  setMistralModel,
+  normalizeMistralModelName,
   simulateMatchWithGroq,
   generateCommentaryForEnteredScore,
   generateFinalPressColumn,
@@ -447,7 +454,10 @@ export function runStorageGarbageCollector() {
         'meta_retired_legends',
         'groq_api_key',
         'meta_groq_api_key_v1',
-        'meta_groq_model_v1'
+        'meta_groq_model_v1',
+        'mistral_api_key',
+        'meta_ai_provider_v1',
+        'meta_mistral_model_v1'
       ].includes(k);
     };
     const keysToRemove = [];
@@ -4669,7 +4679,7 @@ export function handleLiveScoreInputForMomentum() {
   updateMomentumBarUI(val, activeMatchScore.match.p1.name, activeMatchScore.match.p2.name);
 }
 
-function renderMatchAiReportBlock(storyline = '', winnerQuote = '', loserQuote = '', winnerName = 'Победитель', loserName = 'Соперник', sourceLabel = 'ИИ-репортаж (Groq / GPT-OSS 120B)') {
+function renderMatchAiReportBlock(storyline = '', winnerQuote = '', loserQuote = '', winnerName = 'Победитель', loserName = 'Соперник', sourceLabel = 'ИИ-репортаж') {
   const reportCard = document.getElementById('aiMatchReportCard');
   const narrativeBox = document.getElementById('aiMatchNarrative');
   const quotesBox = document.getElementById('aiMatchQuotes');
@@ -5069,7 +5079,7 @@ export async function generateCommentaryForScoreWithAI() {
 
   if (btnComment) {
     btnComment.disabled = true;
-    btnComment.innerText = '🎙️ Groq пишет репортаж по счету...';
+    btnComment.innerText = '🎙️ ИИ пишет репортаж по счету...';
   }
 
   try {
@@ -5108,7 +5118,7 @@ export async function generateCommentaryForScoreWithAI() {
     pendingAiNarrative = result.storyline || '';
     pendingWinnerQuote = result.winnerQuote || '';
     pendingLoserQuote = result.loserQuote || '';
-    const sourceTag = result.sourceLabel || getGroqSourceHeaderLabel(result.model || getGroqModel());
+    const sourceTag = result.sourceLabel || getAiSourceHeaderLabel(result.model, result.source === 'mistral' ? 'mistral' : getAiProvider());
     pendingAiSourceLabel = sourceTag;
     match.aiSourceLabel = sourceTag;
 
@@ -5132,13 +5142,13 @@ export async function generateCommentaryForScoreWithAI() {
       renderMatchAiReportBlock(pendingAiNarrative, pendingWinnerQuote, pendingLoserQuote, winnerObj.name, loserObj.name, sourceTag);
     }
   } catch (err) {
-    const errMsg = err?.message || 'Не удалось связаться с Groq API';
+    const errMsg = err?.message || 'Не удалось связаться с ИИ API';
     if (errEl) {
       errEl.className = 'error-text groq-error-alert';
-      errEl.innerHTML = `❌ <b>Ошибка запроса к Groq API:</b> ${errMsg}`;
+      errEl.innerHTML = `❌ <b>Ошибка запроса к ИИ API:</b> ${errMsg}`;
       errEl.style.display = 'block';
     }
-    showToast(`❌ <b>Сбой запроса к Groq API:</b> ${errMsg}`, 6500);
+    showToast(`❌ <b>Сбой запроса к ИИ API:</b> ${errMsg}`, 6500);
   } finally {
     if (btnComment) {
       btnComment.disabled = false;
@@ -5147,7 +5157,7 @@ export async function generateCommentaryForScoreWithAI() {
   }
 }
 
-// РАЗДЕЛ 2 (Сценарий Б): Кнопка «🧠 ИИ-симуляция матча (Groq)» — полная симуляция без шаблонов 6-3 6-2 (45% триллеров, 20% апсетов)
+// РАЗДЕЛ 2 (Сценарий Б): Кнопка «🧠 ИИ-симуляция матча» — полная симуляция без шаблонов 6-3 6-2 (45% триллеров, 20% апсетов)
 export async function simulateMatchWithAI() {
   if (guardCanonReadOnly()) return;
   if (viewingYear === currentTourYear && Boolean(activeTourney?.completed)) return;
@@ -5173,7 +5183,7 @@ export async function simulateMatchWithAI() {
 
   if (btnAi) {
     btnAi.disabled = true;
-    btnAi.innerText = '🧠 Groq симулирует матч...';
+    btnAi.innerText = '🧠 ИИ симулирует матч...';
   }
 
   try {
@@ -5216,7 +5226,7 @@ export async function simulateMatchWithAI() {
       pendingAiNarrative = result.storyline || '';
       pendingWinnerQuote = result.winnerQuote || '';
       pendingLoserQuote = result.loserQuote || '';
-      const sourceTag = result.sourceLabel || getGroqSourceHeaderLabel(result.model || getGroqModel());
+      const sourceTag = result.sourceLabel || getAiSourceHeaderLabel(result.model, result.source === 'mistral' ? 'mistral' : getAiProvider());
       pendingAiSourceLabel = sourceTag;
       match.aiSourceLabel = sourceTag;
       if (stillActiveMatch) {
@@ -5245,17 +5255,17 @@ export async function simulateMatchWithAI() {
       closePopup: false
     });
   } catch (err) {
-    const errMsg = err?.message || 'Не удалось связаться с Groq API';
+    const errMsg = err?.message || 'Не удалось связаться с ИИ API';
     if (errEl) {
       errEl.className = 'error-text groq-error-alert';
-      errEl.innerHTML = `❌ <b>Ошибка запроса к Groq API:</b> ${errMsg}`;
+      errEl.innerHTML = `❌ <b>Ошибка запроса к ИИ API:</b> ${errMsg}`;
       errEl.style.display = 'block';
     }
-    showToast(`❌ <b>Сбой запроса к Groq API:</b> ${errMsg}`, 6500);
+    showToast(`❌ <b>Сбой запроса к ИИ API:</b> ${errMsg}`, 6500);
   } finally {
     if (btnAi) {
       btnAi.disabled = false;
-      btnAi.innerText = '🧠 ИИ-симуляция матча (Groq)';
+      btnAi.innerText = '🧠 ИИ-симуляция матча';
     }
   }
 }
@@ -7060,7 +7070,7 @@ export async function generateSinglePlayerStyleWithGroq() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerText = '🧠 Сгенерировать профиль (Groq)';
+      btn.innerText = '🧠 Сгенерировать профиль (ИИ)';
     }
   }
 }
@@ -7146,49 +7156,106 @@ export function openPointsInfoModal() {
   document.getElementById('pointsInfoModal').classList.add('open');
 }
 
-function updateGroqStatusBadgeUI() {
-  const badge = document.getElementById('groqKeyStatusBadge');
-  if (!badge) return;
-  const activeKey = getGroqApiKey();
-  const model = normalizeGroqModelName(getGroqModel());
-  if (activeKey) {
-    const masked = activeKey.length > 8
-      ? `${activeKey.slice(0, 4)}••••${activeKey.slice(-4)}`
-      : '••••••••';
-    badge.style.borderColor = 'var(--primary)';
-    badge.style.color = 'var(--primary)';
-    badge.innerHTML = `🟢 <b>Ключ Groq API активен</b> (${masked}) · Модель: <b>${model}</b>`;
-  } else {
-    badge.style.borderColor = 'var(--gold)';
-    badge.style.color = 'var(--gold)';
-    badge.innerHTML = `🟡 <b>Ключ Groq не задан</b>`;
+function maskApiKey(apiKey) {
+  return apiKey.length > 8 ? `${apiKey.slice(0, 4)}••••${apiKey.slice(-4)}` : '••••••••';
+}
+
+function updateAiSettingsBlocksVisibility() {
+  const providerSel = document.getElementById('aiProviderSelect');
+  const provider = providerSel && providerSel.value === 'mistral' ? 'mistral' : 'groq';
+  const groqBlock = document.getElementById('groqSettingsBlock');
+  const mistralBlock = document.getElementById('mistralSettingsBlock');
+  if (groqBlock) groqBlock.style.display = provider === 'mistral' ? 'none' : 'block';
+  if (mistralBlock) mistralBlock.style.display = provider === 'mistral' ? 'block' : 'none';
+}
+
+function updateAiStatusBadgesUI() {
+  const groqBadge = document.getElementById('groqKeyStatusBadge');
+  if (groqBadge) {
+    const activeKey = getGroqApiKey();
+    const model = normalizeGroqModelName(getGroqModel());
+    if (activeKey) {
+      groqBadge.style.borderColor = 'var(--primary)';
+      groqBadge.style.color = 'var(--primary)';
+      groqBadge.innerHTML = `🟢 <b>Ключ Groq API активен</b> (${maskApiKey(activeKey)}) · Модель: <b>${model}</b>`;
+    } else {
+      groqBadge.style.borderColor = 'var(--gold)';
+      groqBadge.style.color = 'var(--gold)';
+      groqBadge.innerHTML = `🟡 <b>Ключ Groq не задан</b>`;
+    }
+  }
+
+  const mistralBadge = document.getElementById('mistralKeyStatusBadge');
+  if (mistralBadge) {
+    const mistralKey = getMistralApiKey();
+    const model = normalizeMistralModelName(getMistralModel());
+    if (mistralKey) {
+      mistralBadge.style.borderColor = 'var(--primary)';
+      mistralBadge.style.color = 'var(--primary)';
+      mistralBadge.innerHTML = `🟢 <b>Ключ Mistral API активен</b> (${maskApiKey(mistralKey)}) · Модель: <b>${model}</b>`;
+    } else {
+      mistralBadge.style.borderColor = 'var(--gold)';
+      mistralBadge.style.color = 'var(--gold)';
+      mistralBadge.innerHTML = `🟡 <b>Ключ Mistral не задан</b> — бесплатный ключ выдается на console.mistral.ai`;
+    }
   }
 }
 
 export function openApiSettingsModal() {
-  const input = document.getElementById('groqApiKeyInput');
-  const modelSel = document.getElementById('groqModelSelect');
-  if (input) input.value = getGroqApiKey();
-  if (modelSel) modelSel.value = normalizeGroqModelName(getGroqModel());
-  updateGroqStatusBadgeUI();
+  const providerSel = document.getElementById('aiProviderSelect');
+  if (providerSel) providerSel.value = getAiProvider();
+  const groqInput = document.getElementById('groqApiKeyInput');
+  const groqModelSel = document.getElementById('groqModelSelect');
+  if (groqInput) groqInput.value = getGroqApiKey();
+  if (groqModelSel) groqModelSel.value = normalizeGroqModelName(getGroqModel());
+  const mistralInput = document.getElementById('mistralApiKeyInput');
+  const mistralModelSel = document.getElementById('mistralModelSelect');
+  if (mistralInput) mistralInput.value = getMistralApiKey();
+  if (mistralModelSel) mistralModelSel.value = normalizeMistralModelName(getMistralModel());
+  updateAiSettingsBlocksVisibility();
+  updateAiStatusBadgesUI();
   document.getElementById('apiSettingsModal')?.classList.add('open');
 }
 
+export function onAiProviderChange() {
+  updateAiSettingsBlocksVisibility();
+}
+
 export function saveGroqApiSettings() {
-  const input = document.getElementById('groqApiKeyInput');
-  const modelSel = document.getElementById('groqModelSelect');
-  if (input) setGroqApiKey(input.value);
-  if (modelSel) setGroqModel(normalizeGroqModelName(modelSel.value));
-  updateGroqStatusBadgeUI();
+  const providerSel = document.getElementById('aiProviderSelect');
+  const provider = setAiProvider(providerSel?.value);
+  const groqInput = document.getElementById('groqApiKeyInput');
+  const groqModelSel = document.getElementById('groqModelSelect');
+  if (groqInput) setGroqApiKey(groqInput.value);
+  if (groqModelSel) setGroqModel(normalizeGroqModelName(groqModelSel.value));
+  const mistralInput = document.getElementById('mistralApiKeyInput');
+  const mistralModelSel = document.getElementById('mistralModelSelect');
+  if (mistralInput) setMistralApiKey(mistralInput.value);
+  if (mistralModelSel) setMistralModel(normalizeMistralModelName(mistralModelSel.value));
+  updateAiStatusBadgesUI();
   closeModal('apiSettingsModal');
-  showToast(`⚙️ Настройки Groq API сохранены! Активная модель: <b>${getGroqModel()}</b>.`);
+  const activeModel = provider === 'mistral' ? getMistralModel() : getGroqModel();
+  const activeKey = provider === 'mistral' ? getMistralApiKey() : getGroqApiKey();
+  if (!activeKey) {
+    showToast('⚠️ Провайдер <b>Mistral</b> выбран, но ключ Mistral не задан — ИИ временно работает на авто-движке.');
+  } else {
+    showToast(`⚙️ Настройки ИИ сохранены! Провайдер: <b>${provider === 'mistral' ? 'Mistral' : 'Groq'}</b>, модель: <b>${activeModel}</b>.`);
+  }
 }
 
 export function clearGroqApiKeySettings() {
+  if (getAiProvider() === 'mistral') {
+    setMistralApiKey('');
+    const mistralInput = document.getElementById('mistralApiKeyInput');
+    if (mistralInput) mistralInput.value = '';
+    updateAiStatusBadgesUI();
+    showToast('🔄 Ключ Mistral API очищен.');
+    return;
+  }
   setGroqApiKey(DEFAULT_GROQ_API_KEY);
   const input = document.getElementById('groqApiKeyInput');
   if (input) input.value = DEFAULT_GROQ_API_KEY;
-  updateGroqStatusBadgeUI();
+  updateAiStatusBadgesUI();
   showToast('🔄 Восстановлен ключ Groq API по умолчанию.');
 }
 
@@ -7646,7 +7713,7 @@ export function renderHistoryYear() {
     </div>
 
     <h3 id="historyPressColumnsSection" style="margin: 18px 0 6px 0; font-size: 16px;">📰 Послематчевая колонка финалов ТБШ и Мастерсов (${year})</h3>
-    <small style="color: var(--text-dim); display: block; margin-bottom: 12px;">Аналитические материалы и заметки прессы (3–4 предложения) по итогам главных финалов сезона (Groq API + редакторский архив):</small>
+    <small style="color: var(--text-dim); display: block; margin-bottom: 12px;">Аналитические материалы и заметки прессы (3–4 предложения) по итогам главных финалов сезона (ИИ-провайдер + редакторский архив):</small>
     ${majorColumnsList.length === 0 ? `
       <div style="padding: 20px; color: var(--text-dim); text-align: center; border: 1px dashed var(--border); border-radius: 8px;">
         Статьи появятся здесь после завершения финалов турниров Большого Шлема и Мастерсов.
@@ -7659,7 +7726,7 @@ export function renderHistoryYear() {
               <span><b>${t.name}</b> · ${t.type} (${t.surface})</span>
               <div style="display: flex; align-items: center; gap: 6px;">
                 <span class="match-score">${t.score && t.score !== '—' ? formatTennisScore(t.score.split(' ')) : '—'}</span>
-                <button type="button" class="btn-purple btn-compact" style="padding: 2px 7px; font-size: 10.5px;" onclick="regeneratePressColumnForTourney('${t.id}', ${year})" title="Сгенерировать новую заметку через Groq">🧠 Groq</button>
+                <button type="button" class="btn-purple btn-compact" style="padding: 2px 7px; font-size: 10.5px;" onclick="regeneratePressColumnForTourney('${t.id}', ${year})" title="Сгенерировать новую заметку через ИИ">🧠 ИИ</button>
               </div>
             </div>
             <div class="press-column-headline">«${t.pressColumn.headline}»</div>
@@ -9006,6 +9073,7 @@ if (typeof window !== 'undefined') {
   window.handleImport2023ArchiveFile = handleImport2023ArchiveFile;
   window.import2023DrawsOnlyFromObject = import2023DrawsOnlyFromObject;
   window.openApiSettingsModal = openApiSettingsModal;
+  window.onAiProviderChange = onAiProviderChange;
   window.saveGroqApiSettings = saveGroqApiSettings;
   window.clearGroqApiKeySettings = clearGroqApiKeySettings;
   window.openPointsInfoModal = openPointsInfoModal;

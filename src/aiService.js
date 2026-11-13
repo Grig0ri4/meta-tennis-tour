@@ -1,7 +1,8 @@
 /**
- * Meta Tennis Tour — Модуль работы со сверхбыстрым Groq API (src/aiService.js)
- * Эндпоинт: https://api.groq.com/openai/v1/chat/completions
- * Модели (СТРОГО в нижнем регистре): 'openai/gpt-oss-120b' (по умолчанию) или 'openai/gpt-oss-20b'.
+ * Meta Tennis Tour — Модуль работы с ИИ-провайдерами (src/aiService.js)
+ * Поддерживаются два OpenAI-совместимых провайдера:
+ *  - Groq: https://api.groq.com/openai/v1/chat/completions ('openai/gpt-oss-120b' / 'openai/gpt-oss-20b')
+ *  - Mistral: https://api.mistral.ai/v1/chat/completions ('mistral-small-latest' / 'mistral-medium-latest' / 'mistral-large-latest')
  * Очистка ответа от Markdown (```json ... ```) перед JSON.parse().
  * Поддерживает два сценария в Матч-центре:
  *  - Сценарий А: ИИ-комментарий к введенному пользователем счету (generateCommentaryForEnteredScore)
@@ -23,6 +24,14 @@ export const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completion
 export const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
 export const FAST_GROQ_MODEL = 'openai/gpt-oss-20b';
 
+export const MISTRAL_API_ENDPOINT = 'https://api.mistral.ai/v1/chat/completions';
+export const DEFAULT_MISTRAL_MODEL = 'mistral-small-latest';
+export const MISTRAL_MODELS = [
+  { id: 'mistral-small-latest', label: 'mistral-small-latest (быстрая и экономичная)' },
+  { id: 'mistral-medium-latest', label: 'mistral-medium-latest (баланс качества и скорости)' },
+  { id: 'mistral-large-latest', label: 'mistral-large-latest (максимальное качество)' }
+];
+
 // Дефолтный ключ берется из локального .env.local (VITE_GROQ_API_KEY), который не попадает в публичный Git
 export const DEFAULT_GROQ_API_KEY = (() => {
   try {
@@ -34,9 +43,22 @@ export const DEFAULT_GROQ_API_KEY = (() => {
   return '';
 })();
 
+export const DEFAULT_MISTRAL_API_KEY = (() => {
+  try {
+    const envKey = (import.meta?.env?.VITE_MISTRAL_API_KEY || '').trim();
+    if (envKey && envKey !== 'YOUR_MISTRAL_API_KEY') return envKey;
+  } catch {
+    // ignore
+  }
+  return '';
+})();
+
 const GROQ_KEY_STORAGE = 'groq_api_key';
 const LEGACY_GROQ_KEY_STORAGE = 'meta_groq_api_key_v1';
 const GROQ_MODEL_STORAGE = 'meta_groq_model_v1';
+const AI_PROVIDER_STORAGE = 'meta_ai_provider_v1';
+const MISTRAL_KEY_STORAGE = 'mistral_api_key';
+const MISTRAL_MODEL_STORAGE = 'meta_mistral_model_v1';
 
 /**
  * Принудительно приводит имя модели к нижнему регистру и валидирует допустимые имена Groq API.
@@ -76,6 +98,22 @@ export function getGroqSourceHeaderLabel(modelId = DEFAULT_GROQ_MODEL) {
     return 'ИИ-репортаж (Groq / GPT-OSS 20B)';
   }
   return 'ИИ-репортаж (Groq / GPT-OSS 120B)';
+}
+
+/**
+ * Заголовок источника репортажа с учетом активного провайдера (Groq или Mistral)
+ */
+export function getAiSourceHeaderLabel(modelId = DEFAULT_GROQ_MODEL, provider = 'groq') {
+  if (normalizeAiProvider(provider) === 'mistral') {
+    const norm = normalizeMistralModelName(modelId);
+    const names = {
+      'mistral-small-latest': 'Mistral Small',
+      'mistral-medium-latest': 'Mistral Medium',
+      'mistral-large-latest': 'Mistral Large'
+    };
+    return `ИИ-репортаж (Mistral / ${names[norm] || norm})`;
+  }
+  return getGroqSourceHeaderLabel(modelId);
 }
 
 /**
@@ -159,16 +197,142 @@ export function setGroqModel(modelId, storage = null) {
 }
 
 /**
- * Базовый JSON-вызов к Groq API (https://api.groq.com/openai/v1/chat/completions)
- * Не скрывает ошибки: выбрасывает Error с подробным сообщением от Groq API.
+ * Активный ИИ-провайдер: 'groq' (по умолчанию) или 'mistral'
  */
-export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
-  const apiKey = options.apiKey !== undefined ? String(options.apiKey).trim() : getGroqApiKey(options.storage);
-  if (!apiKey) {
-    throw new Error('Ключ Groq API не задан! Укажите ключ в окне «⚙️ Настройки API».');
+export function normalizeAiProvider(providerId) {
+  return String(providerId || '').trim().toLowerCase() === 'mistral' ? 'mistral' : 'groq';
+}
+
+export function getAiProvider(storage = null) {
+  try {
+    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+    if (store) {
+      const saved = store.getItem(AI_PROVIDER_STORAGE);
+      if (saved) return normalizeAiProvider(saved);
+    }
+  } catch {
+    // ignore
+  }
+  return 'groq';
+}
+
+export function setAiProvider(providerId, storage = null) {
+  const validProvider = normalizeAiProvider(providerId);
+  try {
+    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+    if (store) {
+      store.setItem(AI_PROVIDER_STORAGE, validProvider);
+    }
+  } catch {
+    // ignore
+  }
+  return validProvider;
+}
+
+/**
+ * Приводит имя модели Mistral к допустимому списку (по умолчанию 'mistral-small-latest')
+ */
+export function normalizeMistralModelName(modelId) {
+  const clean = String(modelId || DEFAULT_MISTRAL_MODEL).trim().toLowerCase();
+  return MISTRAL_MODELS.some(m => m.id === clean) ? clean : DEFAULT_MISTRAL_MODEL;
+}
+
+/**
+ * Чтение Mistral API Key из localStorage.getItem('mistral_api_key'), переменной окружения или дефолта
+ */
+export function getMistralApiKey(storage = null) {
+  const customStore = storage !== null;
+  try {
+    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+    if (store) {
+      const primaryKey = store.getItem(MISTRAL_KEY_STORAGE);
+      if (primaryKey !== null && primaryKey.trim() !== '') {
+        return primaryKey.trim();
+      }
+      if (customStore && primaryKey === '') {
+        return '';
+      }
+    }
+  } catch {
+    // ignore storage errors
   }
 
-  const model = normalizeGroqModelName(options.model || getGroqModel(options.storage));
+  try {
+    const envKey = (import.meta?.env?.VITE_MISTRAL_API_KEY || '').trim();
+    if (envKey && envKey !== 'YOUR_MISTRAL_API_KEY') return envKey;
+  } catch {
+    // ignore env access
+  }
+
+  return DEFAULT_MISTRAL_API_KEY;
+}
+
+export function setMistralApiKey(apiKey, storage = null) {
+  const cleanKey = String(apiKey || '').trim();
+  try {
+    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+    if (store) {
+      store.setItem(MISTRAL_KEY_STORAGE, cleanKey);
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return cleanKey;
+}
+
+export function hasMistralApiKey(storage = null) {
+  return Boolean(getMistralApiKey(storage));
+}
+
+export function getMistralModel(storage = null) {
+  try {
+    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+    if (store) {
+      const saved = store.getItem(MISTRAL_MODEL_STORAGE);
+      if (saved) {
+        return normalizeMistralModelName(saved);
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_MISTRAL_MODEL;
+}
+
+export function setMistralModel(modelId, storage = null) {
+  const validModel = normalizeMistralModelName(modelId);
+  try {
+    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+    if (store) {
+      store.setItem(MISTRAL_MODEL_STORAGE, validModel);
+    }
+  } catch {
+    // ignore
+  }
+  return validModel;
+}
+
+/**
+ * Базовый JSON-вызов к активному ИИ-провайдеру (Groq или Mistral, OpenAI-совместимый формат).
+ * Не скрывает ошибки: выбрасывает Error с подробным сообщением от API провайдера.
+ */
+export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
+  const provider = normalizeAiProvider(options.provider || getAiProvider(options.storage));
+  const isMistral = provider === 'mistral';
+  const providerTitle = isMistral ? 'Mistral' : 'Groq';
+
+  const apiKey = options.apiKey !== undefined
+    ? String(options.apiKey).trim()
+    : (isMistral ? getMistralApiKey(options.storage) : getGroqApiKey(options.storage));
+  if (!apiKey) {
+    throw new Error(`Ключ ${providerTitle} API не задан! Укажите ключ в окне «⚙️ Настройки API».`);
+  }
+
+  const model = isMistral
+    ? normalizeMistralModelName(options.model || getMistralModel(options.storage))
+    : normalizeGroqModelName(options.model || getGroqModel(options.storage));
+
+  const endpoint = isMistral ? MISTRAL_API_ENDPOINT : GROQ_API_ENDPOINT;
   const fetchImpl = options.fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
   if (!fetchImpl) {
     throw new Error('Fetch API недоступен в текущем окружении.');
@@ -180,25 +344,30 @@ export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
 
   try {
     const buildFetchOptions = (targetModel) => {
+      const payload = {
+        model: targetModel,
+        temperature: options.temperature ?? 0.85,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ]
+      };
+      if (isMistral) {
+        payload.max_tokens = options.maxTokens ?? 1000;
+      } else {
+        // gpt-oss по умолчанию тратит тысячи скрытых reasoning-токенов на запрос,
+        // а они списываются из минутного лимита Groq. Нам нужен только короткий JSON.
+        payload.reasoning_effort = options.reasoningEffort ?? 'low';
+        payload.max_completion_tokens = options.maxCompletionTokens ?? 1000;
+      }
       const opts = {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          model: targetModel,
-          temperature: options.temperature ?? 0.85,
-          // gpt-oss по умолчанию тратит тысячи скрытых reasoning-токенов на запрос,
-          // а они списываются из минутного лимита Groq. Нам нужен только короткий JSON.
-          reasoning_effort: options.reasoningEffort ?? 'low',
-          max_completion_tokens: options.maxCompletionTokens ?? 1000,
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ]
-        })
+        body: JSON.stringify(payload)
       };
       if (controller && !options.fetchImpl) {
         opts.signal = controller.signal;
@@ -206,11 +375,11 @@ export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
       return opts;
     };
 
-    let response = await fetchImpl(GROQ_API_ENDPOINT, buildFetchOptions(model));
+    let response = await fetchImpl(endpoint, buildFetchOptions(model));
 
     // Если кластер Groq вернул 404 для модели, пробуем резервную быструю модель FAST_GROQ_MODEL
-    if (response.status === 404 && !options.disableModelFallback && model !== FAST_GROQ_MODEL) {
-      response = await fetchImpl(GROQ_API_ENDPOINT, buildFetchOptions(FAST_GROQ_MODEL));
+    if (!isMistral && response.status === 404 && !options.disableModelFallback && model !== FAST_GROQ_MODEL) {
+      response = await fetchImpl(endpoint, buildFetchOptions(FAST_GROQ_MODEL));
     }
 
     if (!response.ok) {
@@ -225,7 +394,7 @@ export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
         const waitHint = Number.isFinite(retryAfter) && retryAfter > 0
           ? ` Повтор через ~${Math.ceil(retryAfter)} с.`
           : ' Подождите минуту и повторите.';
-        throw new Error(`Лимит Groq исчерпан (429).${limitDetail}${waitHint}`);
+        throw new Error(`Лимит ${providerTitle} исчерпан (429).${limitDetail}${waitHint}`);
       }
       let errDetail = `HTTP ${response.status}`;
       try {
@@ -241,20 +410,20 @@ export async function requestGroqJson(systemPrompt, userPrompt, options = {}) {
           // ignore
         }
       }
-      throw new Error(`Ошибка Groq API (${errDetail})`);
+      throw new Error(`Ошибка ${providerTitle} API (${errDetail})`);
     }
 
     const data = await response.json();
     const rawContent = data?.choices?.[0]?.message?.content;
     if (!rawContent) {
-      throw new Error('Groq API вернул пустой ответ (choices[0].message.content пуст).');
+      throw new Error(`${providerTitle} API вернул пустой ответ (choices[0].message.content пуст).`);
     }
 
     const cleanedContent = cleanGroqJsonString(rawContent);
     try {
       return JSON.parse(cleanedContent);
     } catch (parseErr) {
-      throw new Error(`Ошибка парсинга JSON от Groq: ${parseErr.message}`);
+      throw new Error(`Ошибка парсинга JSON от ${providerTitle}: ${parseErr.message}`);
     }
   } finally {
     if (timerId) clearTimeout(timerId);
@@ -416,7 +585,10 @@ export async function generateCommentaryForEnteredScore({
   const winner = validation.p1WinsMatch ? player1 : player2;
   const loser = validation.p1WinsMatch ? player2 : player1;
   const finalScoreStr = validation.sets.join(' ');
-  const activeModel = normalizeGroqModelName(options.model || getGroqModel(options.storage));
+  const activeProvider = normalizeAiProvider(options.provider || getAiProvider(options.storage));
+  const activeModel = activeProvider === 'mistral'
+    ? normalizeMistralModelName(options.model || getMistralModel(options.storage))
+    : normalizeGroqModelName(options.model || getGroqModel(options.storage));
 
   const fallbackStoryline = generateMatchNarrative(winner, loser, validation.sets, surface, tourneyName, stage);
   const fallbackQuotes = generateMatchQuotes(winner, loser, validation.sets, surface, tourneyName, stage);
@@ -474,7 +646,7 @@ export async function generateCommentaryForEnteredScore({
       `Разбери счёт "${finalScoreStr}" (победил ${winner.name}) на стадии "${stage}" без домыслов и напиши редакторски жёсткую сводку и две живые цитаты.`
     ].join('\n');
 
-    const parsed = await requestGroqJson(systemPrompt, userPrompt, { ...options, model: activeModel });
+    const parsed = await requestGroqJson(systemPrompt, userPrompt, { ...options, model: activeModel, provider: activeProvider });
 
     return {
       winnerId: winner.id,
@@ -485,9 +657,9 @@ export async function generateCommentaryForEnteredScore({
       storyline: String(parsed?.storyline || fallbackStoryline).trim(),
       winnerQuote: String(parsed?.winnerQuote || fallbackQuotes.winnerQuote).trim(),
       loserQuote: String(parsed?.loserQuote || fallbackQuotes.loserQuote).trim(),
-      source: 'groq',
+      source: activeProvider,
       model: activeModel,
-      sourceLabel: getGroqSourceHeaderLabel(activeModel)
+      sourceLabel: getAiSourceHeaderLabel(activeModel, activeProvider)
     };
   } catch (err) {
     if (strictGroq) {
@@ -566,7 +738,10 @@ export async function simulateMatchWithGroq({
     return buildLocalFallback();
   }
 
-  const activeModel = normalizeGroqModelName(options.model || getGroqModel(options.storage));
+  const activeProvider = normalizeAiProvider(options.provider || getAiProvider(options.storage));
+  const activeModel = activeProvider === 'mistral'
+    ? normalizeMistralModelName(options.model || getMistralModel(options.storage))
+    : normalizeGroqModelName(options.model || getGroqModel(options.storage));
 
   // Генерируем вероятностные директивы для этого конкретного розыгрыша (45% 3-сетовый триллер, 20% апсет аутсайдера)
   const rollThriller = Math.random() < 0.45;
@@ -647,7 +822,7 @@ export async function simulateMatchWithGroq({
       'Сгенерируй нешаблонный, физически возможный счёт (ЗАПРЕЩЕНЫ 6-3 6-2 и 3-6 2-6), затем жёсткую сводку и две живые цитаты, которые не противоречат этому счёту.'
     ].join('\n');
 
-    const parsed = await requestGroqJson(systemPrompt, userPrompt, { ...options, model: activeModel });
+    const parsed = await requestGroqJson(systemPrompt, userPrompt, { ...options, model: activeModel, provider: activeProvider });
     let validation = parseAndValidateScoreString(parsed?.score, bestOf);
 
     if (!validation.valid) {
@@ -709,9 +884,9 @@ export async function simulateMatchWithGroq({
       storyline: String(parsed.storyline || fallbackQuotes.storyline).trim(),
       winnerQuote: String(parsed.winnerQuote || fallbackQuotes.winnerQuote).trim(),
       loserQuote: String(parsed.loserQuote || fallbackQuotes.loserQuote).trim(),
-      source: 'groq',
+      source: activeProvider,
       model: activeModel,
-      sourceLabel: getGroqSourceHeaderLabel(activeModel)
+      sourceLabel: getAiSourceHeaderLabel(activeModel, activeProvider)
     };
   } catch (err) {
     if (strictGroq) {
@@ -839,12 +1014,13 @@ export async function generateFinalPressColumn({
       `Счет финала: ${score}`
     ].join('\n');
 
-    const parsed = await requestGroqJson(systemPrompt, userPrompt, options);
+    const activeProvider = normalizeAiProvider(options.provider || getAiProvider(options.storage));
+    const parsed = await requestGroqJson(systemPrompt, userPrompt, { ...options, provider: activeProvider });
     if (parsed && parsed.headline && parsed.article) {
       return {
         headline: String(parsed.headline).trim(),
         article: String(parsed.article).trim(),
-        source: 'groq'
+        source: activeProvider
       };
     }
   } catch (err) {
@@ -923,6 +1099,15 @@ if (typeof window !== 'undefined') {
   window.normalizeGroqModelName = normalizeGroqModelName;
   window.cleanGroqJsonString = cleanGroqJsonString;
   window.getGroqSourceHeaderLabel = getGroqSourceHeaderLabel;
+  window.getAiSourceHeaderLabel = getAiSourceHeaderLabel;
+  window.getAiProvider = getAiProvider;
+  window.setAiProvider = setAiProvider;
+  window.getMistralApiKey = getMistralApiKey;
+  window.setMistralApiKey = setMistralApiKey;
+  window.hasMistralApiKey = hasMistralApiKey;
+  window.getMistralModel = getMistralModel;
+  window.setMistralModel = setMistralModel;
+  window.normalizeMistralModelName = normalizeMistralModelName;
   window.generateCommentaryForEnteredScore = generateCommentaryForEnteredScore;
   window.simulateMatchWithGroq = simulateMatchWithGroq;
   window.generateFinalPressColumn = generateFinalPressColumn;

@@ -96,7 +96,7 @@
                         <button type="button" class="btn-edit btn-compact" id="btnImportUniverse" onclick="triggerImportUniverse()" title="Загрузить сохранение мира (.json)">📤 Загрузить мир (.json)</button>
                         <button type="button" class="btn-edit btn-compact" id="btnImport2023Archive" onclick="triggerImport2023ArchiveOnly()" title="Импортировать ТОЛЬКО сетки 2023 года (.json), не затрагивая сезон 2024">📥 Импорт сеток 2023 (.json)</button>
                         <button type="button" class="btn-gold btn-compact" id="btnTestSimSeason" onclick="runTestSeasonSimulation()" title="Пробная симуляция всех турниров сезона с возможностью отката назад в 1 клик">⚡ Пробная симуляция сезона (Тест)</button>
-                        <button type="button" class="btn-purple btn-compact" id="btnApiSettings" onclick="openApiSettingsModal()" title="Настройки Groq API (openai/gpt-oss-120b)">⚙️ Настройки API</button>
+                        <button type="button" class="btn-purple btn-compact" id="btnApiSettings" onclick="openApiSettingsModal()" title="Настройки ИИ (Groq / Mistral)">⚙️ Настройки API</button>
                     </div>
                 </details>
                 <input type="file" id="importUniverseFile" accept=".json,application/json" onchange="handleImportUniverseFile(event)" style="display: none;">
@@ -341,7 +341,7 @@
             <div class="modal-header-row">
                 <div>
                     <h3 id="scoreModalTitle" class="modal-main-title">🎾 Матч-центр и Личные встречи (H2H)</h3>
-                    <div id="scoreModalSubtitle" class="modal-sub-caption">Введите счет вручную или запустите ИИ-симуляцию Groq (GPT-OSS 120B)</div>
+                    <div id="scoreModalSubtitle" class="modal-sub-caption">Введите счет вручную или запустите ИИ-симуляцию (Groq / Mistral)</div>
                 </div>
                 <button type="button" class="btn-edit btn-compact" onclick="closeModal('scoreModal')">Закрыть ✕</button>
             </div>
@@ -449,7 +449,7 @@
                     🎙️ ИИ-комментарий к введенному счету
                 </button>
                 <button type="button" class="btn-purple action-btn-large" id="btnAiSimMatch" onclick="simulateMatchWithAI()">
-                    🧠 ИИ-симуляция матча (Groq)
+                    🧠 ИИ-симуляция матча
                 </button>
                 <button type="button" class="btn-edit action-btn-large" id="btnInstantSimMatch" onclick="instantSimulateMatch()" style="grid-column: 1 / -1;">
                     ⚡ Быстрый расчет (Оффлайн)
@@ -617,7 +617,7 @@
             <div class="form-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                     <label for="editPlayerNickname" style="margin-bottom: 0;">Прозвище игрока (для ньюгенов и звезд тура):</label>
-                    <button type="button" class="btn-purple btn-compact" id="btnGenPlayerStyleGroq" onclick="generateSinglePlayerStyleWithGroq()" style="font-size: 11px; padding: 3px 8px;">🧠 Сгенерировать профиль (Groq)</button>
+                    <button type="button" class="btn-purple btn-compact" id="btnGenPlayerStyleGroq" onclick="generateSinglePlayerStyleWithGroq()" style="font-size: 11px; padding: 3px 8px;">🧠 Сгенерировать профиль (ИИ)</button>
                 </div>
                 <input type="text" id="editPlayerNickname" placeholder="напр: Молния корта">
             </div>
@@ -686,31 +686,56 @@
         </div>
     </div>
 
-    <!-- МОДАЛКА НАСТРОЕК GROQ API -->
+    <!-- МОДАЛКА НАСТРОЕК ИИ-ПРОВАЙДЕРА (GROQ / MISTRAL) -->
     <div class="modal" id="apiSettingsModal" role="dialog" aria-modal="true" aria-labelledby="apiSettingsModalTitle">
         <div class="modal-content" style="width: 520px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h3 id="apiSettingsModalTitle" style="color: #e9d5ff; font-size: 16px;">⚙️ Настройки Groq API (GPT-OSS 120B / 20B)</h3>
+                <h3 id="apiSettingsModalTitle" style="color: #e9d5ff; font-size: 16px;">⚙️ Настройки ИИ (Groq / Mistral)</h3>
                 <button type="button" onclick="closeModal('apiSettingsModal')" style="padding: 4px 9px; font-size: 12px;">Закрыть ✕</button>
             </div>
             <p style="font-size: 12.5px; color: var(--text-dim); margin-bottom: 12px;">
-                Сверхбыстрый Groq API используется для умной ИИ-симуляции матчей с цитатами игроков, ИИ-комментариев к введенному счету, послематчевых колонок финалов и генерации стилей игры молодых новичков.
+                ИИ-провайдер используется для симуляции матчей с цитатами игроков, ИИ-комментариев к введенному счету, послематчевых колонок финалов и генерации стилей игры молодых новичков. Выберите провайдера и укажите его ключ.
             </p>
-            <div id="groqKeyStatusBadge" class="api-status-badge" style="margin-bottom: 12px;"></div>
             <div class="form-group">
-                <label for="groqApiKeyInput">Groq API Key (<code>localStorage: groq_api_key</code> / <code>VITE_GROQ_API_KEY</code>):</label>
-                <input type="password" id="groqApiKeyInput" placeholder="gsk_..." autocomplete="off">
-                <small style="color: var(--text-dim); font-size: 11px;">По умолчанию предустановлен рабочий ключ Groq API. Вы можете заменить его на собственный в любой момент.</small>
-            </div>
-            <div class="form-group">
-                <label for="groqModelSelect">Модель Groq (строго в нижнем регистре):</label>
-                <select id="groqModelSelect">
-                    <option value="openai/gpt-oss-120b">openai/gpt-oss-120b (Максимальное качество)</option>
-                    <option value="openai/gpt-oss-20b">openai/gpt-oss-20b (Ультра-быстрая)</option>
+                <label for="aiProviderSelect">Активный ИИ-провайдер:</label>
+                <select id="aiProviderSelect" onchange="onAiProviderChange()">
+                    <option value="groq">Groq (GPT-OSS 120B / 20B)</option>
+                    <option value="mistral">Mistral (Small / Medium / Large)</option>
                 </select>
             </div>
+            <div id="groqSettingsBlock">
+                <div id="groqKeyStatusBadge" class="api-status-badge" style="margin-bottom: 12px;"></div>
+                <div class="form-group">
+                    <label for="groqApiKeyInput">Groq API Key (<code>localStorage: groq_api_key</code> / <code>VITE_GROQ_API_KEY</code>):</label>
+                    <input type="password" id="groqApiKeyInput" placeholder="gsk_..." autocomplete="off">
+                    <small style="color: var(--text-dim); font-size: 11px;">По умолчанию предустановлен рабочий ключ Groq API. Вы можете заменить его на собственный в любой момент.</small>
+                </div>
+                <div class="form-group">
+                    <label for="groqModelSelect">Модель Groq (строго в нижнем регистре):</label>
+                    <select id="groqModelSelect">
+                        <option value="openai/gpt-oss-120b">openai/gpt-oss-120b (Максимальное качество)</option>
+                        <option value="openai/gpt-oss-20b">openai/gpt-oss-20b (Ультра-быстрая)</option>
+                    </select>
+                </div>
+            </div>
+            <div id="mistralSettingsBlock" style="display: none;">
+                <div id="mistralKeyStatusBadge" class="api-status-badge" style="margin-bottom: 12px;"></div>
+                <div class="form-group">
+                    <label for="mistralApiKeyInput">Mistral API Key (<code>localStorage: mistral_api_key</code> / <code>VITE_MISTRAL_API_KEY</code>):</label>
+                    <input type="password" id="mistralApiKeyInput" placeholder="Ключ из console.mistral.ai" autocomplete="off">
+                    <small style="color: var(--text-dim); font-size: 11px;">Бесплатный ключ выдается на console.mistral.ai → API Keys. Ключ хранится только в этом браузере.</small>
+                </div>
+                <div class="form-group">
+                    <label for="mistralModelSelect">Модель Mistral:</label>
+                    <select id="mistralModelSelect">
+                        <option value="mistral-small-latest">mistral-small-latest (быстрая и экономичная)</option>
+                        <option value="mistral-medium-latest">mistral-medium-latest (баланс качества и скорости)</option>
+                        <option value="mistral-large-latest">mistral-large-latest (максимальное качество)</option>
+                    </select>
+                </div>
+            </div>
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 16px;">
-                <button type="button" class="btn-red" onclick="clearGroqApiKeySettings()">Сбросить к дефолтному</button>
+                <button type="button" class="btn-red" onclick="clearGroqApiKeySettings()">Сбросить ключ активного провайдера</button>
                 <div style="display: flex; gap: 8px;">
                     <button type="button" onclick="closeModal('apiSettingsModal')">Отмена</button>
                     <button type="button" class="btn-green" onclick="saveGroqApiSettings()">💾 Сохранить</button>
