@@ -365,7 +365,10 @@ let heavyStorageWriteChain = Promise.resolve();
 
 function isHeavyStorageKey(k) {
   const s = String(k || '');
-  return s.includes('draw_') || s.includes('checkpoints');
+  return s.includes('draw_') ||
+    s.includes('checkpoints') ||
+    s.includes('pre_sim_snapshot') ||
+    s.includes('test_sim_report');
 }
 
 function canonicalHeavyStorageKey(k) {
@@ -373,7 +376,8 @@ function canonicalHeavyStorageKey(k) {
   if (/^draw_\d+_/.test(s)) return s;
   if (s.startsWith('universe_1_draw_')) return `draw_1_${s.slice('universe_1_draw_'.length)}`;
   if (s.startsWith('draw_')) return `draw_1_${s.slice('draw_'.length)}`;
-  if (s === 'meta_checkpoints' || s === 'meta_checkpoints_v2' || s === 'universe_1_meta_checkpoints_v2') {
+  if (s === 'meta_checkpoints' || s === 'meta_checkpoints_v2' || s === 'universe_1_meta_checkpoints_v2' ||
+      /^universe_1_meta_checkpoints_v\d+$/.test(s) || /^meta_checkpoints_v\d+$/.test(s)) {
     return 'universe_1_meta_checkpoints';
   }
   return s;
@@ -471,6 +475,7 @@ function scheduleHeavyStorageDelete(key) {
 // из localStorage (освобождает квоту и убирает предупреждения о переполнении).
 async function hydrateHeavyStorageFromIndexedDB() {
   const db = await openHeavyStorageDb();
+  const idbKeySet = new Set();
   if (db) {
     try {
       const tx = db.transaction(HEAVY_STORAGE_STORE_NAME, 'readonly');
@@ -482,6 +487,7 @@ async function hydrateHeavyStorageFromIndexedDB() {
       if (Array.isArray(keys) && Array.isArray(values)) {
         keys.forEach((key, i) => {
           const k = String(key);
+          idbKeySet.add(k);
           if (memoryUniverseStore[k] === undefined && typeof values[i] === 'string') {
             memoryUniverseStore[k] = values[i];
           }
@@ -507,7 +513,8 @@ async function hydrateHeavyStorageFromIndexedDB() {
       if (v !== null) localHeavyEntries.push([k, v]);
     }
     // Сначала канонические ключи, затем legacy-дубликаты в порядке старого
-    // приоритета чтения: дубликат не должен перетирать более свежее значение.
+    // приоритета чтения. Если значение уже есть в IndexedDB, оно новее
+    // localStorage-копии, поэтому локальный дубликат только удаляем.
     const legacyPriority = (k) => {
       if (canonicalHeavyStorageKey(k) === k) return 0;
       if (k === 'meta_checkpoints') return 1;
@@ -518,9 +525,10 @@ async function hydrateHeavyStorageFromIndexedDB() {
     localHeavyEntries.sort((a, b) => legacyPriority(a[0]) - legacyPriority(b[0]));
     for (const [k, v] of localHeavyEntries) {
       const canonicalKey = canonicalHeavyStorageKey(k);
-      if (canonicalKey === k || memoryUniverseStore[canonicalKey] === undefined) {
+      if (!idbKeySet.has(canonicalKey)) {
         memoryUniverseStore[canonicalKey] = v;
         scheduleHeavyStorageWrite(canonicalKey, v);
+        idbKeySet.add(canonicalKey);
       }
       freedChars += k.length + v.length;
       migrated++;
@@ -813,6 +821,7 @@ export const universeStorage = {
     // Сетки и чекпоинты идут в IndexedDB: их объём в разы больше квоты localStorage.
     // Если IndexedDB недоступен, работает прежний путь с фоллбэками по квоте.
     if (isHeavyStorageKey(fullKey) && !heavyStorageDbDisabled) {
+      try { localStorage.removeItem(fullKey); } catch {}
       scheduleHeavyStorageWrite(fullKey, strVal);
       return;
     }
@@ -832,7 +841,16 @@ export const universeStorage = {
         }
         return;
       } catch {
-        // Значение остаётся в памяти до перезагрузки страницы — предупреждаем автора.
+        // Квота localStorage исчерпана: сохраняем в IndexedDB даже обычные ключи,
+        // иначе изменение потеряется после перезагрузки. Гидратация при старте
+        // вернёт такие значения в память.
+        if (!heavyStorageDbDisabled) {
+          try { localStorage.removeItem(fullKey); } catch {}
+          scheduleHeavyStorageWrite(fullKey, strVal);
+          console.info(`[storage] localStorage переполнен: ${fullKey} сохранён в IndexedDB.`);
+          return;
+        }
+        // IndexedDB тоже недоступен — значение остаётся в памяти до перезагрузки.
         notifyStorageWriteFailure();
       }
     }
@@ -8802,6 +8820,7 @@ function persistCheckpointsListToStorage(list) {
   if (canonSnapshotInfo && activeUniverseId === '1') return true;
   // Чекпоинты весят мегабайты — пишем их в IndexedDB, а не в localStorage.
   if (!heavyStorageDbDisabled && heavyStorageDbPromise) {
+    try { localStorage.removeItem(fullKey); } catch {}
     scheduleHeavyStorageWrite(fullKey, fullJson);
     return true;
   }
