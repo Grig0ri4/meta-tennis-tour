@@ -2203,9 +2203,57 @@ export function syncSeasonHistoryWithActualDraws(targetYear) {
       saveTournaments();
     }
   }
+
+  backfillSlamSnapshotsFromCheckpoints(y);
+}
+
+const SLAM_SNAPSHOT_KEYS = ['tbsh_1', 'tbsh_2', 'tbsh_3', 'tbsh_4'];
+
+/**
+ * История сезона может пересобраться из сеток (syncSeasonHistoryWithActualDraws)
+ * и потерять срезы Топ-50 после ТБШ. Чекпоинт после каждого Шлема хранит точный
+ * снимок рейтинга на тот момент — возвращаем пропущенные срезы оттуда.
+ */
+function backfillSlamSnapshotsFromCheckpoints(targetYear) {
+  const yrStr = String(targetYear);
+  const hist = seasonsHistory?.[yrStr];
+  if (!hist || typeof hist !== 'object') return false;
+  const completedSlamIds = new Set(
+    (Array.isArray(hist.tournamentsData) ? hist.tournamentsData : [])
+      .filter(t => t && t.type === 'ТБШ' && SLAM_SNAPSHOT_KEYS.includes(t.id) && t.winner && t.score && t.score !== '—')
+      .map(t => t.id)
+  );
+  const missing = SLAM_SNAPSHOT_KEYS.filter(
+    id => completedSlamIds.has(id) && !(hist.slamSnapshots?.[id]?.top50?.length > 0)
+  );
+  if (missing.length === 0) return false;
+
+  if (!hist.slamSnapshots || typeof hist.slamSnapshots !== 'object') hist.slamSnapshots = {};
+  const cpSources = [getSavedCheckpointsList()];
+  if (String(activeUniverseId) === '1' && Array.isArray(CANON_MASTER_SNAPSHOT?.checkpoints)) {
+    cpSources.push(CANON_MASTER_SNAPSHOT.checkpoints);
+  }
+  let restored = 0;
+  missing.forEach(slamId => {
+    for (const list of cpSources) {
+      const cp = list.find(c => c && String(c.id) === `cp_${slamId}_${yrStr}`);
+      const snap = cp?.seasonsHistory?.[yrStr]?.slamSnapshots?.[slamId];
+      if (snap && Array.isArray(snap.top50) && snap.top50.length > 0) {
+        hist.slamSnapshots[slamId] = snap;
+        restored++;
+        break;
+      }
+    }
+  });
+  if (restored > 0) {
+    saveHistory();
+    return true;
+  }
+  return false;
 }
 if (typeof window !== 'undefined') {
   window.syncSeasonHistoryWithActualDraws = syncSeasonHistoryWithActualDraws;
+  window.backfillSlamSnapshotsFromCheckpoints = backfillSlamSnapshotsFromCheckpoints;
 }
 
 const LIVE_DRAW_BACKUP_KEY = 'meta_live_draw_backup_v1';
