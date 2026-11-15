@@ -15,6 +15,12 @@ function isLocalRequest(req: express.Request): boolean {
   return addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
 }
 
+// Сравнение канонов без учёта exportedAt: сервер ставит туда текущее время,
+// из-за чего байтовое сравнение всегда ложно, а каждая запись дёргает full-reload Vite.
+function canonComparable(raw: string): string {
+  return raw.replace(/"exportedAt"\s*:\s*"[^"]*"/, '"exportedAt":""');
+}
+
 // Хранилище правок игроков: { [universeId]: { "id:p_9": {...}, "name:...": {...} } }.
 // Старый плоский файл (правки всех миров вперемешку) мигрирует в { "1": {...} }.
 function isFlatLegacyOverridesMap(map: Record<string, any>): boolean {
@@ -231,16 +237,26 @@ async function startServer() {
         };
 
         const serializedCanon = JSON.stringify(mergedCanon, null, 2);
-        fs.writeFileSync(canonPath, serializedCanon, "utf8");
-
-        // Мастер-копия всегда байт-в-байт совпадает с опубликованным public/canon.json.
+        let previousCanonRaw = "";
         try {
-          const masterCanonPath = path.join(__dirname, "data", "canon_nov15_master.json");
-          fs.writeFileSync(masterCanonPath, serializedCanon, "utf8");
-        } catch (masterErr) {
-          console.warn("canon master sync err:", masterErr);
+          if (fs.existsSync(canonPath)) previousCanonRaw = fs.readFileSync(canonPath, "utf8");
+        } catch {
+          previousCanonRaw = "";
         }
-      res.json({ ok: true });
+        const canonUnchanged = previousCanonRaw.length > 0
+          && canonComparable(previousCanonRaw) === canonComparable(serializedCanon);
+        if (!canonUnchanged) {
+          fs.writeFileSync(canonPath, serializedCanon, "utf8");
+
+          // Мастер-копия всегда байт-в-байт совпадает с опубликованным public/canon.json.
+          try {
+            const masterCanonPath = path.join(__dirname, "data", "canon_nov15_master.json");
+            fs.writeFileSync(masterCanonPath, serializedCanon, "utf8");
+          } catch (masterErr) {
+            console.warn("canon master sync err:", masterErr);
+          }
+        }
+      res.json({ ok: true, unchanged: canonUnchanged });
     } catch (e) {
       console.warn("canon-snapshot err:", e);
       res.status(500).json({ ok: false });

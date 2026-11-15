@@ -9677,10 +9677,34 @@ if (typeof window !== 'undefined') {
         bg250: bg250Backup,
         checkpoints: getSavedCheckpointsList()
       };
+      const bodyString = JSON.stringify(payload);
+
+      // Дедупликация: после завершения сезона синк вызывается на каждом буте и
+      // сохранении сетки. Если данные не менялись — не шлём 20-МБ payload повторно.
+      const payloadHash = (() => {
+        const hashSource = bodyString.replace(/"exportedAt"\s*:\s*"[^"]*"/, '"exportedAt":""');
+        let fnv = 0x811c9dc5;
+        for (let i = 0; i < hashSource.length; i++) {
+          fnv ^= hashSource.charCodeAt(i);
+          fnv = Math.imul(fnv, 0x01000193) >>> 0;
+        }
+        return `${hashSource.length}:${fnv.toString(16)}`;
+      })();
+      const CANON_SYNC_HASH_KEY = 'meta_canon_sync_hash_v1';
+      try {
+        if (localStorage.getItem(CANON_SYNC_HASH_KEY) === payloadHash) return;
+      } catch {}
+
       fetch('/api/canon-snapshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: bodyString
+      }).then((res) => {
+        if (res && res.ok) {
+          try {
+            localStorage.setItem(CANON_SYNC_HASH_KEY, payloadHash);
+          } catch {}
+        }
       }).catch(() => {});
     } catch {
       // ignore
