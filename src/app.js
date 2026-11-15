@@ -2332,9 +2332,21 @@ export function exportCurrentUniverse(asCanonSnapshot = false) {
   }
 
   const currentUniv = universesList.find(u => u.id === activeUniverseId) || { id: activeUniverseId, name: 'Основной тур' };
+  // Компактная сводка в начале файла: 12 МБ JSON не любой просмотрщик читает целиком,
+  // и по ней сразу видно, что сетки на месте, без разбора многомегабайтных секций.
+  const drawYears = {};
+  Object.keys(drawsBackup).forEach(k => {
+    const y = (/_(\d{4})$/.exec(k) || [])[1] || 'unknown';
+    drawYears[y] = (drawYears[y] || 0) + 1;
+  });
   const payload = {
     ...(asCanonSnapshot ? { metaTennisTourSaveVersion: 8 } : { metaTennisSaveVersion: 2 }),
     exportedAt: new Date().toISOString(),
+    drawSummary: {
+      total: Object.keys(drawsBackup).length,
+      byYear: drawYears,
+      keys: Object.keys(drawsBackup)
+    },
     universe: {
       id: asCanonSnapshot ? '1' : currentUniv.id,
       name: asCanonSnapshot ? 'Вселенная Автора (Канон)' : currentUniv.name,
@@ -2364,7 +2376,16 @@ export function exportCurrentUniverse(asCanonSnapshot = false) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  showToast(`📥 Файл <b>${fileName}</b> успешно сохранен! Сеток: <b>${Object.keys(drawsBackup).length}</b>, чекпоинтов: <b>${payload.checkpoints.length}</b>.`);
+  const yearsLabel = Object.keys(drawYears)
+    .filter(y => y !== 'unknown')
+    .sort((a, b) => Number(a) - Number(b))
+    .map(y => `${y}: ${drawYears[y]}`)
+    .join(' · ');
+  showToast(
+    `📥 Файл <b>${fileName}</b> успешно сохранен! Сеток: <b>${Object.keys(drawsBackup).length}</b>` +
+    (yearsLabel ? ` (${yearsLabel})` : '') +
+    `, чекпоинтов: <b>${payload.checkpoints.length}</b>.`
+  );
 }
 
 export function triggerImportUniverse() {
