@@ -376,21 +376,45 @@ export function createTournamentDraw(tourney, players) {
   const size = tourney.size;
   const withdrawals = [];
 
-  // Итоговый турнир World Tour Finals (Топ-8 по Live Race)
+  // Итоговый турнир World Tour Finals (Топ-8 по Live Race + до 2 запасных при снятиях)
   if (tourney.id === 'finals') {
     const raceSorted = [...players].sort((a, b) => {
       const rDiff = (b.racePoints || 0) - (a.racePoints || 0);
       if (rDiff !== 0) return rDiff;
       return a.rank - b.rank;
     });
-    const top8 = raceSorted.slice(0, 8).map((p, idx) => ({ ...p, seedNum: idx + 1 }));
+    const top8 = raceSorted.slice(0, 8);
+    const alternates = raceSorted.slice(8, 10);
 
-    const p34 = shuffleArray([top8[2], top8[3]]);
-    const p56 = shuffleArray([top8[4], top8[5]]);
-    const p78 = shuffleArray([top8[6], top8[7]]);
+    // 0–2 снятия из топ-8: освободившиеся места занимают запасные №9–10 Чемпионской гонки
+    const roll = Math.random();
+    const withdrawalTarget = roll < 0.5 ? 0 : (roll < 0.85 ? 1 : 2);
+    const withdrawalIdx = new Set();
+    while (withdrawalIdx.size < Math.min(withdrawalTarget, alternates.length)) {
+      withdrawalIdx.add(Math.floor(Math.random() * top8.length));
+    }
 
-    const groupA = [top8[0], p34[0], p56[0], p78[0]];
-    const groupB = [top8[1], p34[1], p56[1], p78[1]];
+    const finalsWithdrawals = [];
+    const participants = [];
+    let altIdx = 0;
+    top8.forEach((p, idx) => {
+      if (!withdrawalIdx.has(idx)) {
+        participants.push(p);
+        return;
+      }
+      const alt = alternates[altIdx++];
+      finalsWithdrawals.push(`${p.name} → запасной ${alt?.name || '—'}`);
+      if (alt) participants.push(alt);
+    });
+
+    const seeded = participants.map((p, idx) => ({ ...p, seedNum: idx + 1 }));
+
+    const p34 = shuffleArray([seeded[2], seeded[3]]);
+    const p56 = shuffleArray([seeded[4], seeded[5]]);
+    const p78 = shuffleArray([seeded[6], seeded[7]]);
+
+    const groupA = [seeded[0], p34[0], p56[0], p78[0]];
+    const groupB = [seeded[1], p34[1], p56[1], p78[1]];
 
     const rGroupA = [
       { p1: groupA[0], p2: groupA[3], score: [], winner: null, group: 'Группа А' },
@@ -422,7 +446,7 @@ export function createTournamentDraw(tourney, players) {
       ]
     ];
 
-    return { draw, withdrawals: [] };
+    return { draw, withdrawals: finalsWithdrawals };
   }
 
   // ОЛИМПИЙСКИЕ ИГРЫ (64 игрока, национальная квота <= 4 игроков от страны, разведение по разным четвертям, Матч за 3-е место + Финал)

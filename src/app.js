@@ -3225,7 +3225,9 @@ export function loadSelectedTournament() {
       noticeBox.style.display = 'block';
       const label = activeTourney.id === 'olympics'
         ? '🏅 <b>Национальная квота ОИ (макс. 4 игрока от страны) — не прошли по квоте:</b>'
-        : '⚠️ <b>Пропускают турнир (Отдых / Травма / График):</b>';
+        : (activeTourney.id === 'finals'
+          ? '🏁 <b>Снятия с Итогового — места заняли запасные:</b>'
+          : '⚠️ <b>Пропускают турнир (Отдых / Травма / График):</b>');
       noticeBox.innerHTML = `${label} ${withdrawals.join(', ')}`;
     } else {
       noticeBox.style.display = 'none';
@@ -3288,10 +3290,14 @@ export function loadSelectedTournament() {
     `;
   } else if (noticeBox && isFinalsTourney) {
     noticeBox.style.display = 'block';
+    const finalsWithdrawalsText = withdrawals.length > 0
+      ? `<div style="margin-top: 4px; font-size: 12px; color: var(--gold);">🏁 Снятия с Итогового: ${withdrawals.join(', ')}</div>`
+      : '';
     noticeBox.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
         <div>
           🛡️ <b>World Tour Finals 2024:</b> Завершилась чемпионская гонка сезона 2024! В турнире участвуют <b>Топ-8 Чемпионской гонки</b>. Все 8 участников 2023 года защищают свои очки (включая не прошедших квалификацию Puddy Mexalino [#10] и Fite Memsy Staprin [#30]).
+          ${finalsWithdrawalsText}
         </div>
         <button type="button" class="btn-gold btn-compact" onclick="openFinalsDefendingModal()" style="font-weight: 600;">🛡️ Защита очков Итогового</button>
       </div>
@@ -3388,6 +3394,8 @@ export function generateRealisticDraw() {
             </div>
           </div>
         `;
+      } else if (activeTourney.id === 'finals') {
+        noticeBox.innerHTML = `🏁 <b>Снятия с Итогового — места заняли запасные:</b> ${withdrawals.join(', ')}`;
       } else {
         noticeBox.innerHTML = `⚠️ <b>Пропускают турнир (Отдых / Травма / График):</b> ${withdrawals.join(', ')}`;
       }
