@@ -492,6 +492,10 @@ async function hydrateHeavyStorageFromIndexedDB() {
     }
   }
 
+  // Без IndexedDB оставляем всё в localStorage: удалять ключи нельзя, иначе
+  // данные переживут только текущую сессию.
+  if (!db) return { migrated: 0, freedChars: 0 };
+
   let migrated = 0;
   let freedChars = 0;
   try {
@@ -807,7 +811,8 @@ export const universeStorage = {
     memoryUniverseStore[fullKey] = strVal;
     if (canonSnapshotInfo && activeUniverseId === '1') return;
     // Сетки и чекпоинты идут в IndexedDB: их объём в разы больше квоты localStorage.
-    if (isHeavyStorageKey(fullKey)) {
+    // Если IndexedDB недоступен, работает прежний путь с фоллбэками по квоте.
+    if (isHeavyStorageKey(fullKey) && !heavyStorageDbDisabled) {
       scheduleHeavyStorageWrite(fullKey, strVal);
       return;
     }
@@ -2953,8 +2958,8 @@ export function handleImportUniverseFile(event) {
           }
         }
         const targetKey = universeStorage.key(fullKey);
-        const isPersisted = (expectedJson) => isHeavyStorageKey(targetKey)
-          ? (!heavyStorageDbDisabled && memoryUniverseStore[targetKey] === expectedJson)
+        const isPersisted = (expectedJson) => (isHeavyStorageKey(targetKey) && !heavyStorageDbDisabled)
+          ? memoryUniverseStore[targetKey] === expectedJson
           : localStorage.getItem(targetKey) !== null;
         universeStorage.setItem(fullKey, fullJson);
         if (isPersisted(fullJson)) {
