@@ -2452,6 +2452,25 @@ function sanitizeImportedDraw(drawArr) {
   return drawArr;
 }
 
+// Запасной формат для тесной квоты localStorage: ИИ-текст занимает ~45% веса
+// сетки, а без него турнирная таблица и счёт матчей читаются полностью.
+function compactImportedDrawForStorage(drawArr) {
+  if (!Array.isArray(drawArr)) return drawArr;
+  return drawArr.map(round => {
+    if (!Array.isArray(round)) return round;
+    return round.map(m => {
+      if (!m || typeof m !== 'object') return m;
+      const compact = { ...m };
+      delete compact.narrative;
+      delete compact.storyline;
+      delete compact.winnerQuote;
+      delete compact.loserQuote;
+      delete compact.aiSourceLabel;
+      return compact;
+    });
+  });
+}
+
 function sanitizeImportedPressColumn(col) {
   if (!col || typeof col !== 'object') return col;
   if (typeof col.headline === 'string') col.headline = stripDangerousHtml(col.headline);
@@ -2662,11 +2681,14 @@ export function handleImportUniverseFile(event) {
       pruneRetiredLegendsAgainstActiveRoster();
       viewingYear = currentTourYear;
 
-      if (data.draws && typeof data.draws === 'object') {
-        Object.entries(data.draws).forEach(([k, v]) => {
-          universeStorage.setItem(k, JSON.stringify(sanitizeImportedDraw(v)));
-        });
-      }
+      // Сначала фиксируем саму вселенную: без игроков, календаря и даты
+      // сетки после перезагрузки некуда привязать.
+      savePlayers(false);
+      saveTournaments();
+      saveHistory();
+      saveRetiredLegends();
+      saveDate();
+
       if (data.withdrawals && typeof data.withdrawals === 'object') {
         Object.entries(data.withdrawals).forEach(([k, v]) => {
           universeStorage.setItem(k, JSON.stringify(Array.isArray(v) ? v.map(x => escapeHtmlText(x)) : v));
@@ -2678,16 +2700,109 @@ export function handleImportUniverseFile(event) {
         });
       }
 
-      savePlayers(false);
-      saveTournaments();
-      saveHistory();
-      saveRetiredLegends();
-      saveDate();
+      // Сетки сохраняем в порядке приоритета: текущий сезон и свежие годы первыми.
+      // Иначе при нехватке квоты localStorage (мобильные браузеры, занятое хранилище)
+      // последними записывались как раз сетки текущего сезона и терялись.
+      const drawEntries = [];
+      if (data.draws && typeof data.draws === 'object') {
+        Object.entries(data.draws).forEach(([k, v]) => {
+          if (!k) return;
+          let parsed = v;
+          if (typeof parsed === 'string') {
+            try { parsed = JSON.parse(parsed); } catch { return; }
+          }
+          if (!Array.isArray(parsed) || parsed.length === 0) return;
+          const year = Number((/_(\d{4})$/.exec(k) || [])[1]) || 0;
+          drawEntries.push({ fullKey: k.startsWith('draw_') ? k : `draw_${k}`, parsed, year });
+        });
+        drawEntries.sort((a, b) => b.year - a.year);
+      }
+      const isCanonTarget = String(activeUniverseId) === '1';
+      const masterDraws = isCanonTarget
+        ? (CANON_MASTER_SNAPSHOT && CANON_MASTER_SNAPSHOT.draws) || {}
+        : null;
+      let storedDraws = 0;
+      let compactDraws = 0;
+      let memoryOnlyDraws = 0;
+      let canonFallbackDraws = 0;
+      const memoryOnlyYears = new Set();
+      drawEntries.forEach(({ fullKey, parsed, year }) => {
+        const sanitized = sanitizeImportedDraw(parsed);
+        const fullJson = JSON.stringify(sanitized);
+        if (masterDraws) {
+          const master = masterDraws[fullKey];
+          if (Array.isArray(master) && buildDrawSignature(master) === buildDrawSignature(sanitized)) {
+            // Такая сетка уже есть в мастер-снимке канона: её отдаёт фоллбэк
+            // readSavedDraw(), а в localStorage она всё равно вычищается при
+            // следующей загрузке автора. Держим только в памяти.
+            memoryUniverseStore[`draw_1_${fullKey.slice('draw_'.length)}`] = fullJson;
+            canonFallbackDraws++;
+            return;
+          }
+        }
+        const targetKey = universeStorage.key(fullKey);
+        universeStorage.setItem(fullKey, fullJson);
+        if (localStorage.getItem(targetKey) !== null) {
+          storedDraws++;
+          return;
+        }
+        // Не влезло — пробуем компактную копию без ИИ-комментариев.
+        universeStorage.setItem(fullKey, JSON.stringify(compactImportedDrawForStorage(sanitized)));
+        if (localStorage.getItem(targetKey) !== null) {
+          // Полную версию оставляем в памяти до перезагрузки.
+          memoryUniverseStore[targetKey] = fullJson;
+          compactDraws++;
+          return;
+        }
+        memoryOnlyDraws++;
+        if (year) memoryOnlyYears.add(year);
+      });
+
+      if (Array.isArray(data.checkpoints) && data.checkpoints.length > 0) {
+        try {
+          const mergedCp = new Map();
+          getSavedCheckpointsList().forEach(cp => { if (cp?.id) mergedCp.set(cp.id, cp); });
+          data.checkpoints.forEach(cp => { if (cp?.id) mergedCp.set(cp.id, cp); });
+          const list = Array.from(mergedCp.values())
+            .map(cp => {
+              if (cp && cp.draws) {
+                const copy = { ...cp };
+                delete copy.draws;
+                return copy;
+              }
+              return cp;
+            })
+            .sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
+          persistCheckpointsListToStorage(list);
+        } catch {
+          // Чекпоинты не критичны для загрузки мира.
+        }
+      }
+
+      // Незавершённая сетка из другой вселенной (sessionStorage) не должна
+      // «всплыть» в загруженном мире после перезагрузки страницы.
+      clearLiveDrawBackup();
 
       initUI();
       renderPlayersTable();
       renderRaceTable();
-      showToast('📤 Мир успешно загружен из файла <b>meta_tennis_save.json</b>!');
+      const totalDraws = drawEntries.length;
+      if (memoryOnlyDraws > 0) {
+        const yearsLabel = Array.from(memoryOnlyYears).sort((a, b) => b - a).join(', ');
+        showToast(
+          `⚠️ <b>Мир загружен, но ${memoryOnlyDraws} из ${totalDraws} сеток не поместились в хранилище браузера</b>` +
+          (yearsLabel ? ` (сезоны: ${yearsLabel})` : '') +
+          '. Они видны до перезагрузки — освободите место в браузере и повторите импорт.',
+          10000
+        );
+      } else if (compactDraws > 0) {
+        showToast(
+          `📤 Мир успешно загружен! Сеток сохранено: <b>${storedDraws + compactDraws + canonFallbackDraws}</b>, ` +
+          `${compactDraws} из них — без ИИ-комментариев (не хватило места в хранилище).`
+        );
+      } else {
+        showToast(`📤 Мир успешно загружен из файла <b>${escapeHtmlText(file.name)}</b>! Сеток сохранено: <b>${storedDraws + canonFallbackDraws}</b>.`);
+      }
     } catch (err) {
       console.error('Import error:', err);
       showToast('⚠️ Не удалось прочитать JSON-файл вселенной.');
