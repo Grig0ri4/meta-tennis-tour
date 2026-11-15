@@ -351,6 +351,186 @@ function notifyStorageWriteFailure() {
   showToast('⚠️ <b>Хранилище браузера заполнено.</b> Последнее изменение сохранено только в памяти и исчезнет после перезагрузки. Скачайте canon.json и освободите место.', 9000);
 }
 
+// --- INDEXEDDB ДЛЯ КРУПНЫХ ДАННЫХ (СЕТКИ И ЧЕКПОИНТЫ) ---
+// Квота localStorage в Chrome — около 5 МБ на origin, а сетки с ИИ-комментариями
+// и чекпоинты занимают мегабайты. Крупные значения пишем в IndexedDB (квота —
+// проценты от диска), а лёгкие метаданные оставляем в localStorage.
+// При старте IDB-значения гидрируются в memoryUniverseStore, поэтому синхронные
+// чтения (readSavedDraw, getSavedCheckpointsList и т.п.) работают как раньше.
+const HEAVY_STORAGE_DB_NAME = 'meta_tennis_heavy_v1';
+const HEAVY_STORAGE_STORE_NAME = 'kv';
+let heavyStorageDbPromise = null;
+let heavyStorageDbDisabled = false;
+let heavyStorageWriteChain = Promise.resolve();
+
+function isHeavyStorageKey(k) {
+  const s = String(k || '');
+  return s.includes('draw_') || s.includes('checkpoints');
+}
+
+function canonicalHeavyStorageKey(k) {
+  const s = String(k);
+  if (/^draw_\d+_/.test(s)) return s;
+  if (s.startsWith('universe_1_draw_')) return `draw_1_${s.slice('universe_1_draw_'.length)}`;
+  if (s.startsWith('draw_')) return `draw_1_${s.slice('draw_'.length)}`;
+  if (s === 'meta_checkpoints' || s === 'meta_checkpoints_v2' || s === 'universe_1_meta_checkpoints_v2') {
+    return 'universe_1_meta_checkpoints';
+  }
+  return s;
+}
+
+function openHeavyStorageDb() {
+  if (heavyStorageDbDisabled) return Promise.resolve(null);
+  if (typeof indexedDB === 'undefined') {
+    heavyStorageDbDisabled = true;
+    return Promise.resolve(null);
+  }
+  if (heavyStorageDbPromise) return heavyStorageDbPromise;
+  heavyStorageDbPromise = new Promise((resolve) => {
+    let settled = false;
+    const finish = (db) => {
+      if (!settled) {
+        settled = true;
+        resolve(db);
+      }
+    };
+    try {
+      const req = indexedDB.open(HEAVY_STORAGE_DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(HEAVY_STORAGE_STORE_NAME)) {
+          db.createObjectStore(HEAVY_STORAGE_STORE_NAME);
+        }
+      };
+      req.onsuccess = () => finish(req.result);
+      req.onerror = () => {
+        heavyStorageDbDisabled = true;
+        finish(null);
+      };
+      req.onblocked = () => {
+        heavyStorageDbDisabled = true;
+        finish(null);
+      };
+    } catch {
+      heavyStorageDbDisabled = true;
+      finish(null);
+    }
+  });
+  return heavyStorageDbPromise;
+}
+
+function heavyIdbRequest(req) {
+  return new Promise((resolve) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve(undefined);
+  });
+}
+
+function scheduleHeavyStorageWrite(key, value) {
+  if (heavyStorageDbDisabled) return;
+  const k = String(key);
+  const v = String(value);
+  heavyStorageWriteChain = heavyStorageWriteChain.then(async () => {
+    const db = await openHeavyStorageDb();
+    if (!db) return;
+    try {
+      await new Promise((resolve) => {
+        const tx = db.transaction(HEAVY_STORAGE_STORE_NAME, 'readwrite');
+        tx.objectStore(HEAVY_STORAGE_STORE_NAME).put(v, k);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+        tx.onabort = () => resolve();
+      });
+    } catch {
+      // ignore
+    }
+  }).catch(() => {});
+}
+
+function scheduleHeavyStorageDelete(key) {
+  if (heavyStorageDbDisabled) return;
+  const k = String(key);
+  heavyStorageWriteChain = heavyStorageWriteChain.then(async () => {
+    const db = await openHeavyStorageDb();
+    if (!db) return;
+    try {
+      await new Promise((resolve) => {
+        const tx = db.transaction(HEAVY_STORAGE_STORE_NAME, 'readwrite');
+        tx.objectStore(HEAVY_STORAGE_STORE_NAME).delete(k);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+        tx.onabort = () => resolve();
+      });
+    } catch {
+      // ignore
+    }
+  }).catch(() => {});
+}
+
+// Гидратация памяти из IndexedDB + одноразовая миграция крупных ключей
+// из localStorage (освобождает квоту и убирает предупреждения о переполнении).
+async function hydrateHeavyStorageFromIndexedDB() {
+  const db = await openHeavyStorageDb();
+  if (db) {
+    try {
+      const tx = db.transaction(HEAVY_STORAGE_STORE_NAME, 'readonly');
+      const store = tx.objectStore(HEAVY_STORAGE_STORE_NAME);
+      const [keys, values] = await Promise.all([
+        heavyIdbRequest(store.getAllKeys()),
+        heavyIdbRequest(store.getAll())
+      ]);
+      if (Array.isArray(keys) && Array.isArray(values)) {
+        keys.forEach((key, i) => {
+          const k = String(key);
+          if (memoryUniverseStore[k] === undefined && typeof values[i] === 'string') {
+            memoryUniverseStore[k] = values[i];
+          }
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  let migrated = 0;
+  let freedChars = 0;
+  try {
+    const localHeavyEntries = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !isHeavyStorageKey(k)) continue;
+      const v = localStorage.getItem(k);
+      if (v !== null) localHeavyEntries.push([k, v]);
+    }
+    // Сначала канонические ключи, затем legacy-дубликаты в порядке старого
+    // приоритета чтения: дубликат не должен перетирать более свежее значение.
+    const legacyPriority = (k) => {
+      if (canonicalHeavyStorageKey(k) === k) return 0;
+      if (k === 'meta_checkpoints') return 1;
+      if (k === 'universe_1_meta_checkpoints_v2') return 2;
+      if (k === 'meta_checkpoints_v2') return 3;
+      return 4;
+    };
+    localHeavyEntries.sort((a, b) => legacyPriority(a[0]) - legacyPriority(b[0]));
+    for (const [k, v] of localHeavyEntries) {
+      const canonicalKey = canonicalHeavyStorageKey(k);
+      if (canonicalKey === k || memoryUniverseStore[canonicalKey] === undefined) {
+        memoryUniverseStore[canonicalKey] = v;
+        scheduleHeavyStorageWrite(canonicalKey, v);
+      }
+      freedChars += k.length + v.length;
+      migrated++;
+      try { localStorage.removeItem(k); } catch {}
+    }
+  } catch {
+    // ignore
+  }
+  if (migrated > 0) {
+    console.info(`[storage] Крупные данные перенесены в IndexedDB: ${migrated} ключей, localStorage освобождён на ${Math.round(freedChars / 1024)} КБ.`);
+  }
+  return { migrated, freedChars };
+}
+
 // Прогресс Автора в localStorage не должен затираться гостевым снимком canon.json:
 // при возврате в режим Автора сравниваем даты и поднимаем более свежее сохранение.
 function getLocalAuthorProgressStamp() {
@@ -407,6 +587,8 @@ async function restoreAuthorProgressAfterGuestPreview() {
       delete memoryUniverseStore[key];
     }
   });
+  // Крупные данные после очистки памяти перечитываем из IndexedDB.
+  await hydrateHeavyStorageFromIndexedDB();
   loadUniverseStateFromStorage();
   if (authorCanonRestoreHook) {
     await authorCanonRestoreHook();
@@ -624,6 +806,11 @@ export const universeStorage = {
     const fullKey = this.key(k);
     memoryUniverseStore[fullKey] = strVal;
     if (canonSnapshotInfo && activeUniverseId === '1') return;
+    // Сетки и чекпоинты идут в IndexedDB: их объём в разы больше квоты localStorage.
+    if (isHeavyStorageKey(fullKey)) {
+      scheduleHeavyStorageWrite(fullKey, strVal);
+      return;
+    }
     try {
       localStorage.setItem(fullKey, strVal);
     } catch {
@@ -648,6 +835,9 @@ export const universeStorage = {
   removeItem(k) {
     const fullKey = this.key(k);
     delete memoryUniverseStore[fullKey];
+    if (isHeavyStorageKey(fullKey)) {
+      scheduleHeavyStorageDelete(fullKey);
+    }
     try {
       localStorage.removeItem(fullKey);
       if (!k.includes('_v8')) {
@@ -2244,6 +2434,7 @@ export function confirmDeleteCurrentUniverse() {
     const drawPrefix = `draw_${deletedId}_`;
     Object.keys(memoryUniverseStore).forEach(k => {
       if (k.startsWith(prefix) || k.startsWith(drawPrefix)) {
+        if (isHeavyStorageKey(k)) scheduleHeavyStorageDelete(k);
         delete memoryUniverseStore[k];
       }
     });
@@ -2762,14 +2953,18 @@ export function handleImportUniverseFile(event) {
           }
         }
         const targetKey = universeStorage.key(fullKey);
+        const isPersisted = (expectedJson) => isHeavyStorageKey(targetKey)
+          ? (!heavyStorageDbDisabled && memoryUniverseStore[targetKey] === expectedJson)
+          : localStorage.getItem(targetKey) !== null;
         universeStorage.setItem(fullKey, fullJson);
-        if (localStorage.getItem(targetKey) !== null) {
+        if (isPersisted(fullJson)) {
           storedDraws++;
           return;
         }
         // Не влезло — пробуем компактную копию без ИИ-комментариев.
-        universeStorage.setItem(fullKey, JSON.stringify(compactImportedDrawForStorage(sanitized)));
-        if (localStorage.getItem(targetKey) !== null) {
+        const compactJson = JSON.stringify(compactImportedDrawForStorage(sanitized));
+        universeStorage.setItem(fullKey, compactJson);
+        if (isPersisted(compactJson)) {
           // Полную версию оставляем в памяти до перезагрузки.
           memoryUniverseStore[targetKey] = fullJson;
           compactDraws++;
@@ -8600,6 +8795,11 @@ function persistCheckpointsListToStorage(list) {
   const fullJson = JSON.stringify(list);
   memoryUniverseStore[fullKey] = fullJson;
   if (canonSnapshotInfo && activeUniverseId === '1') return true;
+  // Чекпоинты весят мегабайты — пишем их в IndexedDB, а не в localStorage.
+  if (!heavyStorageDbDisabled && heavyStorageDbPromise) {
+    scheduleHeavyStorageWrite(fullKey, fullJson);
+    return true;
+  }
 
   const tryWrite = (json) => {
     try {
@@ -9578,7 +9778,7 @@ if (typeof window !== 'undefined') {
 
       // 4. Синхронизируем чекпоинты (включая ручной чекпоинт от 15 ноября и чекпоинт после Океанского шлема):
       if (Array.isArray(canonData.checkpoints) && canonData.checkpoints.length > 0) {
-        const rawCps = localStorage.getItem('universe_1_meta_checkpoints') || localStorage.getItem('meta_checkpoints') || localStorage.getItem('universe_1_meta_checkpoints_v2') || localStorage.getItem('meta_checkpoints_v2');
+        const rawCps = universeStorage.getItem(CHECKPOINTS_STORAGE_KEY);
         let currentCps = [];
         try { if (rawCps) currentCps = JSON.parse(rawCps); } catch {}
         if (!Array.isArray(currentCps)) currentCps = [];
@@ -9596,10 +9796,7 @@ if (typeof window !== 'undefined') {
           })
           .sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
         const str = JSON.stringify(merged);
-        try {
-          localStorage.setItem('universe_1_meta_checkpoints', str);
-        } catch {}
-        memoryUniverseStore['universe_1_meta_checkpoints'] = str;
+        universeStorage.setItem(CHECKPOINTS_STORAGE_KEY, str);
         memoryCheckpointsByUniverse['1'] = merged;
       }
 
@@ -9613,7 +9810,9 @@ if (typeof window !== 'undefined') {
         if (!canonDraw || !Array.isArray(canonDraw) || canonDraw.length === 0) return;
         const rest = String(drawKey).startsWith('draw_') ? String(drawKey).slice(5) : String(drawKey);
         const fullKey = `draw_1_${rest}`;
-        const existingLocalDraw = localStorage.getItem(fullKey) || localStorage.getItem(`universe_1_${drawKey}`) || localStorage.getItem(drawKey);
+        // Сохранённая сетка автора может лежать в памяти (гидратация из IndexedDB)
+        // или в legacy-ключе localStorage — отдаём приоритет ей, а не мастер-снимку.
+        const existingLocalDraw = universeStorage.getItem(drawKey);
 
         if (isSavedProgressNewer && existingLocalDraw) {
           memoryUniverseStore[fullKey] = existingLocalDraw;
@@ -9626,14 +9825,6 @@ if (typeof window !== 'undefined') {
         memoryUniverseStore[fullKey] = str;
         memoryUniverseStore[`universe_1_${drawKey}`] = str;
         memoryUniverseStore[drawKey] = str;
-
-        // В localStorage сохраняем только сетки активного сезона: архивные
-        // читаются из памяти/мастер-снимка и не должны раздувать квоту.
-        if (rest.endsWith(`_${targetYear}`)) {
-          try {
-            localStorage.setItem(fullKey, str);
-          } catch {}
-        }
       });
     } catch {
       // ignore
@@ -9687,13 +9878,23 @@ if (typeof window !== 'undefined') {
 
   const bootstrapApp = async () => {
     setupPwa();
-    runStorageGarbageCollector();
+    // Сначала поднимаем крупные данные из IndexedDB (и переносим legacy-ключи
+    // из localStorage), чтобы вся инициализация архивов видела свежие сетки.
+    const heavyMigration = await hydrateHeavyStorageFromIndexedDB();
     await ensureMasterArchivesLoaded();
+    runStorageGarbageCollector();
     await fetchOverridesFromLocalServer();
     await restoreAuthorCanonPositionsOnce();
     await loadPublishedCanonSnapshot();
     initData();
     initUI();
+    if (heavyMigration.migrated > 0 && heavyMigration.freedChars > 400000) {
+      showToast(
+        `♻️ <b>Сетки и чекпоинты перенесены в IndexedDB.</b> localStorage освобождён примерно на ` +
+        `${(heavyMigration.freedChars / 1024 / 1024).toFixed(1)} МБ — предупреждения о переполнении больше не появятся.`,
+        9000
+      );
+    }
     restoreLiveDrawBackupIfNewer();
     syncLiveCanonSnapshotToLocalServer();
   };
