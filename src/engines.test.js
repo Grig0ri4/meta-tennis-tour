@@ -72,7 +72,8 @@ import {
 import {
   getRetirementProbability,
   processEndOfSeasonRetirements,
-  createNewgenPlayer
+  createNewgenPlayer,
+  processLowerRankChurn
 } from './retirementEngine.js';
 import {
   HISTORICAL_2023_TOP10,
@@ -445,6 +446,88 @@ test('Раздел 5: Система завершения карьеры (защ
     assert.ok(ng.nickname && ng.nickname.length > 2, 'У новичка должно быть прозвище');
     assert.ok(ng.playStyle && ng.playStyle.length > 5, 'У новичка должен быть стиль игры');
   });
+});
+
+test('Раздел 5b: Ротация нижнего рейтинга — 20 игроков №233–300 (25–35 лет) уходят, приходят 10 юниоров 16–19 и 10 игроков 20–27 лет', () => {
+  const players = buildInitial300Players();
+  sortAndRankPlayers(players, false);
+  players.forEach(p => {
+    if (p.rank >= 233 && p.rank <= 300) p.birthDate = '1994-06-15'; // 30 лет на 30.12.2024
+  });
+
+  // Детерминированный mulberry32: константный rng не даёт сгенерировать 20 разных имён
+  let seed = 0x5eed1234;
+  const rng = () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  const { updatedPlayers, churnedPlayers, churnNewcomers } = processLowerRankChurn(players, 2024, [], rng);
+
+  assert.equal(churnedPlayers.length, 20);
+  assert.equal(churnNewcomers.length, 20);
+  assert.equal(updatedPlayers.length, 300, 'Баланс пула 300 игроков сохраняется');
+
+  churnedPlayers.forEach(c => {
+    assert.ok(c.finalRank >= 233 && c.finalRank <= 300, `Ушедший #${c.finalRank} из нижнего рейтинга`);
+    assert.ok(c.retiredAge >= 25 && c.retiredAge <= 35, `Возраст ушедшего ${c.retiredAge} в диапазоне 25–35`);
+    assert.equal(c.isJourneyman, true);
+    assert.equal(c.retiredReason, 'ranking_churn');
+  });
+
+  const youth = churnNewcomers.filter(n => n.entryGroup === 'youth');
+  const senior = churnNewcomers.filter(n => n.entryGroup === 'senior');
+  assert.equal(youth.length, 10);
+  assert.equal(senior.length, 10);
+  youth.forEach(n => assert.ok(n.ageAtEntry >= 16 && n.ageAtEntry <= 19, `Юниор ${n.name}: ${n.ageAtEntry} лет`));
+  senior.forEach(n => assert.ok(n.ageAtEntry >= 20 && n.ageAtEntry <= 27, `Игрок ${n.name}: ${n.ageAtEntry} лет`));
+
+  churnNewcomers.forEach(n => {
+    assert.equal(/\d/.test(n.name), false, `Имя ${n.name} без цифр`);
+    assert.ok(n.id.startsWith('p_churn_2025_'), `ID новичка ${n.id}`);
+    const defendedSum = Object.values(n.tournamentPoints).reduce(
+      (acc, byYear) => acc + Object.values(byYear).reduce((a, b) => a + b, 0),
+      0
+    );
+    assert.equal(defendedSum, n.points, `Защищаемые очки ${n.name} совпадают со стартовыми`);
+  });
+  assert.equal(new Set(churnNewcomers.map(n => n.id)).size, 20, 'ID новичков уникальны');
+  assert.equal(new Set(updatedPlayers.map(p => String(p.name).toLowerCase())).size, 300, 'Имена в пуле уникальны');
+});
+
+test('Раздел 5c: при нехватке игроков 25–35 лет квоту ротации добирают самые возрастные игроки нижней части рейтинга', () => {
+  const players = buildInitial300Players();
+  sortAndRankPlayers(players, false);
+  const band = players
+    .filter(p => p.rank >= 233 && p.rank <= 300)
+    .sort((a, b) => a.rank - b.rank);
+  band.forEach((p, idx) => {
+    p.birthDate = idx < 10 ? '1994-06-15' : '2005-06-15'; // 10 игроков по 30 лет, остальные по 19
+  });
+
+  let seed = 0xabcdef01;
+  const rng = () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  const { updatedPlayers, churnedPlayers, churnNewcomers } = processLowerRankChurn(players, 2024, [], rng);
+
+  assert.equal(churnedPlayers.length, 20, 'Квота в 20 уходов сохраняется');
+  assert.equal(churnedPlayers.filter(c => c.retiredAge >= 25 && c.retiredAge <= 35).length, 10, 'Сначала уходят все подходящие по возрасту');
+  assert.equal(churnedPlayers.filter(c => c.retiredAge < 25).length, 10, 'Недостающая квота добирается из нижней части рейтинга');
+  churnedPlayers.forEach(c => assert.ok(c.finalRank >= 233 && c.finalRank <= 300, `Ушедший #${c.finalRank} из нижней части рейтинга`));
+  assert.equal(churnNewcomers.length, 20);
+  assert.equal(churnNewcomers.filter(n => n.entryGroup === 'youth').length, 10, '10 юниоров 16–19 лет');
+  assert.equal(churnNewcomers.filter(n => n.entryGroup === 'senior').length, 10, '10 игроков 20–27 лет');
+  assert.equal(updatedPlayers.length, 300, 'Баланс пула 300 игроков сохраняется');
+  assert.equal(new Set(updatedPlayers.map(p => String(p.name).toLowerCase())).size, 300, 'Имена в пуле уникальны');
 });
 
 test('Раздел 4 и 5: Срезы Топ-50 с динамикой, сюжетные сводки матчей и аналитика H2H с супер-тайбрейками', () => {

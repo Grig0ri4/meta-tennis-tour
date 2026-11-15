@@ -91,7 +91,8 @@ import {
 import {
   NEWGEN_NICKNAMES,
   NEWGEN_PLAY_STYLES,
-  processEndOfSeasonRetirements
+  processEndOfSeasonRetirements,
+  processLowerRankChurn
 } from './retirementEngine.js';
 import {
   HISTORICAL_2023_FINALS,
@@ -6275,8 +6276,16 @@ export function endSeasonAndDecayPoints() {
     retiredLegends
   );
 
-  players = updatedPlayers;
-  retiredLegends = [...retiredThisYear, ...retiredLegends];
+  // РОТАЦИЯ НИЖНЕГО РЕЙТИНГА: часть игроков вне Топ-100 покидает тур,
+  // их места занимают юниоры и молодые игроки ближайшего резерва
+  const churn = processLowerRankChurn(
+    updatedPlayers,
+    endingYear,
+    [...retiredThisYear, ...retiredLegends]
+  );
+
+  players = churn.updatedPlayers;
+  retiredLegends = [...retiredThisYear, ...churn.churnedPlayers, ...retiredLegends];
   saveRetiredLegends();
 
   // Переход в новый сезон
@@ -6328,11 +6337,15 @@ export function endSeasonAndDecayPoints() {
   renderPlayersTable();
   renderRaceTable();
 
-  openSeasonTransitionReportModal(endingYear, currentTourYear, retiredThisYear, newgensThisYear, seasonAwards);
+  openSeasonTransitionReportModal(endingYear, currentTourYear, retiredThisYear, newgensThisYear, seasonAwards, {
+    churnedPlayers: churn.churnedPlayers,
+    churnNewcomers: churn.churnNewcomers
+  });
 
-  // Запрашиваем у Groq уникальные короткие прозвища и стили игры для молодых новичков
-  if (newgensThisYear.length > 0) {
-    enrichNewgensWithGroq(newgensThisYear).then(enrichedList => {
+  // Запрашиваем у Groq уникальные короткие прозвища и стили игры для всех новичков межсезонья
+  const allNewcomers = [...newgensThisYear, ...churn.churnNewcomers];
+  if (allNewcomers.length > 0) {
+    enrichNewgensWithGroq(allNewcomers).then(enrichedList => {
       enrichedList.forEach(ng => {
         const target = players.find(p => p.id === ng.id);
         if (target) {
@@ -6343,13 +6356,16 @@ export function endSeasonAndDecayPoints() {
       savePlayers(false);
       renderPlayersTable();
       if (document.getElementById('seasonTransitionModal')?.classList.contains('open')) {
-        openSeasonTransitionReportModal(endingYear, currentTourYear, retiredThisYear, enrichedList, seasonAwards);
+        openSeasonTransitionReportModal(endingYear, currentTourYear, retiredThisYear, newgensThisYear, seasonAwards, {
+          churnedPlayers: churn.churnedPlayers,
+          churnNewcomers: churn.churnNewcomers
+        });
       }
     });
   }
 }
 
-function openSeasonTransitionReportModal(endedYear, newYear, retiredList, newgensList, awards = null) {
+function openSeasonTransitionReportModal(endedYear, newYear, retiredList, newgensList, awards = null, churn = null) {
   document.getElementById('seasonTransitionTitle').innerText = `Сезон ${endedYear} завершен · Добро пожаловать в сезон ${newYear}!`;
   document.getElementById('seasonTransitionSubtitle').innerText =
     `Архив сезона ${endedYear} сохранен в Зале Славы. Чемпионская гонка (Live Race) обнулена к 1 января ${newYear} года.${isOlympicYear(newYear) ? ' В календаре этого года пройдут Олимпийские игры!' : ''} Баланс пула: 300 игроков.`;
@@ -6423,9 +6439,46 @@ function openSeasonTransitionReportModal(endedYear, newYear, retiredList, newgen
         </div>
       </div>
     </div>
+    ${buildChurnReportHtml(churn)}
   `;
 
   document.getElementById('seasonTransitionModal').classList.add('open');
+}
+
+function buildChurnReportHtml(churn) {
+  const churned = Array.isArray(churn?.churnedPlayers) ? churn.churnedPlayers : [];
+  if (churned.length === 0) return '';
+  const arrivals = Array.isArray(churn?.churnNewcomers) ? churn.churnNewcomers : [];
+  const youth = arrivals.filter(n => n.entryGroup === 'youth');
+  const senior = arrivals.filter(n => n.entryGroup === 'senior');
+
+  const row = (p, metaHtml) => `
+    <div class="h2h-item" style="flex-direction: row; justify-content: space-between; align-items: center; gap: 8px;">
+      <b style="font-size: 12.5px;">${renderFlagBadge(p.flag, { compact: true })} <button type="button" class="player-profile-link" onclick="openPlayerProfileModal('${p.id}')">${escapeHtmlText(p.name)}</button></b>
+      <span style="font-size: 11.5px; color: var(--text-dim); white-space: nowrap;">${metaHtml}</span>
+    </div>`;
+
+  return `
+    <div style="margin-top: 14px; background: #0d1420; border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+        <h4 style="color: #38bdf8; font-size: 14px; margin: 0;">🔄 Ротация нижнего рейтинга (№233–300)</h4>
+        <span style="font-size: 12px; color: var(--text-dim);">Покинули тур: <b style="color: var(--gold);">${churned.length}</b> · Пришли: <b style="color: var(--primary);">${arrivals.length}</b> (юниоров 16–19 лет: ${youth.length}, игроков 20–27 лет: ${senior.length})</span>
+      </div>
+      <div class="report-columns">
+        <div>
+          <div style="font-size: 12.5px; font-weight: 700; color: var(--gold); margin-bottom: 6px;">👋 Покинули тур (приоритет — 25–35 лет)</div>
+          <div style="max-height: 230px; overflow-y: auto;">
+            ${churned.map(p => row(p, `#${p.finalRank} · ${p.retiredAge} лет · ${(p.finalPoints || 0).toLocaleString()} pts`)).join('')}
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 12.5px; font-weight: 700; color: var(--primary); margin-bottom: 6px;">🌟 Новые лица тура</div>
+          <div style="max-height: 230px; overflow-y: auto;">
+            ${arrivals.map(n => row(n, `${n.entryGroup === 'youth' ? 'юниор' : 'резерв'} · ${n.ageAtEntry} лет · ${n.points} pts`)).join('')}
+          </div>
+        </div>
+      </div>
+    </div>`;
 }
 
 // --- 7. ТАБЛИЦЫ РЕЙТИНГА (52 НЕДЕЛИ), ГОНКИ И КАЛЕНДАРЯ ---
@@ -7042,6 +7095,7 @@ export function openPlayerProfileModal(playerId) {
   }
 
   const isRetiredProfile = Boolean(retiredLegend);
+  const isJourneymanProfile = Boolean(retiredLegend?.isJourneyman);
   activeProfilePlayerId = player.id;
   const stats = computePlayerCareerAndSeasonStats(player, isRetiredProfile ? retiredLegend.retiredYear : null);
   const seasonYearLabel = isRetiredProfile ? (Number(retiredLegend.retiredYear) || currentTourYear) : currentTourYear;
@@ -7057,13 +7111,17 @@ export function openPlayerProfileModal(playerId) {
   const subEl = document.getElementById('playerProfileSubtitle');
   if (titleEl) {
     const retiredBadge = isRetiredProfile
-      ? ` <span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(234, 179, 8, 0.35); font-weight: 700;">🏛️ Легенда тура</span>`
+      ? (isJourneymanProfile
+        ? ` <span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); font-weight: 700;">🔄 Покинул тур</span>`
+        : ` <span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(234, 179, 8, 0.35); font-weight: 700;">🏛️ Легенда тура</span>`)
       : '';
     titleEl.innerHTML = `👤 Профиль игрока · ${renderFlagBadge(player.flag)} ${escapeHtmlText(player.name)}${retiredBadge}`;
   }
   if (subEl) {
     subEl.innerHTML = isRetiredProfile
-      ? `Завершил карьеру в <b>${retiredLegend.retiredYear}</b> году в возрасте <b>${retiredLegend.retiredAge}</b> лет · Зал Трофеев и карьерная статистика`
+      ? (isJourneymanProfile
+        ? `Покинул тур в <b>${retiredLegend.retiredYear}</b> году в возрасте <b>${retiredLegend.retiredAge}</b> лет (ротация нижнего рейтинга) · Зал Трофеев и карьерная статистика`
+        : `Завершил карьеру в <b>${retiredLegend.retiredYear}</b> году в возрасте <b>${retiredLegend.retiredAge}</b> лет · Зал Трофеев и карьерная статистика`)
       : `Мировой рейтинг ATP (52 недели), Зал Трофеев и детальная статистика сезона ${currentTourYear}`;
   }
   const profileEditBtn = document.getElementById('btnProfileOpenEdit');
@@ -7913,7 +7971,8 @@ export function renderHistoryYear() {
   const topTitleWinners = Object.values(titleCountsMap).sort((a, b) => b.count !== a.count ? b.count - a.count : b.majors - a.majors);
 
   // 3. Участники, завершившие карьеру по итогам выбранного сезона
-  const seasonRetirees = (retiredLegends || []).filter(r => String(r.retiredYear) === String(year));
+  const seasonRetirees = (retiredLegends || []).filter(r => String(r.retiredYear) === String(year) && !r.isJourneyman);
+  const seasonJourneymen = (retiredLegends || []).filter(r => String(r.retiredYear) === String(year) && r.isJourneyman);
 
   const rawWorldNo1 = data.worldNumberOne || activeList[0] || players[0];
   const worldNo1 = rawWorldNo1 ? (players.find(x => String(x.id) === String(rawWorldNo1.id)) || rawWorldNo1) : players[0];
@@ -8104,6 +8163,8 @@ export function renderHistoryYear() {
           </div>
         `}
       </div>
+
+      ${buildJourneymenArchiveHtml(seasonJourneymen)}
     </div>
 
     <h3 style="margin: 18px 0 10px 0; font-size: 16px;">🏆 Таблица чемпионов всех ${fullTourneysList.length} турниров сезона ${year}</h3>
@@ -8207,11 +8268,48 @@ export async function regeneratePressColumnForTourney(tourneyId, year) {
   }
 }
 
+function buildJourneymenArchiveHtml(journeymen) {
+  if (!Array.isArray(journeymen) || journeymen.length === 0) return '';
+  const byYear = new Map();
+  journeymen.forEach(j => {
+    const y = String(j.retiredYear || '—');
+    if (!byYear.has(y)) byYear.set(y, []);
+    byYear.get(y).push(j);
+  });
+  const years = [...byYear.keys()].sort((a, b) => (Number(b) || 0) - (Number(a) || 0));
+  return `
+    <div class="history-card" style="margin-top: 16px;">
+      <details>
+        <summary style="cursor: pointer; font-size: 14px; font-weight: 700; color: #38bdf8;">
+          🔄 Ротация нижнего рейтинга: ${journeymen.length} ${journeymen.length === 1 ? 'игрок' : 'игроков'} №233–300 покинули тур
+        </summary>
+        <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
+          ${years.map(y => `
+            <div>
+              <div style="font-size: 12px; color: var(--text-dim); margin-bottom: 6px;">Выпуск ${y} · ${byYear.get(y).length} игр.</div>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                ${byYear.get(y).map(j => `
+                  <button type="button" class="player-profile-link" style="background: #131c2e; border: 1px solid var(--border); border-radius: 6px; padding: 5px 9px; font-size: 12px;" onclick="openPlayerProfileModal('${j.id}')" title="Открыть профиль игрока">
+                    ${renderFlagBadge(j.flag, { compact: true })} ${escapeHtmlText(j.name)}
+                    <span style="color: var(--text-dim); font-size: 11px;">#${j.finalRank} · ${j.retiredAge} лет</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </details>
+    </div>`;
+}
+
 export function renderLegendsTab() {
   const container = document.getElementById('legendsContent');
   if (!container) return;
 
-  if (!retiredLegends || retiredLegends.length === 0) {
+  const legends = (retiredLegends || []).filter(leg => !leg.isJourneyman);
+  const journeymen = (retiredLegends || []).filter(leg => leg.isJourneyman);
+
+  if (legends.length === 0) {
     container.innerHTML = `
       <div class="history-card" style="text-align: center; padding: 40px 20px;">
         <h3 style="font-size: 17px; color: var(--gold); margin-bottom: 8px;">Зал Славы: Завершившие карьеру (Легенды тура)</h3>
@@ -8219,6 +8317,7 @@ export function renderLegendsTab() {
           Когда возрастные игроки (37–42 лет) завершают профессиональную карьеру по окончании сезона, их именные карточки с пиковым рейтингом и количеством сезонов бережно сохраняются здесь.
         </p>
       </div>
+      ${buildJourneymenArchiveHtml(journeymen)}
     `;
     return;
   }
@@ -8226,12 +8325,12 @@ export function renderLegendsTab() {
   container.innerHTML = `
     <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
       <div>
-        <h3 style="font-size: 17px; color: var(--gold);">Завершившие карьеру (Легенды тура) · ${retiredLegends.length} игр.</h3>
+        <h3 style="font-size: 17px; color: var(--gold);">Завершившие карьеру (Легенды тура) · ${legends.length} игр.</h3>
         <small style="color: var(--text-dim);">Почетный архив ветеранов, повесивших ракетку на гвоздь по итогам прошлых сезонов.</small>
       </div>
     </div>
     <div class="legends-grid">
-      ${retiredLegends.map(leg => `
+      ${legends.map(leg => `
         <div class="legend-card">
           <div class="legend-card-header">
             <button type="button" class="legend-name player-profile-link" onclick="openPlayerProfileModal('${leg.id}')" title="Открыть профиль легенды">${renderFlagBadge(leg.flag, { compact: true })} ${leg.name}</button>
@@ -8252,6 +8351,7 @@ export function renderLegendsTab() {
         </div>
       `).join('')}
     </div>
+    ${buildJourneymenArchiveHtml(journeymen)}
   `;
 }
 
@@ -8259,7 +8359,7 @@ export function renderGoatTab() {
   const container = document.getElementById('goatContent');
   if (!container) return;
 
-  const board = buildGoatLeaderboard(players, retiredLegends, seasonsHistory).slice(0, 25);
+  const board = buildGoatLeaderboard(players, (retiredLegends || []).filter(leg => !leg.isJourneyman), seasonsHistory).slice(0, 25);
 
   if (board.length === 0) {
     container.innerHTML = `
