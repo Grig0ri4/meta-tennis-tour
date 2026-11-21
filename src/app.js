@@ -89,12 +89,6 @@ import {
   computeSeasonAwards
 } from './rankingEngine.js';
 import {
-  NEWGEN_NICKNAMES,
-  NEWGEN_PLAY_STYLES,
-  processEndOfSeasonRetirements,
-  processLowerRankChurn
-} from './retirementEngine.js';
-import {
   HISTORICAL_2023_FINALS,
   ensureDefault2023SeasonArchive,
   ensureCleanJanuary2024StartState
@@ -118,8 +112,7 @@ import {
   simulateMatchWithGroq,
   generateCommentaryForEnteredScore,
   generateFinalPressColumn,
-  buildFallbackFinalPressColumn,
-  enrichNewgensWithGroq
+  buildFallbackFinalPressColumn
 } from './aiService.js';
 import {
   COUNTRY_CATALOG,
@@ -334,11 +327,20 @@ function saveUniversesRegistry() {
     if (!currentUniv.startYear) currentUniv.startYear = currentUniv.id === '1' ? 2024 : (currentUniv.year || 2024);
     currentUniv.year = currentTourYear;
   }
+  const registryJson = JSON.stringify(universesList);
   try {
-    localStorage.setItem(UNIVERSES_LIST_KEY, JSON.stringify(universesList));
+    localStorage.setItem(UNIVERSES_LIST_KEY, registryJson);
     localStorage.setItem(ACTIVE_UNIVERSE_KEY, activeUniverseId);
   } catch {
-    // ignore quota error
+    // Квота LS исчерпана: освобождаем место и повторяем, иначе реестр миров не
+    // сохранится и созданный мир потеряется/станет невидимым после перезагрузки.
+    runStorageGarbageCollector();
+    try {
+      localStorage.setItem(UNIVERSES_LIST_KEY, registryJson);
+      localStorage.setItem(ACTIVE_UNIVERSE_KEY, activeUniverseId);
+    } catch {
+      notifyStorageWriteFailure();
+    }
   }
 }
 
@@ -431,25 +433,31 @@ function heavyIdbRequest(req) {
   });
 }
 
+// Возвращает Promise<boolean>: true только после подтверждённого коммита в IndexedDB.
+// Вызывающий код удаляет durable-копию из localStorage ТОЛЬКО при true — иначе при
+// сбое IDB (приватный режим/переполнение диска) данные переживут перезагрузку в LS.
 function scheduleHeavyStorageWrite(key, value) {
-  if (heavyStorageDbDisabled) return;
+  if (heavyStorageDbDisabled) return Promise.resolve(false);
   const k = String(key);
   const v = String(value);
-  heavyStorageWriteChain = heavyStorageWriteChain.then(async () => {
+  const task = heavyStorageWriteChain.then(async () => {
     const db = await openHeavyStorageDb();
-    if (!db) return;
+    if (!db) return false;
     try {
-      await new Promise((resolve) => {
+      return await new Promise((resolve) => {
         const tx = db.transaction(HEAVY_STORAGE_STORE_NAME, 'readwrite');
         tx.objectStore(HEAVY_STORAGE_STORE_NAME).put(v, k);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => resolve();
-        tx.onabort = () => resolve();
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+        tx.onabort = () => resolve(false);
       });
     } catch {
-      // ignore
+      return false;
     }
-  }).catch(() => {});
+  });
+  // Цепочка записей не должна рваться из-за сбоя одной транзакции
+  heavyStorageWriteChain = task.then(() => {}, () => {});
+  return task.then(ok => ok === true, () => false);
 }
 
 function scheduleHeavyStorageDelete(key) {
@@ -526,14 +534,19 @@ async function hydrateHeavyStorageFromIndexedDB() {
     localHeavyEntries.sort((a, b) => legacyPriority(a[0]) - legacyPriority(b[0]));
     for (const [k, v] of localHeavyEntries) {
       const canonicalKey = canonicalHeavyStorageKey(k);
+      let durable = true;
       if (!idbKeySet.has(canonicalKey)) {
         memoryUniverseStore[canonicalKey] = v;
-        scheduleHeavyStorageWrite(canonicalKey, v);
-        idbKeySet.add(canonicalKey);
+        // LS-копию удаляем только после подтверждённой записи в IDB: иначе при
+        // закрытии вкладки во время миграции данные не сохранятся ни в LS, ни в IDB.
+        durable = await scheduleHeavyStorageWrite(canonicalKey, v);
+        if (durable) idbKeySet.add(canonicalKey);
       }
-      freedChars += k.length + v.length;
-      migrated++;
-      try { localStorage.removeItem(k); } catch {}
+      if (durable) {
+        freedChars += k.length + v.length;
+        migrated++;
+        try { localStorage.removeItem(k); } catch {}
+      }
     }
   } catch {
     // ignore
@@ -710,13 +723,6 @@ export function runStorageGarbageCollector() {
   }
 }
 
-function buildDrawSignature(draw) {
-  if (!Array.isArray(draw)) return '';
-  return draw.map(round => Array.isArray(round)
-    ? round.map(m => m ? `${m.p1?.id || ''}:${m.p2?.id || ''}:${m.winner?.id || ''}:${Array.isArray(m.score) ? m.score.join(' ') : ''}` : '').join(',')
-    : '').join('|');
-}
-
 // Освобождает место только за счёт гарантированно избыточных копий:
 // устаревших дубликатов глобальных ключей и архивных сеток, байт-в-байт
 // совпадающих с мастер-снимком канона (их читает фоллбэк readSavedDraw).
@@ -760,7 +766,9 @@ function freeRedundantLocalStorageSpace() {
         let stored;
         try { stored = JSON.parse(raw); } catch { continue; }
         if (!Array.isArray(stored)) continue;
-        if (buildDrawSignature(stored) !== buildDrawSignature(master)) continue;
+        // Стираем только байт-в-байт идентичные копии: обогащённые сетки (ИИ-комментарии,
+        // статистика, стамина) отличаются от голого мастера и не должны удаляться.
+        if (JSON.stringify(stored) !== JSON.stringify(master)) continue;
         freed += raw.length + k.length;
         localStorage.removeItem(k);
       }
@@ -822,8 +830,16 @@ export const universeStorage = {
     // Сетки и чекпоинты идут в IndexedDB: их объём в разы больше квоты localStorage.
     // Если IndexedDB недоступен, работает прежний путь с фоллбэками по квоте.
     if (isHeavyStorageKey(fullKey) && !heavyStorageDbDisabled) {
-      try { localStorage.removeItem(fullKey); } catch {}
-      scheduleHeavyStorageWrite(fullKey, strVal);
+      // Durable-копию LS удаляем только после подтверждённой записи в IDB. При сбое
+      // IDB оставляем значение в localStorage (если есть квота), иначе предупреждаем.
+      scheduleHeavyStorageWrite(fullKey, strVal).then(ok => {
+        if (ok) {
+          try { localStorage.removeItem(fullKey); } catch {}
+        } else {
+          try { localStorage.setItem(fullKey, strVal); }
+          catch { notifyStorageWriteFailure(); }
+        }
+      });
       return;
     }
     try {
@@ -846,9 +862,14 @@ export const universeStorage = {
         // иначе изменение потеряется после перезагрузки. Гидратация при старте
         // вернёт такие значения в память.
         if (!heavyStorageDbDisabled) {
-          try { localStorage.removeItem(fullKey); } catch {}
-          scheduleHeavyStorageWrite(fullKey, strVal);
-          console.info(`[storage] localStorage переполнен: ${fullKey} сохранён в IndexedDB.`);
+          scheduleHeavyStorageWrite(fullKey, strVal).then(ok => {
+            if (ok) {
+              try { localStorage.removeItem(fullKey); } catch {}
+              console.info(`[storage] localStorage переполнен: ${fullKey} сохранён в IndexedDB.`);
+            } else {
+              notifyStorageWriteFailure();
+            }
+          });
           return;
         }
         // IndexedDB тоже недоступен — значение остаётся в памяти до перезагрузки.
@@ -1126,9 +1147,7 @@ function recordCustomPlayerOverride(player, canonicalName = null) {
   const payload = {
     name: player.name,
     flag: player.flag,
-    birthDate: player.birthDate,
-    nickname: player.nickname || '',
-    playStyle: player.playStyle || ''
+    birthDate: player.birthDate
   };
   if (player.id) overrides[`id:${player.id}`] = payload;
   const normName = String(canonicalName || player.name || '').trim().toLowerCase();
@@ -1260,16 +1279,12 @@ function repairCanonicalPlayersAndDraws() {
       ? ov.name
       : ((source.name && !/\s+\d+$/.test(source.name)) ? source.name : canon.name);
     const resolvedBirth = ov.birthDate || source.birthDate || canon.birthDate;
-    const resolvedNick = ov.nickname !== undefined ? ov.nickname : (source.nickname || '');
-    const resolvedStyle = ov.playStyle !== undefined ? ov.playStyle : (source.playStyle || '');
 
     if (resolvedFlag && resolvedFlag !== '?' && resolvedFlag !== canon.flag && !ov.flag) {
       const entry = {
         name: resolvedName,
         flag: resolvedFlag,
-        birthDate: resolvedBirth,
-        nickname: resolvedNick,
-        playStyle: resolvedStyle
+        birthDate: resolvedBirth
       };
       customOverrides[`id:${canon.id}`] = entry;
       customOverrides[`name:${ String(resolvedName).trim().toLowerCase() }`] = entry;
@@ -1282,8 +1297,6 @@ function repairCanonicalPlayersAndDraws() {
       name: resolvedName,
       flag: resolvedFlag,
       birthDate: resolvedBirth,
-      nickname: resolvedNick,
-      playStyle: resolvedStyle,
       basePoints: source.basePoints || canon.basePoints,
       start2023Points: source.start2023Points || canon.start2023Points
     };
@@ -1423,9 +1436,9 @@ function repairCanonicalPlayersAndDraws() {
         const storageKey = `draw_${t.id}_${yr}`;
         let storedRaw = null;
         try {
-          storedRaw = localStorage.getItem(universeStorage.key(storageKey)) ||
-            localStorage.getItem(`universe_1_${storageKey}`) ||
-            localStorage.getItem(storageKey);
+          // universeStorage.getItem учитывает и IDB-резидентные сетки (гидрированы в память):
+          // иначе ремонт уже сохранённой архивной сетки остался бы только в памяти до перезагрузки.
+          storedRaw = universeStorage.getItem(storageKey);
         } catch {}
         // Сетки текущего сезона и уже сохранённые в браузере прогрессы пишем в localStorage;
         // архивные сетки из мастер-снимка чиним только в памяти, не раздувая квоту.
@@ -1442,9 +1455,23 @@ function repairCanonicalPlayersAndDraws() {
   saveCustomPlayerOverridesMap(customOverrides);
 }
 
+// Прозвища и стили игры («характер») удалены из тура: вычищаем поля из загруженных и восстановленных данных.
+function stripPlayerFlavorFields(...lists) {
+  lists.forEach(list => {
+    if (!Array.isArray(list)) return;
+    list.forEach(p => {
+      if (p && typeof p === 'object') {
+        delete p.nickname;
+        delete p.playStyle;
+      }
+    });
+  });
+}
+
 export function initData() {
   loadUniversesRegistry();
   loadUniverseStateFromStorage();
+  stripPlayerFlavorFields(players, retiredLegends);
 
   const currentUnivMeta = universesList.find(u => u.id === activeUniverseId);
   const isCanonUniverse = activeUniverseId === '1' || Boolean(currentUnivMeta?.isCanon);
@@ -1499,12 +1526,6 @@ export function initData() {
     if (!p.seasonStartRank) p.seasonStartRank = p.rank || (idx + 1);
     if (!p.medals) p.medals = { gold: 0, silver: 0, bronze: 0 };
     if (typeof p.stamina !== 'number' || Number.isNaN(p.stamina)) p.stamina = 100;
-    if (p.isNewgen && !p.nickname) {
-      p.nickname = NEWGEN_NICKNAMES[idx % NEWGEN_NICKNAMES.length];
-    }
-    if (p.isNewgen && !p.playStyle) {
-      p.playStyle = NEWGEN_PLAY_STYLES[idx % NEWGEN_PLAY_STYLES.length];
-    }
   });
 
   // ФИЧА 2: POT для молодых игроков до 23 лет
@@ -1545,8 +1566,6 @@ export function initData() {
     }
   }
 
-  repairCareerHighRanksFromHistory(players, seasonsHistory);
-  savePlayers(false);
   ensureInitialSeasonCheckpoint();
 
   // Синхронизируем историю сезонов с реальными турнирными сетками
@@ -1561,6 +1580,11 @@ export function initData() {
       syncSeasonHistoryWithActualDraws(yr);
     }
   });
+
+  // Пик карьеры чиним ПОСЛЕ сборки истории (срезы ТБШ могли быть восстановлены из чекпоинтов)
+  // и с учётом пиков, сохранённых в самих чекпоинтах — иначе «голая» история занижает пик.
+  repairCareerHighRanksFromHistory(players, seasonsHistory, getSavedCheckpointsList());
+  savePlayers(false);
 
   // ФИЧА 1: недели на №1 — строго по сыгранным сезонам тура (2023–2024), без искусственной базы.
   // Считаем после сборки архива 2023 и синхронизации истории с реальными сетками.
@@ -2025,8 +2049,6 @@ function compactPlayerRefForDraw(p) {
   if (typeof p.stamina === 'number' && !Number.isNaN(p.stamina)) ref.stamina = Math.round(p.stamina);
   if (p.seedNum) ref.seedNum = p.seedNum;
   if (p.entryTag) ref.entryTag = p.entryTag;
-  if (p.nickname) ref.nickname = p.nickname;
-  if (p.playStyle) ref.playStyle = p.playStyle;
   return ref;
 }
 
@@ -2679,34 +2701,73 @@ function escapeHtmlText(v) {
     .replace(/'/g, '&#39;');
 }
 
-// Оставляет только безопасные текстовые теги, вырезает script/iframe/обработчики
-// событий, style-атрибуты и javascript:-URL.
+// DOM-санитайзер на белом списке тегов. Парсер инертен (скрипты не выполняются,
+// ресурсы не загружаются), а значения атрибутов уже декодированы браузером — поэтому
+// обходы regex-версии (src=x/onerror=, href="jav&#x61;script:") здесь не работают.
+// Оставляем только безопасные текстовые теги без атрибутов (кроме http(s)/mailto href).
 function stripDangerousHtml(v) {
-  let s = String(v ?? '');
-  s = s.replace(/<script[\s\S]*?<\/script\s*>/gi, '');
-  s = s.replace(/<\s*(script|iframe|object|embed|link|meta|style|form|input|textarea|button|svg|math)\b[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
-  s = s.replace(/<\s*\/?\s*(script|iframe|object|embed|link|meta|style|form|input|textarea|button|svg|math)\b[^>]*>/gi, '');
-  s = s.replace(/<[^>]*>/gi, (tag) => {
-    let t = tag
-      .replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-      .replace(/style\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-    t = t.replace(/(href|src)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, (attr) => {
-      const m = attr.match(/(href|src)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
-      const url = (m?.[2] ?? m?.[3] ?? m?.[4] ?? '').trim();
-      if (/^\s*(javascript|vbscript|data)\s*:/i.test(url)) return `${m[1]}="#"`;
-      return attr;
-    });
-    return t;
-  });
-  return s;
+  const s = String(v ?? '');
+  if (!s) return s;
+  if (typeof DOMParser === 'undefined') return escapeHtmlText(s);
+  const ALLOWED = new Set(['B', 'I', 'EM', 'STRONG', 'U', 'P', 'BR', 'SPAN', 'UL', 'OL', 'LI',
+    'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'A', 'SMALL', 'SUB', 'SUP', 'CODE', 'PRE',
+    'DIV', 'HR', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH']);
+  const DROP_CONTENT = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH',
+    'LINK', 'META', 'FORM', 'INPUT', 'TEXTAREA', 'BUTTON', 'SELECT', 'OPTION', 'TEMPLATE',
+    'NOSCRIPT', 'BASE', 'FRAME', 'FRAMESET', 'APPLET', 'IMG', 'VIDEO', 'AUDIO', 'SOURCE', 'CANVAS']);
+  let doc;
+  try {
+    doc = new DOMParser().parseFromString(s, 'text/html');
+  } catch {
+    return escapeHtmlText(s);
+  }
+  const walk = (node) => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === 8) { child.remove(); continue; }
+      if (child.nodeType !== 1) continue;
+      const tag = child.tagName.toUpperCase();
+      if (DROP_CONTENT.has(tag)) { child.remove(); continue; }
+      if (!ALLOWED.has(tag)) {
+        // Неизвестный тег разворачиваем в текст: содержимое сохраняем, сам тег убираем
+        child.replaceWith(doc.createTextNode(child.textContent || ''));
+        continue;
+      }
+      for (const attr of Array.from(child.attributes)) {
+        const name = attr.name.toLowerCase();
+        if (tag === 'A' && name === 'href' && /^(https?:|mailto:)/i.test(attr.value.trim())) continue;
+        child.removeAttribute(attr.name);
+      }
+      if (tag === 'A' && child.getAttribute('href')) {
+        child.setAttribute('rel', 'noopener noreferrer');
+        child.setAttribute('target', '_blank');
+      }
+      walk(child);
+    }
+  };
+  walk(doc.body);
+  return doc.body.innerHTML;
 }
 
 function sanitizeIdentityText(v) {
   return escapeHtmlText(String(v ?? '').replace(/<[^>]*>/g, ''));
 }
 
+// Имя игрока/название турнира — обычный текст (рендерится в текстовых позициях innerHTML).
+// Убираем HTML-теги и символы, способные внедрить разметку или разорвать атрибут, но НЕ
+// экранируем апострофы/дефисы (O'Brien) — иначе повторное редактирование двоило бы сущности.
+function sanitizePlainTextName(v) {
+  return String(v ?? '').replace(/<[^>]*>/g, '').replace(/[<>"`]/g, '').trim();
+}
+
+// id попадает в onclick="...'${id}'" (JS-строка внутри HTML-атрибута): оставляем только
+// безопасные символы, иначе импортированный id вроде '-alert(1)-' выполнится по клику.
+function sanitizeEntityId(id) {
+  return String(id ?? '').replace(/[^A-Za-z0-9_-]/g, '');
+}
+
 function sanitizePlayerRef(ref) {
   if (!ref || typeof ref !== 'object') return ref;
+  if (ref.id !== undefined) ref.id = sanitizeEntityId(ref.id);
   if (typeof ref.name === 'string') ref.name = sanitizeIdentityText(ref.name);
   if (typeof ref.flag === 'string') ref.flag = sanitizeIdentityText(ref.flag);
   return ref;
@@ -2797,10 +2858,11 @@ function sanitizeImportedPlayers(playerArr) {
   if (!Array.isArray(playerArr)) return playerArr;
   playerArr.forEach(p => {
     if (!p || typeof p !== 'object') return;
+    if (p.id !== undefined) p.id = sanitizeEntityId(p.id);
     if (typeof p.name === 'string') p.name = sanitizeIdentityText(p.name);
     if (typeof p.flag === 'string') p.flag = sanitizeIdentityText(p.flag);
-    if (typeof p.nickname === 'string') p.nickname = sanitizeIdentityText(p.nickname);
-    if (typeof p.playStyle === 'string') p.playStyle = sanitizeIdentityText(p.playStyle);
+    delete p.nickname;
+    delete p.playStyle;
     if (typeof p.bio === 'string') p.bio = stripDangerousHtml(p.bio);
   });
   return playerArr;
@@ -2810,6 +2872,7 @@ function sanitizeImportedTournaments(tourneys) {
   if (!Array.isArray(tourneys)) return tourneys;
   tourneys.forEach(t => {
     if (!t || typeof t !== 'object') return;
+    if (t.id !== undefined) t.id = sanitizeEntityId(t.id);
     if (typeof t.name === 'string') t.name = sanitizeIdentityText(t.name);
   });
   return tourneys;
@@ -3015,7 +3078,7 @@ export function handleImportUniverseFile(event) {
         const fullJson = JSON.stringify(sanitized);
         if (masterDraws) {
           const master = masterDraws[fullKey];
-          if (Array.isArray(master) && buildDrawSignature(master) === buildDrawSignature(sanitized)) {
+          if (Array.isArray(master) && JSON.stringify(master) === fullJson) {
             // Такая сетка уже есть в мастер-снимке канона: её отдаёт фоллбэк
             // readSavedDraw(), а в localStorage она всё равно вычищается при
             // следующей загрузке автора. Держим только в памяти.
@@ -3402,7 +3465,7 @@ export function loadSelectedTournament() {
 }
 
 // --- 3. ЖЕРЕБЬЕВКА И СЕТКА ТУРНИРА ---
-export function generateRealisticDraw() {
+export function generateRealisticDraw(manualOptions = null) {
   if (guardCanonReadOnly()) return;
   if (viewingYear < currentTourYear) return;
   if (activeTourney && activeTourney.completed) {
@@ -3420,7 +3483,7 @@ export function generateRealisticDraw() {
   resetPlayersStamina(players);
   savePlayers(false);
 
-  const { draw, withdrawals } = createTournamentDraw(activeTourney, players);
+  const { draw, withdrawals } = createTournamentDraw(activeTourney, players, manualOptions || {});
   currentDraw = draw;
   activeRoundIdx = 0;
 
@@ -3477,6 +3540,111 @@ export function resetCurrentDraw() {
   if (noticeBox && activeTourney?.id !== 'olympics') noticeBox.style.display = 'none';
   renderRoundTabs();
   renderMatches();
+}
+
+// --- РУЧНОЙ ВЫБОР СНЯТИЙ С ТУРНИРА (автор сам отмечает, кто пропускает, без пережеребьёвок) ---
+let manualWithdrawSelection = new Set();
+let manualWithdrawSearchQuery = '';
+
+function getManualWithdrawalEligiblePlayers() {
+  if (!activeTourney) return [];
+  if (activeTourney.id === 'finals') {
+    return [...players]
+      .sort((a, b) => ((b.racePoints || 0) - (a.racePoints || 0)) || (a.rank - b.rank))
+      .slice(0, 8);
+  }
+  if (activeTourney.id === 'olympics' || activeTourney.type === 'Олимпиада' || activeTourney.isOlympics) {
+    return [...players].sort((a, b) => (a.rank || 999) - (b.rank || 999)).slice(0, 100);
+  }
+  const entryTop = activeTourney.type === 'ATP 500' ? 140 : (activeTourney.type === 'Мастерс' ? 95 : 155);
+  return [...players].sort((a, b) => (a.rank || 999) - (b.rank || 999)).slice(0, entryTop);
+}
+
+export function openManualWithdrawalsModal() {
+  if (guardCanonReadOnly()) return;
+  if (!activeTourney) { showToast('⚠️ Сначала выберите турнир.'); return; }
+  if (viewingYear < currentTourYear) { showToast('⚠️ Снятия можно задавать только в текущем сезоне.'); return; }
+  if (activeTourney.completed) { showToast('⚠️ Этот турнир уже завершён и очки начислены.'); return; }
+  if (isFutureLockedTournament(activeTourney, viewingYear)) {
+    showToast(`🔒 Турнир «${activeTourney.name}» ещё не начался. Сначала завершите текущий турнир по календарю.`);
+    return;
+  }
+
+  manualWithdrawSelection = new Set();
+  manualWithdrawSearchQuery = '';
+  const searchEl = document.getElementById('manualWithdrawalsSearch');
+  if (searchEl) searchEl.value = '';
+
+  // Пред-отмечаем уже сохранённые снятия этого турнира, чтобы не выбирать заново
+  try {
+    const saved = JSON.parse(universeStorage.getItem(`withdrawals_${activeTourney.id}_${viewingYear}`) || '[]');
+    const savedNames = new Set((Array.isArray(saved) ? saved : []).map(s => String(s).split(' → ')[0].trim()));
+    getManualWithdrawalEligiblePlayers().forEach(p => {
+      if (savedNames.has(p.name)) manualWithdrawSelection.add(String(p.id));
+    });
+  } catch { /* повреждённый список снятий не мешает открыть окно */ }
+
+  const subtitle = document.getElementById('manualWithdrawalsSubtitle');
+  if (subtitle) {
+    subtitle.innerHTML = `${escapeHtmlText(activeTourney.name)} · ${escapeHtmlText(activeTourney.type || '')} · ${escapeHtmlText(activeTourney.surface || '')}. Отметьте, кто пропускает турнир — остальные заявятся автоматически. Снятий случайных не будет.`;
+  }
+  renderManualWithdrawalsList();
+  updateManualWithdrawalsCounter();
+  document.getElementById('manualWithdrawalsModal').classList.add('open');
+}
+
+export function renderManualWithdrawalsList() {
+  const box = document.getElementById('manualWithdrawalsList');
+  if (!box) return;
+  const q = manualWithdrawSearchQuery.trim().toLowerCase();
+  const eligible = getManualWithdrawalEligiblePlayers();
+  const rows = eligible.filter(p => !q || String(p.name).toLowerCase().includes(q) || String(p.flag || '').toLowerCase().includes(q));
+  if (rows.length === 0) {
+    box.innerHTML = `<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:18px 0;">Никого не найдено по запросу «${escapeHtmlText(manualWithdrawSearchQuery)}».</div>`;
+    return;
+  }
+  box.innerHTML = rows.map(p => {
+    const id = escapeHtmlText(p.id);
+    const checked = manualWithdrawSelection.has(String(p.id)) ? 'checked' : '';
+    return `
+      <label class="manual-wd-row">
+        <input type="checkbox" ${checked} onchange="toggleManualWithdrawal('${id}', this.checked)">
+        <span class="manual-wd-rank">#${p.rank || '—'}</span>
+        ${renderFlagBadge(p.flag, { compact: true })}
+        <span class="manual-wd-name">${escapeHtmlText(p.name)}</span>
+      </label>
+    `;
+  }).join('');
+}
+
+export function handleManualWithdrawalsSearch(value) {
+  manualWithdrawSearchQuery = String(value || '');
+  renderManualWithdrawalsList();
+}
+
+export function toggleManualWithdrawal(id, checked) {
+  const key = String(id);
+  if (checked) manualWithdrawSelection.add(key);
+  else manualWithdrawSelection.delete(key);
+  updateManualWithdrawalsCounter();
+}
+
+export function clearManualWithdrawalsSelection() {
+  manualWithdrawSelection = new Set();
+  renderManualWithdrawalsList();
+  updateManualWithdrawalsCounter();
+}
+
+function updateManualWithdrawalsCounter() {
+  const el = document.getElementById('manualWithdrawalsCounter');
+  if (el) el.textContent = `Выбрано снятий: ${manualWithdrawSelection.size}`;
+}
+
+export function applyManualWithdrawalsAndDraw() {
+  const ids = [...manualWithdrawSelection];
+  closeModal('manualWithdrawalsModal');
+  generateRealisticDraw({ manualMode: true, manualWithdrawIds: ids });
+  showToast(`✅ Жеребьёвка проведена вручную: снятий — <b>${ids.length}</b>. Состав зафиксирован, пережеребьёвка не требуется.`);
 }
 
 // --- СБОРНЫЕ И СОСТАВЫ СТРАН НА ОЛИМПИЙСКИЕ ИГРЫ ---
@@ -4679,7 +4847,7 @@ function getPlayerCareerScan(player) {
             ? (String(finalM.p1.id) === String(winner.id) ? finalM.p2 : finalM.p1)
             : null,
           bronze: t.id === 'olympics' ? (drawForFinal[drawForFinal.length - 1]?.[1]?.winner || null) : null,
-          score: finalM.score ? finalM.score.join(' ') : '6-4 6-4'
+          score: Array.isArray(finalM.score) && finalM.score.length > 0 ? finalM.score.join(' ') : (typeof finalM.score === 'string' && finalM.score ? finalM.score : '6-4 6-4')
         };
       } else if (histEntry && histEntry.winner) {
         finalInfo = {
@@ -4951,7 +5119,7 @@ export function renderUltimateTeamCardHtml(player, surface = 'Хард', options
               ${renderPlayerMedalsHtml(player)}
             </div>
             <div class="ut-player-sub">
-              ATP #${rank} · ${calculateAge(player.birthDate, refDateStr)}${player.nickname ? ` · <span style="color:var(--gold);">«${player.nickname}»</span>` : ''}
+              ATP #${rank} · ${calculateAge(player.birthDate, refDateStr)}
             </div>
             ${renderPotentialBadgeHtml(player, refDateStr)}
           </div>
@@ -5296,6 +5464,7 @@ export function openScoreModal(rIdx, mIdx) {
   if (h2h.history.length === 0) {
     h2hHtml += `<div style="color: var(--text-dim); font-size: 12.5px; text-align: center; padding: 10px 0;">0 : 0 • Первая очная дуэль</div>`;
   } else {
+    h2hHtml += `<div class="h2h-history-header">История личных встреч · ${h2h.history.length} матч(а/ей) · <span style="color:var(--text-dim);font-weight:400;">сверху самые свежие, снизу самые старые</span></div>`;
     h2hHtml += `<div class="h2h-history-list">`;
     h2h.history.forEach(item => {
       const isP1Win = item.winnerId === match.p1.id;
@@ -5597,7 +5766,7 @@ export async function generateCommentaryForScoreWithAI() {
       renderMatchAiReportBlock(pendingAiNarrative, pendingWinnerQuote, pendingLoserQuote, winnerObj.name, loserObj.name, sourceTag);
     }
   } catch (err) {
-    const errMsg = err?.message || 'Не удалось связаться с ИИ API';
+    const errMsg = escapeHtmlText(err?.message || 'Не удалось связаться с ИИ API');
     if (errEl) {
       errEl.className = 'error-text groq-error-alert';
       errEl.innerHTML = `❌ <b>Ошибка запроса к ИИ API:</b> ${errMsg}`;
@@ -5710,7 +5879,7 @@ export async function simulateMatchWithAI() {
       closePopup: false
     });
   } catch (err) {
-    const errMsg = err?.message || 'Не удалось связаться с ИИ API';
+    const errMsg = escapeHtmlText(err?.message || 'Не удалось связаться с ИИ API');
     if (errEl) {
       errEl.className = 'error-text groq-error-alert';
       errEl.innerHTML = `❌ <b>Ошибка запроса к ИИ API:</b> ${errMsg}`;
@@ -5745,14 +5914,17 @@ export function commitMatchOutcome({
 
   if (!match || !winner || !scoreArray || roundIdx === null || matchIdx === null) return;
   if (viewingYear === currentTourYear && Boolean(activeTourney?.completed)) return;
+  // Матч уже решён: повторный расчёт списал бы выносливость дважды и перезаписал
+  // следующий круг под устаревшим победителем. Для пересчёта сначала сбросьте матч.
+  if (match.winner) return;
 
   const bestOf = activeTourney ? activeTourney.bestOf : 3;
   const useComments = includeMatchCommentaryMode && Boolean(narrative || quotes);
-  const finalNarrative = useComments ? String(narrative || '').trim() : '';
+  const finalNarrative = useComments ? stripDangerousHtml(String(narrative || '').trim()) : '';
   const finalQuotes = useComments && quotes
     ? {
-        winnerQuote: String(quotes.winnerQuote || '').trim(),
-        loserQuote: String(quotes.loserQuote || '').trim()
+        winnerQuote: stripDangerousHtml(String(quotes.winnerQuote || '').trim()),
+        loserQuote: stripDangerousHtml(String(quotes.loserQuote || '').trim())
       }
     : { winnerQuote: '', loserQuote: '' };
 
@@ -6253,11 +6425,21 @@ export function finishTournamentAndAwardPoints(options = {}) {
   }
 }
 
-// --- 6. ЗАВЕРШЕНИЕ СЕЗОНА, ПЕНСИЯ ВЕТЕРАНОВ И ГЕНЕРАЦИЯ НЬЮГЕНОВ С ПРОЗВИЩАМИ И СТИЛЯМИ ИГРЫ ---
+// --- 6. ЗАВЕРШЕНИЕ СЕЗОНА: архив, старение и переход в новый год (авто-пенсия и ротация отключены) ---
 export function endSeasonAndDecayPoints() {
   if (guardCanonReadOnly()) return;
   const endingYear = currentTourYear;
   const endingSeasonTourneys = getSeasonTournaments(endingYear, tournaments);
+
+  // Завершать сезон можно только когда сыграны ВСЕ турниры календаря. Иначе
+  // оставшаяся защита обнулится по несыгранным неделям: повторный клик или клик
+  // в середине сезона сбрасывал очки всем 300 игрокам и архивировал пустой год.
+  const seasonFullyPlayed = endingSeasonTourneys.length > 0 && endingSeasonTourneys.every(t => t && t.completed);
+  if (!seasonFullyPlayed) {
+    const playedCount = endingSeasonTourneys.filter(t => t && t.completed).length;
+    showToast(`⚠️ <b>Сезон ${endingYear} ещё не завершён.</b> Сыграно турниров: ${playedCount} из ${endingSeasonTourneys.length}. Завершите все турниры календаря, прежде чем переходить в следующий год.`, 7000);
+    return;
+  }
 
   if (!seasonsHistory[endingYear]) {
     seasonsHistory[endingYear] = { year: endingYear, slamSnapshots: {}, tournamentsData: [] };
@@ -6317,23 +6499,17 @@ export function endSeasonAndDecayPoints() {
 
   saveHistory();
 
-  // ЗАПУСК СИСТЕМЫ ЗАВЕРШЕНИЯ КАРЬЕРЫ И ГЕНЕРАЦИИ МОЛОДЫХ НОВИЧКОВ (НЬЮГЕНОВ)
-  const { updatedPlayers, retiredThisYear, newgensThisYear } = processEndOfSeasonRetirements(
-    players,
-    endingYear,
-    retiredLegends
-  );
-
-  // РОТАЦИЯ НИЖНЕГО РЕЙТИНГА: часть игроков вне Топ-100 покидает тур,
-  // их места занимают юниоры и молодые игроки ближайшего резерва
-  const churn = processLowerRankChurn(
-    updatedPlayers,
-    endingYear,
-    [...retiredThisYear, ...retiredLegends]
-  );
-
-  players = churn.updatedPlayers;
-  retiredLegends = [...retiredThisYear, ...churn.churnedPlayers, ...retiredLegends];
+  // Авто-пенсия и ротация низа отключены: система больше не решает, кто завершает
+  // карьеру. Сохраняем старение (seasonsPlayed) и карьерный пик, но никого не
+  // списываем и ньюгенов на замену не призываем — состав ведёт только автор.
+  const retiredThisYear = [];
+  const newgensThisYear = [];
+  players = players.map(p => ({
+    ...p,
+    bestRank: Math.min(p.bestRank || p.rank, p.rank),
+    seasonsPlayed: (p.seasonsPlayed || 1) + 1
+  }));
+  const churn = { churnedPlayers: [], churnNewcomers: [] };
   saveRetiredLegends();
 
   // Переход в новый сезон
@@ -6389,34 +6565,12 @@ export function endSeasonAndDecayPoints() {
     churnedPlayers: churn.churnedPlayers,
     churnNewcomers: churn.churnNewcomers
   });
-
-  // Запрашиваем у Groq уникальные короткие прозвища и стили игры для всех новичков межсезонья
-  const allNewcomers = [...newgensThisYear, ...churn.churnNewcomers];
-  if (allNewcomers.length > 0) {
-    enrichNewgensWithGroq(allNewcomers).then(enrichedList => {
-      enrichedList.forEach(ng => {
-        const target = players.find(p => p.id === ng.id);
-        if (target) {
-          target.nickname = ng.nickname;
-          target.playStyle = ng.playStyle;
-        }
-      });
-      savePlayers(false);
-      renderPlayersTable();
-      if (document.getElementById('seasonTransitionModal')?.classList.contains('open')) {
-        openSeasonTransitionReportModal(endingYear, currentTourYear, retiredThisYear, newgensThisYear, seasonAwards, {
-          churnedPlayers: churn.churnedPlayers,
-          churnNewcomers: churn.churnNewcomers
-        });
-      }
-    });
-  }
 }
 
 function openSeasonTransitionReportModal(endedYear, newYear, retiredList, newgensList, awards = null, churn = null) {
   document.getElementById('seasonTransitionTitle').innerText = `Сезон ${endedYear} завершен · Добро пожаловать в сезон ${newYear}!`;
   document.getElementById('seasonTransitionSubtitle').innerText =
-    `Архив сезона ${endedYear} сохранен в Зале Славы. Чемпионская гонка (Live Race) обнулена к 1 января ${newYear} года.${isOlympicYear(newYear) ? ' В календаре этого года пройдут Олимпийские игры!' : ''} Баланс пула: 300 игроков.`;
+    `Архив сезона ${endedYear} сохранен в Зале Славы. Чемпионская гонка (Live Race) обнулена к 1 января ${newYear} года.${isOlympicYear(newYear) ? ' В календаре этого года пройдут Олимпийские игры!' : ''} Состав: ${players.length} игроков · авто-пенсия и ротация отключены.`;
 
   const seasonAwards = awards || seasonsHistory[endedYear]?.awards || null;
   const awardCardHtml = (icon, title, winner, tone) => winner ? `
@@ -6460,11 +6614,9 @@ function openSeasonTransitionReportModal(endedYear, newYear, retiredList, newgen
           <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
             <div>
               <b>${ng.flag} ${ng.name}</b>
-              ${ng.nickname ? `<span class="player-nickname-badge">«${ng.nickname}»</span>` : ''}
             </div>
             <span style="color: var(--primary); font-weight: 700;">${ng.ageAtEntry} лет</span>
           </div>
-          ${ng.playStyle ? `<div style="font-size: 12px; color: var(--accent);">🎾 Стиль: <b>${ng.playStyle}</b></div>` : ''}
           <div style="font-size: 11.5px; color: var(--text-dim);">
             Дата рожд.: ${ng.birthDate} · Стартовые очки ATP: <b style="color: var(--accent);">${ng.points} pts</b>
           </div>
@@ -6599,8 +6751,6 @@ export function matchesPlayerSearchQuery(p, rawQuery) {
     String(meta.code || '').toLowerCase(),
     String(meta.nameRu || '').toLowerCase(),
     String(meta.nameEn || '').toLowerCase(),
-    String(p.nickname || '').toLowerCase(),
-    String(p.playStyle || '').toLowerCase(),
     `#${p.rank}`
   ].join(' ');
 
@@ -6740,9 +6890,7 @@ export function renderPlayersTable() {
           ${renderPlayerMedalsHtml(p)}
           ${renderPotentialBadgeHtml(p, currentTourDateStr)}
           ${p.isNewgen ? '<span style="color: var(--primary); font-size: 11px; margin-left: 6px;">· Newgen</span>' : ''}
-          ${p.nickname ? `<span class="player-nickname-badge">«${p.nickname}»</span>` : ''}
         </div>
-        ${p.playStyle ? `<span class="player-style-pill">🎾 ${p.playStyle}</span>` : ''}
       </td>
       <td style="color: var(--accent); font-weight: 700;">${calculateAge(p.birthDate, currentTourDateStr)}</td>
       <td style="color: var(--text-dim); font-size: 12.5px;">${p.birthDate || '—'}</td>
@@ -7380,12 +7528,10 @@ export function openPlayerProfileModal(playerId) {
                 ${escapeHtmlText(player.name)}
                 ${renderPlayerMedalsHtml(player)}
                 ${renderPotentialBadgeHtml(player)}
-                ${player.nickname ? `<span class="player-nickname-badge">«${player.nickname}»</span>` : ''}
               </div>
               <div class="profile-submeta">
                 ${identitySubmetaHtml}
               </div>
-              ${player.playStyle ? `<div style="margin-top: 4px;"><span class="player-style-pill">🎾 Стиль игры: ${player.playStyle}</span></div>` : ''}
             </div>
           </div>
           <div class="profile-metrics-row" style="margin-top: 10px;">
@@ -7549,10 +7695,6 @@ export function openEditPlayerModal(id) {
   document.getElementById('editPlayerName').value = p.name;
   document.getElementById('editPlayerFlag').value = p.flag;
   document.getElementById('editPlayerBirth').value = p.birthDate || '2000-01-01';
-  const nickInput = document.getElementById('editPlayerNickname');
-  if (nickInput) nickInput.value = p.nickname || '';
-  const styleInput = document.getElementById('editPlayerPlayStyle');
-  if (styleInput) styleInput.value = p.playStyle || '';
   document.getElementById('editPlayerPoints').value = p.points;
   updateEditPlayerFlagPreview();
   document.getElementById('editPlayerModal').classList.add('open');
@@ -7564,17 +7706,13 @@ export function savePlayerEdit() {
   const p = players.find(x => String(x.id) === String(id));
   if (p) {
     const oldNameLower = String(p.name || '').trim().toLowerCase();
-    const newName = document.getElementById('editPlayerName').value.trim();
+    const newName = sanitizePlainTextName(document.getElementById('editPlayerName').value);
     const rawFlag = document.getElementById('editPlayerFlag').value.trim();
     if (newName && !/\d/.test(newName)) p.name = newName;
     if (rawFlag) {
       p.flag = normalizeCountryCode(rawFlag);
     }
     p.birthDate = document.getElementById('editPlayerBirth').value || p.birthDate;
-    const nickInput = document.getElementById('editPlayerNickname');
-    if (nickInput) p.nickname = nickInput.value.trim();
-    const styleInput = document.getElementById('editPlayerPlayStyle');
-    if (styleInput) p.playStyle = styleInput.value.trim();
 
     recordCustomPlayerOverride(p);
     propagatePlayerIdentityUpdate(p, oldNameLower);
@@ -7592,38 +7730,6 @@ export function savePlayerEdit() {
   }
 }
 
-export async function generateSinglePlayerStyleWithGroq() {
-  const id = document.getElementById('editPlayerId')?.value;
-  const p = players.find(x => x.id === id);
-  const nameVal = document.getElementById('editPlayerName')?.value?.trim() || p?.name || 'Tennis Player';
-  const flagVal = document.getElementById('editPlayerFlag')?.value?.trim() || p?.flag || 'ATP';
-  const btn = document.getElementById('btnGenPlayerStyleGroq');
-  if (btn) {
-    btn.disabled = true;
-    btn.innerText = '🧠 Генерация...';
-  }
-  try {
-    const tempObj = {
-      id: id || 'temp_player',
-      name: nameVal,
-      flag: flagVal,
-      ageAtEntry: 20
-    };
-    const [enriched] = await enrichNewgensWithGroq([tempObj]);
-    if (enriched) {
-      const nickInput = document.getElementById('editPlayerNickname');
-      const styleInput = document.getElementById('editPlayerPlayStyle');
-      if (nickInput && enriched.nickname) nickInput.value = enriched.nickname;
-      if (styleInput && enriched.playStyle) styleInput.value = enriched.playStyle;
-    }
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerText = '🧠 Сгенерировать профиль (ИИ)';
-    }
-  }
-}
-
 export function openAddPlayerModal() {
   if (guardCanonReadOnly()) return;
   document.getElementById('newPlayerName').value = '';
@@ -7636,7 +7742,7 @@ export function openAddPlayerModal() {
 
 export function confirmAddPlayer() {
   if (guardCanonReadOnly()) return;
-  const name = document.getElementById('newPlayerName').value.trim();
+  const name = sanitizePlainTextName(document.getElementById('newPlayerName').value);
   const country = normalizeCountryCode(document.getElementById('newPlayerFlag').value.trim() || 'USA');
   const birth = document.getElementById('newPlayerBirth').value || '2003-05-15';
   const errEl = document.getElementById('addPlayerError');
@@ -7690,7 +7796,7 @@ export function saveTourneyEdit() {
   const id = document.getElementById('editTourneyId').value;
   const t = tournaments.find(x => x.id === id);
   if (t) {
-    const newName = document.getElementById('editTourneyName').value.trim();
+    const newName = sanitizePlainTextName(document.getElementById('editTourneyName').value);
     const newSurface = document.getElementById('editTourneySurface').value;
     if (newName) t.name = newName;
     if (newSurface) t.surface = newSurface;
@@ -8002,7 +8108,8 @@ export function renderHistoryYear() {
   const majorsList = fullTourneysList.filter(t => ['ТБШ', 'Олимпиада', 'Итоговый'].includes(t.type));
 
   // 2. Лидеры сезона по завоеванным титулам (нормализация по имени)
-  const titleCountsMap = {};
+  // Object.create(null): имя победителя "__proto__" не должно загрязнять Object.prototype
+  const titleCountsMap = Object.create(null);
   fullTourneysList.forEach(t => {
     if (t && t.winner && t.winner.name) {
       const key = (t.winner.name || '').trim().toLowerCase();
@@ -8309,10 +8416,10 @@ export async function regeneratePressColumnForTourney(tourneyId, year) {
     score: entry.score
   });
   if (col) {
-    entry.pressColumn = col;
+    entry.pressColumn = sanitizeImportedPressColumn(col);
     saveHistory();
     renderHistoryYear();
-    showToast(`📰 Послематчевая колонка для <b>${entry.name} (${targetYear})</b> обновлена!`);
+    showToast(`📰 Послематчевая колонка для <b>${escapeHtmlText(entry.name)} (${targetYear})</b> обновлена!`);
   }
 }
 
@@ -8550,7 +8657,7 @@ export function renderTennisFeed() {
         const loser = m.p1.id === winner.id ? m.p2 : m.p1;
         const wRank = Number(winner.rank) || 100;
         const lRank = Number(loser.rank) || 100;
-        const scoreStr = m.score ? m.score.join(' ') : '6-4 6-4';
+        const scoreStr = Array.isArray(m.score) && m.score.length > 0 ? m.score.join(' ') : (typeof m.score === 'string' && m.score ? m.score : '6-4 6-4');
         const isRet = /\bRET\b/i.test(scoreStr);
         const isUpset = (wRank - lRank >= 18 && lRank <= 25) || (loser.seedNum && !winner.seedNum && lRank <= 16);
         const h2h = getHeadToHeadAnalytics(m.p1.id, m.p2.id, tournaments, viewingYear, storageGetter, m.p1.name, m.p2.name);
@@ -8849,6 +8956,30 @@ export function getCurrentState(options = {}) {
   };
 }
 
+// Чекпоинт хранит историю года ДО финализации (yearEndTop50 появляется только при переходе сезона).
+// Откат к точке завершённого сезона иначе оставлял архив года пустым: пересобираем срезы и итоговый Топ-50.
+function refinalizeRestoredYearArchive(year) {
+  const y = Number(year);
+  const yrStr = String(y);
+  if (!y || !seasonsHistory) return;
+  syncSeasonHistoryWithActualDraws(y);
+  const hist = seasonsHistory[yrStr];
+  if (!hist) return;
+  const seasonTourneys = getSeasonTournaments(y, tournaments);
+  const liveById = new Map((tournaments || []).map(t => [t.id, t]));
+  const allCompleted = seasonTourneys.length > 0 && seasonTourneys.every(t => {
+    const lt = y === currentTourYear ? liveById.get(t.id) : null;
+    return lt ? Boolean(lt.completed) : Boolean((hist.tournamentsData || []).some(e => e && e.id === t.id && e.winner));
+  });
+  if (!allCompleted) return;
+  if (!(hist.yearEndTop50?.length > 0)) {
+    const prevSnap = hist.slamSnapshots?.tbsh_4?.top50 || seasonsHistory[String(y - 1)]?.yearEndTop50 || null;
+    hist.yearEndTop50 = createTop50Snapshot(players, `${y}-11-25`, prevSnap);
+  }
+  if (!hist.worldNumberOne && players[0]) hist.worldNumberOne = { ...players[0] };
+  saveHistory();
+}
+
 export function applyStateSnapshot(stateObj) {
   if (!stateObj) return false;
   currentTourYear = Number(stateObj.currentTourYear || stateObj.year) || 2024;
@@ -8866,6 +8997,7 @@ export function applyStateSnapshot(stateObj) {
   if (stateObj.retiredLegends) {
     retiredLegends = JSON.parse(JSON.stringify(stateObj.retiredLegends));
   }
+  stripPlayerFlavorFields(players, retiredLegends);
   // Старые чекпоинты могут не содержать список легенд: чистим пересечение с активным составом
   pruneRetiredLegendsAgainstActiveRoster();
 
@@ -8925,6 +9057,8 @@ export function applyStateSnapshot(stateObj) {
     });
   }
 
+  refinalizeRestoredYearArchive(currentTourYear);
+
   savePlayers(false);
   saveTournaments();
   saveHistory();
@@ -8958,6 +9092,8 @@ function getSavedCheckpointsList() {
     });
     list = Array.from(map.values()).sort((a, b) => String(b.dateStr || '').localeCompare(String(a.dateStr || '')));
   }
+  // Точки будущих сезонов не показываем и не даём откатиться вперёд текущего года (канон-слияние иначе возвращает их обратно)
+  list = list.filter(cp => !cp || Number(cp.year || 0) <= Number(currentTourYear || 9999));
   memoryCheckpointsByUniverse[activeUniverseId] = list;
   return list;
 }
@@ -8976,8 +9112,20 @@ function persistCheckpointsListToStorage(list) {
   if (canonSnapshotInfo && activeUniverseId === '1') return true;
   // Чекпоинты весят мегабайты — пишем их в IndexedDB, а не в localStorage.
   if (!heavyStorageDbDisabled && heavyStorageDbPromise) {
-    try { localStorage.removeItem(fullKey); } catch {}
-    scheduleHeavyStorageWrite(fullKey, fullJson);
+    scheduleHeavyStorageWrite(fullKey, fullJson).then(ok => {
+      if (ok) {
+        try { localStorage.removeItem(fullKey); } catch {}
+      } else {
+        // IDB не подтвердил запись — пробуем оставить durable-копию в LS, иначе предупреждаем
+        try {
+          localStorage.setItem(fullKey, fullJson);
+        } catch {
+          runStorageGarbageCollector();
+          try { localStorage.setItem(fullKey, fullJson); }
+          catch { notifyStorageWriteFailure(); }
+        }
+      }
+    });
     return true;
   }
 
@@ -9118,8 +9266,6 @@ export function saveSeasonCheckpoint(cpId, customName, options = {}) {
       seasonStartRank: p.seasonStartRank,
       stamina: p.stamina,
       medals: p.medals,
-      nickname: p.nickname,
-      playStyle: p.playStyle,
       isNewgen: p.isNewgen,
       isCleanReplacement: p.isCleanReplacement,
       weeksAtNo1: p.weeksAtNo1 || 0,
@@ -9435,12 +9581,18 @@ export function restoreSeasonCheckpoint(cpId) {
     repairCanonicalPlayersAndDraws();
     backfill2023HistoryFromDraws(false);
     repairOvercountedPoints();
-    repairCareerHighRanksFromHistory(players, seasonsHistory);
+    repairCareerHighRanksFromHistory(players, seasonsHistory, getSavedCheckpointsList());
     found.players = JSON.parse(JSON.stringify(players));
     if (players[0]) {
       found.worldNo1 = `${players[0].flag} ${players[0].name} (${(players[0].points || 0).toLocaleString()} pts)`;
     }
     persistCheckpointsListToStorage(list);
+  }
+
+  // Откат назад убирает точки будущих сезонов: иначе при году 2026 торчит чекпоинт 2027 и ломает календарь/архив
+  const prunedCps = list.filter(c => !c || Number(c.year || 0) <= currentTourYear);
+  if (prunedCps.length !== list.length) {
+    persistCheckpointsListToStorage(prunedCps);
   }
 
   // Если откатились к старту сезона, сохраняем ручные чекпоинты пользователя и мастер-точки канона
@@ -9684,6 +9836,12 @@ if (typeof window !== 'undefined') {
   window.autoSimulateEntireTournament = autoSimulateEntireTournament;
   window.finishTournamentAndAwardPoints = finishTournamentAndAwardPoints;
   window.resetCurrentDraw = resetCurrentDraw;
+  window.openManualWithdrawalsModal = openManualWithdrawalsModal;
+  window.renderManualWithdrawalsList = renderManualWithdrawalsList;
+  window.handleManualWithdrawalsSearch = handleManualWithdrawalsSearch;
+  window.toggleManualWithdrawal = toggleManualWithdrawal;
+  window.clearManualWithdrawalsSelection = clearManualWithdrawalsSelection;
+  window.applyManualWithdrawalsAndDraw = applyManualWithdrawalsAndDraw;
   window.changeRound = changeRound;
   window.openOlympicTeamsModal = openOlympicTeamsModal;
   window.setOlympicTeamsFilter = setOlympicTeamsFilter;
@@ -9720,7 +9878,6 @@ if (typeof window !== 'undefined') {
   window.confirmAddPlayer = confirmAddPlayer;
   window.openEditPlayerModal = openEditPlayerModal;
   window.savePlayerEdit = savePlayerEdit;
-  window.generateSinglePlayerStyleWithGroq = generateSinglePlayerStyleWithGroq;
   window.manualRepairPoints = manualRepairPoints;
   window.endSeasonAndDecayPoints = endSeasonAndDecayPoints;
   window.initHistoryUI = initHistoryUI;
@@ -9960,8 +10117,10 @@ if (typeof window !== 'undefined') {
         freeRedundantLocalStorageSpace();
       } catch {}
 
-      // Синхронизируем историю сезонов (включая 2023 и завершенный 2024):
-      if (canonData.seasonsHistory && typeof canonData.seasonsHistory === 'object') {
+      // Синхронизируем историю сезонов (включая 2023 и завершенный 2024) ТОЛЬКО
+      // если локальный прогресс автора не новее: иначе канон затёр бы живой архив
+      // завершенных сезонов (2025/2026) — как это уже происходило с игроками/турнирами.
+      if (!isSavedProgressNewer && canonData.seasonsHistory && typeof canonData.seasonsHistory === 'object') {
         const strHist = JSON.stringify(canonData.seasonsHistory);
         try {
           localStorage.setItem('universe_1_meta_seasons_history', strHist);
@@ -9970,8 +10129,9 @@ if (typeof window !== 'undefined') {
         seasonsHistory = JSON.parse(strHist);
       }
 
-      // Синхронизируем ветеранов, завершивших карьеру:
-      if (Array.isArray(canonData.retiredLegends)) {
+      // Синхронизируем ветеранов, завершивших карьеру (только если прогресс автора не новее,
+      // иначе канон стёр бы выпуски легенд завершенных локально сезонов):
+      if (!isSavedProgressNewer && Array.isArray(canonData.retiredLegends)) {
         const strRet = JSON.stringify(canonData.retiredLegends);
         try {
           localStorage.setItem('universe_1_meta_retired_legends', strRet);

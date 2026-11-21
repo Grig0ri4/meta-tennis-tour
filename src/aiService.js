@@ -18,7 +18,6 @@ import {
   generateMatchQuotes,
   parseStageType
 } from './matchEngine.js';
-import { NEWGEN_NICKNAMES, NEWGEN_PLAY_STYLES } from './retirementEngine.js';
 
 export const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 export const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -1034,64 +1033,6 @@ export async function generateFinalPressColumn({
   return fallback;
 }
 
-/**
- * 3. Стили и характеры молодых новичков — ньюгенов (17–23 года) при смене сезона
- */
-export async function enrichNewgensWithGroq(newgensList = [], options = {}) {
-  if (!Array.isArray(newgensList) || newgensList.length === 0) {
-    return [];
-  }
-
-  newgensList.forEach((ng, idx) => {
-    if (!ng.nickname) {
-      ng.nickname = NEWGEN_NICKNAMES[idx % NEWGEN_NICKNAMES.length];
-    }
-    if (!ng.playStyle) {
-      ng.playStyle = NEWGEN_PLAY_STYLES[idx % NEWGEN_PLAY_STYLES.length];
-    }
-  });
-
-  try {
-    const systemPrompt = [
-      'Ты — скаут академии талантов Meta Tennis Tour.',
-      'Для списка молодых теннисистов-новичков (16–27 лет) придумай уникальные короткие прозвища и теннисные стили игры на русском языке (например: "Агрессивный бейслайнер с мощной подачей", "Грунтовый контрпанчер с феноменальной защитой").',
-      'Верни СТРОГО валидный JSON-объект формата без markdown-оберток:',
-      '{',
-      '  "profiles": [',
-      '    { "id": "id_игрока", "nickname": "Короткое прозвище", "playStyle": "Описание стиля игры (4-7 слов)" }',
-      '  ]',
-      '}'
-    ].join('\n');
-
-    const userPrompt = JSON.stringify(
-      newgensList.map(ng => ({
-        id: ng.id,
-        name: ng.name,
-        country: ng.flag,
-        age: ng.ageAtEntry || 19
-      }))
-    );
-
-    const parsed = await requestGroqJson(systemPrompt, userPrompt, options);
-    if (parsed && Array.isArray(parsed.profiles)) {
-      const profileMap = new Map(parsed.profiles.map(p => [p.id, p]));
-      newgensList.forEach((ng, idx) => {
-        const prof = profileMap.get(ng.id) || parsed.profiles[idx];
-        if (prof) {
-          if (prof.nickname) ng.nickname = String(prof.nickname).trim();
-          if (prof.playStyle) ng.playStyle = String(prof.playStyle).trim();
-        }
-      });
-    }
-  } catch (err) {
-    if (options.strictGroq) {
-      throw err;
-    }
-  }
-
-  return newgensList;
-}
-
 if (typeof window !== 'undefined') {
   window.getGroqApiKey = getGroqApiKey;
   window.setGroqApiKey = setGroqApiKey;
@@ -1113,5 +1054,4 @@ if (typeof window !== 'undefined') {
   window.generateCommentaryForEnteredScore = generateCommentaryForEnteredScore;
   window.simulateMatchWithGroq = simulateMatchWithGroq;
   window.generateFinalPressColumn = generateFinalPressColumn;
-  window.enrichNewgensWithGroq = enrichNewgensWithGroq;
 }

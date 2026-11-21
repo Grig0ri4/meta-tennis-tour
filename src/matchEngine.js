@@ -1010,7 +1010,7 @@ export function getHeadToHeadAnalytics(p1Id, p2Id, tournaments, maxYear = 2024, 
       if (!drawData || !Array.isArray(drawData)) return;
 
       drawData.forEach((round, rIdx) => {
-        (round || []).forEach(m => {
+        (round || []).forEach((m, mIdx) => {
           if (!m || !m.p1 || !m.p2 || !m.winner) return;
 
           const mP1Id = String(m.p1.id || '');
@@ -1066,12 +1066,24 @@ export function getHeadToHeadAnalytics(p1Id, p2Id, tournaments, maxYear = 2024, 
             winnerId: isP1Winner ? p1Id : p2Id,
             winnerName: m.winner.name,
             scoreFormatted: formatTennisScore(displayScores),
-            narrative: m.narrative || ''
+            narrative: m.narrative || '',
+            // Ключ строгой хронологии: дата старта турнира внутри года + раунд + матч в раунде
+            dateOrdinal: (Number(t.startMonth) || 0) * 100 + (Number(t.startDay) || 0),
+            roundIdx: rIdx,
+            matchIdx: mIdx
           });
         });
       });
     });
   }
+
+  // Строгая хронология: самые свежие встречи сверху, самые старые снизу
+  history.sort((a, b) =>
+    (b.year - a.year) ||
+    (b.dateOrdinal - a.dateOrdinal) ||
+    (b.roundIdx - a.roundIdx) ||
+    (b.matchIdx - a.matchIdx)
+  );
 
   return {
     p1Wins,

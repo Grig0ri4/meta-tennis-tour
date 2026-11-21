@@ -104,8 +104,7 @@ import {
   getAiSourceHeaderLabel,
   simulateMatchWithGroq,
   generateCommentaryForEnteredScore,
-  generateFinalPressColumn,
-  enrichNewgensWithGroq
+  generateFinalPressColumn
 } from './aiService.js';
 
 function createMemoryStorage() {
@@ -258,6 +257,28 @@ test('Блок 2: Базовые очки старта 2024 года, Пик р�
   assert.equal(tourneys2024[0].id, 'm_1');
   assert.equal(tourneys2024[0].name, 'Хьюстон Masters');
   assert.equal(Boolean(tourneys2024[0].completed), false);
+});
+
+test('Пик карьеры: обычная загрузка (архив 2023 уже корректен) не затирает живые очки и пик (#3 не теряется)', () => {
+  const players = buildInitial300Players();
+  const tourneys = getSeasonTournaments(2024, FULL_CALENDAR_TEMPLATE).map(t => ({ ...t }));
+  const seasonsHistory = {};
+  const memStorage = createMemoryStorage();
+
+  // Первая загрузка: архив 2023 пересобирается с нуля, канонический старт применяется
+  ensureDefault2023SeasonArchive(tourneys, players, seasonsHistory, memStorage);
+
+  // Игрок добился живого пика #3 и живых очков в текущем сезоне
+  const freddy = players.find(p => /Freddy/i.test(p.name || '')) || players[3];
+  freddy.bestRank = 3;
+  freddy.points = 5000;
+  freddy.rank = 4;
+
+  // Повторная загрузка: архив уже корректен → сброс к старту-2023 НЕ должен выполняться
+  const rebuilt = ensureDefault2023SeasonArchive(tourneys, players, seasonsHistory, memStorage);
+  assert.equal(rebuilt, false, 'При корректном архиве 2023 пересборка не нужна');
+  assert.equal(freddy.bestRank, 3, 'Живой пик #3 не должен затираться стартом-2023');
+  assert.equal(freddy.points, 5000, 'Живые очки не должны сбрасываться к старту-2023');
 });
 
 test('Блок 3: Полное аннулирование результата матча (resetMatchResultInDraw) и каскадное удаление победителя из следующего раунда', () => {
@@ -443,8 +464,8 @@ test('Раздел 5: Система завершения карьеры (защ
     assert.equal(/\d/.test(ng.name), false, `Имя новичка ${ng.name} без цифр`);
     assert.ok(ng.points >= 20 && ng.points <= 45, `Очки новичка ${ng.points} в диапазоне 20-45`);
     assert.ok(ng.ageAtEntry >= 17 && ng.ageAtEntry <= 23, `Возраст новичка ${ng.ageAtEntry} в диапазоне 17-23`);
-    assert.ok(ng.nickname && ng.nickname.length > 2, 'У новичка должно быть прозвище');
-    assert.ok(ng.playStyle && ng.playStyle.length > 5, 'У новичка должен быть стиль игры');
+    assert.equal(ng.nickname, undefined, 'Прозвища удалены из тура');
+    assert.equal(ng.playStyle, undefined, 'Стили игры и характер удалены из тура');
   });
 });
 
@@ -609,6 +630,68 @@ test('Пик карьеры: пересчёт по архивным снимка
 
   assert.equal(field.find(p => p.id === 'p_22').bestRank, 1, 'Исторический №1 Ussistian Shifter не теряется при падении в рейтинге');
   assert.equal(field.find(p => p.id === 'p_27').bestRank, 5, 'Ошибочный №1 Shaun Salkar без подтверждения историей сбрасывается к каноническому пику');
+});
+
+test('M3: живой пик №1 у неканонического игрока (нюген) не теряется при падении рейтинга', () => {
+  // Ньюген достиг №1 (bestRank=1), но historicalBestRank не обновлялся live (старый баг).
+  // Теперь он падает на 5-е место — достигнутый пик №1 обязан сохраниться.
+  const field = [
+    { id: 'p_ng', name: 'Newgen Star', rank: 5, bestRank: 1, seasonStartRank: 250, historicalBestRank: 250, points: 500 },
+    ...Array.from({ length: 4 }, (_, i) => ({
+      id: 'p_top' + i, name: 'Top Player ' + i, rank: i + 1, bestRank: i + 1, seasonStartRank: i + 1,
+      points: 1000 - i * 100
+    }))
+  ];
+  sortAndRankPlayers(field, false);
+  const ng = field.find(p => p.id === 'p_ng');
+  assert.equal(ng.rank, 5, 'Ньюген опустился на 5-е место по очкам');
+  assert.equal(ng.bestRank, 1, 'Достигнутый пик №1 не теряется при падении рейтинга');
+  assert.equal(ng.historicalBestRank, 5, 'Живой пик трекается в historicalBestRank');
+});
+
+test('Пик карьеры: evidence из чекпоинтов чинит заниженный пик при «голой» истории (Vorb Blaostie #6)', () => {
+  const players = [
+    { id: 'p_29', name: 'Vorb Blaostie', rank: 9, bestRank: 9, seasonStartRank: 7 },
+    { id: 'p_27', name: 'Shaun Salkar', rank: 12, bestRank: 5, seasonStartRank: 12 },
+    { id: 'p_s', name: 'Snapshot Only', rank: 30, bestRank: 30, seasonStartRank: 30 }
+  ];
+  // Живая история «голая»: срезов ТБШ 2025 нет, только 2024 с пиком Blaostie #9
+  const seasonsHistory = {
+    2024: {
+      yearEndTop50: [
+        { name: 'Vorb Blaostie', rank: 9 },
+        { name: 'Shaun Salkar', rank: 12 }
+      ]
+    }
+  };
+  const checkpoints = [
+    {
+      id: 'cp_tbsh_2_2025',
+      players: [
+        { name: 'Vorb Blaostie', bestRank: 6 },
+        { name: 'Shaun Salkar', bestRank: 1 }
+      ],
+      seasonsHistory: {
+        2025: {
+          slamSnapshots: {
+            tbsh_2: {
+              top50: [
+                { name: 'Vorb Blaostie', rank: 6 },
+                { name: 'Snapshot Only', rank: 12 }
+              ]
+            }
+          }
+        }
+      }
+    },
+    { id: 'cp_manual_1794777703105', players: [{ name: 'Vorb Blaostie', bestRank: 6 }] }
+  ];
+
+  const repaired = repairCareerHighRanksFromHistory(players, seasonsHistory, checkpoints);
+  assert.equal(repaired, 2, 'Чинятся только заниженные пики (Blaostie и Snapshot Only)');
+  assert.equal(players[0].bestRank, 6, 'Пик Blaostie восстановлен до #6 из чекпоинта, а не #9 из 2024');
+  assert.equal(players[1].bestRank, 5, 'Канонический пик Salkar #5 защищён от ошибочного #1 в чекпоинте');
+  assert.equal(players[2].bestRank, 12, 'Пик берётся и из снимков внутри чекпоинта, даже без bestRank в cp.players');
 });
 
 test('Счёт финала: сеты ориентируются по победителю (первые цифры всегда больше вторых)', () => {
@@ -1596,10 +1679,13 @@ test('Публичный снимок канона (public/canon.json): гост
   const data = JSON.parse(fs.readFileSync(new URL('../public/canon.json', import.meta.url), 'utf8'));
   const store = {};
   assert.equal(applyCanonSnapshotToMemory(data, store), true);
-  assert.equal(JSON.parse(store['universe_1_meta_players_v8']).length, 300);
+  assert.equal(JSON.parse(store['universe_1_meta_players_v8']).length, 311);
   assert.equal(store['universe_1_meta_jan2024_clean_start_v2'], 'true', 'Флаг чистого старта стоит, чтобы канон не сбрасывался на январь');
   const drawKeys2024 = Object.keys(store).filter(k => k.startsWith('draw_1_') && k.endsWith('_2024'));
   assert.ok(drawKeys2024.length >= 1, 'В снимке есть сетки 2024 года');
+  const hist = JSON.parse(store['universe_1_meta_seasons_history_v8']);
+  assert.equal((hist['2025']?.yearEndTop50 || []).length, 50, 'Итоговый Топ-50 сезона 2025 не потерян');
+  assert.equal((hist['2026']?.yearEndTop50 || []).length, 50, 'Проведённый сезон 2026 опубликован с итоговым Топ-50');
   assert.equal(applyCanonSnapshotToMemory({ players: [] }, {}), false, 'Пустой снимок игнорируется');
 });
 
@@ -2299,6 +2385,90 @@ test('30. Гонка GOAT: недели на №1, потенциал молод
   assert.equal(fallbackAwards.ironMan.wins, 0);
   assert.equal(fallbackAwards.ironMan.titles, 1);
   assert.equal(computeSeasonAwards([], 2024), null, 'Пустой пул игроков не даёт лауреатов');
+});
+
+test('Ручные снятия с турнира: выбранные игроки полностью исключены из сетки (все категории), случайных снятий нет', () => {
+  const players = buildInitial300Players();
+  const byRank = [...players].sort((a, b) => (a.rank || 999) - (b.rank || 999));
+  const manualFive = byRank.slice(0, 5);
+  const manualIds = manualFive.map(p => String(p.id));
+  const manualNames = manualFive.map(p => p.name);
+
+  const collectIds = (draw) => {
+    const ids = new Set();
+    (draw || []).forEach(round => (round || []).forEach(m => {
+      [m && m.p1, m && m.p2, m && m.winner].forEach(side => { if (side && side.id) ids.add(String(side.id)); });
+    }));
+    return ids;
+  };
+
+  const cases = [
+    { type: 'Мастерс', size: 64 },
+    { type: 'ТБШ', size: 128 },
+    { type: 'ATP 500', size: 32 }
+  ];
+
+  cases.forEach(({ type, size }) => {
+    const tourney = FULL_CALENDAR_TEMPLATE.find(t => t.type === type);
+    assert.ok(tourney, `В календаре должен быть турнир категории ${type}`);
+    const { draw, withdrawals } = createTournamentDraw(tourney, players, { manualMode: true, manualWithdrawIds: manualIds });
+    const ids = collectIds(draw);
+
+    manualIds.forEach(id => assert.equal(ids.has(id), false, `Снятый вручную ${id} не должен попасть в сетку ${type} ни в одном раунде`));
+    manualNames.forEach(n => assert.ok(withdrawals.includes(n), `Снятый вручную ${n} должен быть в списке снятий ${type}`));
+    assert.equal(draw[0].length, size / 2, `Первый раунд ${type} должен содержать ${size / 2} матчей`);
+    assert.ok(draw[0].every(m => m.p1 && m.p2), `Сетка ${type} должна быть полностью заполнена (без пустых слотов)`);
+    assert.ok(ids.has(String(byRank[5].id)), `Не снятый игрок ${byRank[5].name} должен присутствовать в сетке ${type}`);
+  });
+
+  // Ручной режим без снятий: все заявляются, случайных снятий нет
+  const masters = FULL_CALENDAR_TEMPLATE.find(t => t.type === 'Мастерс');
+  const full = createTournamentDraw(masters, players, { manualMode: true, manualWithdrawIds: [] });
+  assert.equal(full.withdrawals.length, 0, 'В ручном режиме без выбранных снятий список снятий пуст');
+  assert.ok(collectIds(full.draw).has(String(byRank[0].id)), 'Первая ракетка обязана играть, если её не сняли вручную');
+
+  // Случайный режим (по умолчанию) не сломан: сетка заполнена
+  const randomDraw = createTournamentDraw(masters, players);
+  assert.equal(randomDraw.draw[0].length, 32);
+  assert.ok(randomDraw.draw[0].every(m => m.p1 && m.p2));
+});
+
+test('H2H строго хронологичен: самые свежие встречи сверху, самые старые снизу (год → дата турнира → раунд)', () => {
+  const fofol = { id: 'p_1', name: 'Istep Fofol', flag: 'SLO' };
+  const shifter = { id: 'p_22', name: 'Ussistian Shifter', flag: 'USA' };
+
+  const tJan = { id: 'h2h_jan', name: 'January Masters', type: 'Мастерс', surface: 'Хард', size: 64, startMonth: 0, startDay: 5 };
+  const tMay = { id: 'h2h_may', name: 'May Slam', type: 'ТБШ', surface: 'Грунт', size: 128, startMonth: 4, startDay: 20 };
+  const tNov = { id: 'h2h_nov', name: 'November Masters', type: 'Мастерс', surface: 'Зал', size: 64, startMonth: 10, startDay: 1 };
+
+  const atRound = (rIdx, winner) => {
+    const rounds = [];
+    for (let i = 0; i < rIdx; i++) rounds.push([]);
+    rounds.push([{ p1: fofol, p2: shifter, winner, score: ['6-4', '6-4'] }]);
+    return rounds;
+  };
+
+  const fakeDraws = {
+    'h2h_jan_2023': atRound(5, fofol),   // финал-2023 (самый старый)
+    'h2h_jan_2024': atRound(0, shifter), // R1-2024, январь
+    'h2h_may_2024': atRound(4, fofol),   // полуфинал-2024, май
+    'h2h_nov_2024': atRound(5, shifter)  // финал-2024, ноябрь (самый свежий)
+  };
+
+  const h2h = getHeadToHeadAnalytics(
+    fofol.id, shifter.id, [tJan, tMay, tNov], 2024,
+    (tId, yr) => fakeDraws[`${tId}_${yr}`] || null,
+    fofol.name, shifter.name
+  );
+
+  assert.equal(h2h.history.length, 4, 'Должны учитываться все 4 очных матча');
+  assert.deepEqual(
+    h2h.history.map(item => `${item.year}:${item.tourneyId}`),
+    ['2024:h2h_nov', '2024:h2h_may', '2024:h2h_jan', '2023:h2h_jan'],
+    'Порядок строго от самых свежих к самым старым: ноябрь-2024 → май-2024 → январь-2024 → 2023'
+  );
+  assert.equal(h2h.p1Wins, 2, 'Istep Fofol выиграл 2 очных матча');
+  assert.equal(h2h.p2Wins, 2, 'Ussistian Shifter выиграл 2 очных матча');
 });
 
 

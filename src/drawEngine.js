@@ -372,9 +372,14 @@ export function calculateGroupStandings(groupMatches) {
   });
 }
 
-export function createTournamentDraw(tourney, players) {
+export function createTournamentDraw(tourney, players, options = {}) {
   const size = tourney.size;
   const withdrawals = [];
+
+  // Ручной режим: автор сам отмечает, кто снимается. Случайных снятий нет —
+  // заявочный пул категории минус выбранные id. Это убирает «вечную пережеребьёвку».
+  const manualIds = new Set((options.manualWithdrawIds || []).map(String));
+  const manualMode = Boolean(options.manualMode);
 
   // Итоговый турнир World Tour Finals (Топ-8 по Live Race + до 2 запасных при снятиях)
   if (tourney.id === 'finals') {
@@ -387,11 +392,17 @@ export function createTournamentDraw(tourney, players) {
     const alternates = raceSorted.slice(8, 10);
 
     // 0–2 снятия из топ-8: освободившиеся места занимают запасные №9–10 Чемпионской гонки
-    const roll = Math.random();
-    const withdrawalTarget = roll < 0.5 ? 0 : (roll < 0.85 ? 1 : 2);
     const withdrawalIdx = new Set();
-    while (withdrawalIdx.size < Math.min(withdrawalTarget, alternates.length)) {
-      withdrawalIdx.add(Math.floor(Math.random() * top8.length));
+    if (manualMode) {
+      top8.forEach((p, idx) => {
+        if (manualIds.has(String(p.id)) && withdrawalIdx.size < alternates.length) withdrawalIdx.add(idx);
+      });
+    } else {
+      const roll = Math.random();
+      const withdrawalTarget = roll < 0.5 ? 0 : (roll < 0.85 ? 1 : 2);
+      while (withdrawalIdx.size < Math.min(withdrawalTarget, alternates.length)) {
+        withdrawalIdx.add(Math.floor(Math.random() * top8.length));
+      }
     }
 
     const finalsWithdrawals = [];
@@ -451,18 +462,26 @@ export function createTournamentDraw(tourney, players) {
 
   // ОЛИМПИЙСКИЕ ИГРЫ (64 игрока, национальная квота <= 4 игроков от страны, разведение по разным четвертям, Матч за 3-е место + Финал)
   if (tourney.id === 'olympics' || tourney.type === 'Олимпиада' || tourney.isOlympics) {
-    const { qualified, quotaExcluded } = selectOlympicParticipantsWithQuota(players, 4, 64);
+    const olympicPool = manualMode ? players.filter(p => !manualIds.has(String(p.id))) : players;
+    const { qualified, quotaExcluded } = selectOlympicParticipantsWithQuota(olympicPool, 4, 64);
     const bracket = buildOlympicQuarterSeparatedBracket(qualified);
+    const manualNames = manualMode ? players.filter(p => manualIds.has(String(p.id))).map(p => p.name) : [];
 
     return {
       draw: buildStandardRounds(bracket, 64, true),
-      withdrawals: quotaExcluded.slice(0, 12)
+      withdrawals: [...manualNames, ...quotaExcluded].slice(0, manualMode ? 24 : 12)
     };
   }
 
   const committedPlayers = [];
+  const entryTop = tourney.type === 'ATP 500' ? 140 : (tourney.type === 'Мастерс' ? 95 : 155);
 
-  if (tourney.type === 'ATP 500') {
+  if (manualMode) {
+    players.slice(0, entryTop).forEach(p => {
+      if (manualIds.has(String(p.id))) withdrawals.push(p.name);
+      else committedPlayers.push(p);
+    });
+  } else if (tourney.type === 'ATP 500') {
     players.slice(0, 15).forEach(p => {
       if (Math.random() < 0.80) committedPlayers.push(p);
       else withdrawals.push(p.name);
@@ -549,7 +568,7 @@ export function createTournamentDraw(tourney, players) {
 
     const direct = committedPlayers.slice(32, 96).map(p => ({ ...p, seedNum: undefined }));
     const usedIds = new Set([...seeds.map(p => p.id), ...direct.map(p => p.id)]);
-    const poolLower = shuffleArray(players.filter(p => !usedIds.has(p.id)));
+    const poolLower = shuffleArray(players.filter(p => !usedIds.has(p.id) && !manualIds.has(String(p.id))));
 
     const qualifiers = poolLower.slice(0, 16).map(p => ({ ...p, entryTag: 'Q', seedNum: undefined }));
     const wildcards = poolLower.slice(16, 24).map(p => ({ ...p, entryTag: 'WC', seedNum: undefined }));
@@ -563,7 +582,7 @@ export function createTournamentDraw(tourney, players) {
         bracket[i] = nextP ? { ...nextP, seedNum: undefined } : null;
       }
     }
-    return { draw: buildStandardRounds(bracket, 128), withdrawals: withdrawals.slice(0, 10) };
+    return { draw: buildStandardRounds(bracket, 128), withdrawals: withdrawals.slice(0, manualMode ? withdrawals.length : 10) };
 
   } else if (size === 64) {
     // МАСТЕРС (64): СТРОГО СЕЯНЫЕ С (1) ПО (16)
@@ -586,7 +605,7 @@ export function createTournamentDraw(tourney, players) {
 
     const direct = committedPlayers.slice(16, 48).map(p => ({ ...p, seedNum: undefined }));
     const usedIds = new Set([...seeds.map(p => p.id), ...direct.map(p => p.id)]);
-    const poolLower = shuffleArray(players.filter(p => !usedIds.has(p.id) && p.rank >= 65));
+    const poolLower = shuffleArray(players.filter(p => !usedIds.has(p.id) && p.rank >= 65 && !manualIds.has(String(p.id))));
 
     const qualifiers = poolLower.slice(0, 8).map(p => ({ ...p, entryTag: 'Q', seedNum: undefined }));
     const wildcards = poolLower.slice(8, 12).map(p => ({ ...p, entryTag: 'WC', seedNum: undefined }));
@@ -600,7 +619,7 @@ export function createTournamentDraw(tourney, players) {
         bracket[i] = nextP ? { ...nextP, seedNum: undefined } : null;
       }
     }
-    return { draw: buildStandardRounds(bracket, 64), withdrawals: withdrawals.slice(0, 10) };
+    return { draw: buildStandardRounds(bracket, 64), withdrawals: withdrawals.slice(0, manualMode ? withdrawals.length : 10) };
 
   } else {
     // ATP 500 (32): СТРОГО СЕЯНЫЕ С (1) ПО (8)
@@ -619,7 +638,7 @@ export function createTournamentDraw(tourney, players) {
 
     const direct = committedPlayers.slice(8, 24).map(p => ({ ...p, seedNum: undefined }));
     const usedIds = new Set([...seeds.map(p => p.id), ...direct.map(p => p.id)]);
-    const poolLower = shuffleArray(players.filter(p => !usedIds.has(p.id) && p.rank >= 70));
+    const poolLower = shuffleArray(players.filter(p => !usedIds.has(p.id) && p.rank >= 70 && !manualIds.has(String(p.id))));
 
     const qualifiers = poolLower.slice(0, 4).map(p => ({ ...p, entryTag: 'Q', seedNum: undefined }));
     const wildcards = poolLower.slice(4, 8).map(p => ({ ...p, entryTag: 'WC', seedNum: undefined }));
@@ -631,7 +650,7 @@ export function createTournamentDraw(tourney, players) {
         bracket[i] = nextP ? { ...nextP, seedNum: undefined } : null;
       }
     }
-    return { draw: buildStandardRounds(bracket, 32), withdrawals: withdrawals.slice(0, 10) };
+    return { draw: buildStandardRounds(bracket, 32), withdrawals: withdrawals.slice(0, manualMode ? withdrawals.length : 10) };
   }
 }
 

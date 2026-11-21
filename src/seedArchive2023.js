@@ -296,8 +296,6 @@ export function ensureDefault2023SeasonArchive(tournaments, players, seasonsHist
     return false;
   }
 
-  applyCanonical2023StartStateToPlayers(players);
-
   const tourneys2023List = (tournaments || []).filter(t => t && t.id !== 'olympics');
   const existing2023 = seasonsHistory['2023'];
 
@@ -345,6 +343,10 @@ export function ensureDefault2023SeasonArchive(tournaments, players, seasonsHist
     populateAndCalibrate2023TournamentPoints(players, tourneys2023List, readDraw2023FromStorage, HISTORICAL_2023_FINALS);
     return false;
   }
+
+  // Канонический старт-2023 применяем ТОЛЬКО при пересборке архива 2023 с нуля.
+  // На обычной загрузке (архив уже корректен) он затирал бы живые очки, ранги и пик карьеры.
+  applyCanonical2023StartStateToPlayers(players);
 
   const baseEndTop50 = build2023YearEndTop50(players, '2023-11-19');
 

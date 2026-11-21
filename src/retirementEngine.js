@@ -49,26 +49,6 @@ export const TENNIS_NATIONS = [
   "GRE", "GEO", "UKR", "CHN", "KOR", "TPE", "RSA", "MEX", "COL", "ROU"
 ];
 
-export const NEWGEN_NICKNAMES = [
-  "Молния корта", "Грунтовый Принц", "Железный Бэкхенд", "Северная Ракета", "Маэстро Укороченных",
-  "Призрак Задней Линии", "Король Тайбрейков", "Пушечный Эйс", "Неутомимый Марафонец", "Хирург Косых Ударов",
-  "Шторм на Приеме", "Снайпер Линий", "Стальной Нерв", "Вихрь У Сетки", "Титан Обороны",
-  "Матадор Корта", "Ледяной Импульс", "Гений Вращения", "Огненный Форхенд", "Феномен Новой Волны"
-];
-
-export const NEWGEN_PLAY_STYLES = [
-  "Агрессивный бейслайнер с мощной подачей",
-  "Контратакующий мастер затяжных розыгрышей",
-  "Тактический универсал с вариативным резаным ударом",
-  "Атакующий сеточник новой волны (Serve & Volley)",
-  "Темповик с тяжелым топ-спином и плотным бэкхендом",
-  "Взрывной панчер с сокрушительным форхендом навылет",
-  "Непробиваемый защитник со сверхбыстрой работой ног",
-  "Специалист быстрых покрытий с плоской подачей за 225 км/ч",
-  "Грунтовый стратег с высоким отскоком и скрытыми дроп-шотами",
-  "Интеллектуальный плеймейкер, читающий игру на два удара вперед"
-];
-
 /**
  * Вычисляет вероятность завершения карьеры (0..1) для игрока.
  */
@@ -131,8 +111,10 @@ export function createNewgenPlayer(nextSeasonYear, existingNamesSet, nextIdNumbe
   const pointsMax = Number.isFinite(options.pointsMax) ? Math.floor(options.pointsMax) : 45;
   const pointsSteps = Math.max(1, Math.floor((pointsMax - pointsMin) / 5) + 1);
   const startPoints = pointsMin + Math.floor(rng() * pointsSteps) * 5; // по умолчанию 20..45 очков
-  const nickname = NEWGEN_NICKNAMES[(nextIdNumber - 1 + Math.floor(rng() * NEWGEN_NICKNAMES.length)) % NEWGEN_NICKNAMES.length];
-  const playStyle = NEWGEN_PLAY_STYLES[(nextIdNumber - 1 + Math.floor(rng() * NEWGEN_PLAY_STYLES.length)) % NEWGEN_PLAY_STYLES.length];
+  // Прозвища и стили игры удалены из тура. Два вызова rng() сохранены на прежнем месте,
+  // чтобы не сдвигать детерминированную последовательность (POT и имя генерируются ниже).
+  rng();
+  rng();
   const prevYear = nextSeasonYear - 1;
   const p1 = Math.min(10, startPoints);
   const p2 = Math.min(10, Math.max(0, startPoints - p1));
@@ -162,8 +144,6 @@ export function createNewgenPlayer(nextSeasonYear, existingNamesSet, nextIdNumbe
     seasonsPlayed: 0,
     isNewgen: true,
     debutYear: nextSeasonYear,
-    nickname,
-    playStyle,
     // POT генерируется после всех полей, чтобы не сдвигать детерминированную последовательность rng
     potential: generatePlayerPotential(rng, { age }),
     potentialModel: POTENTIAL_MODEL_VERSION

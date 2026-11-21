@@ -312,8 +312,11 @@ export function sortAndRankPlayers(players, updateRankChange = false) {
       }
       p.bestRank = Math.min(currentBest, newRank);
     } else {
+      // Трекаем живой пик неканонических игроков (нюгены/кастом): иначе достигнутый
+      // №1 отбрасывался проверкой bestRank > 1 и терялся при последующем падении рейтинга.
+      p.historicalBestRank = Math.min(p.historicalBestRank || newRank, newRank);
       const floorPeak = p.historicalBestRank || p.seasonStartRank || newRank;
-      const currentBest = (p.bestRank && p.bestRank > 1) ? p.bestRank : floorPeak;
+      const currentBest = (p.bestRank && p.bestRank >= 1) ? p.bestRank : floorPeak;
       p.bestRank = Math.min(currentBest, newRank);
     }
   });
@@ -325,7 +328,7 @@ export function sortAndRankPlayers(players, updateRankChange = false) {
  * Поднимает карьерный пик (bestRank) по архивным снимкам истории сезонов.
  * Учитывает только улучшение, поэтому корректный пик никогда не ухудшается.
  */
-export function repairCareerHighRanksFromHistory(players, seasonsHistory) {
+export function repairCareerHighRanksFromHistory(players, seasonsHistory, checkpoints = []) {
   if (!Array.isArray(players) || !seasonsHistory || typeof seasonsHistory !== 'object') return 0;
 
   const bestFromHistory = new Map();
@@ -340,8 +343,7 @@ export function repairCareerHighRanksFromHistory(players, seasonsHistory) {
       if (prev === undefined || effectiveRank < prev) bestFromHistory.set(name, effectiveRank);
     });
   };
-
-  Object.values(seasonsHistory).forEach(season => {
+  const considerSeason = (season) => {
     if (!season || typeof season !== 'object') return;
     considerSnapshot(season.seasonStartTop50);
     considerSnapshot(season.yearEndTop50);
@@ -352,8 +354,31 @@ export function repairCareerHighRanksFromHistory(players, seasonsHistory) {
         considerSnapshot(Array.isArray(snap) ? snap : snap.top50);
       });
     }
+  };
+
+  Object.values(seasonsHistory).forEach(considerSeason);
+
+  // Чекпоинты — авторитетная запись карьеры: живая история сезона может быть «голой»
+  // (без срезов ТБШ), но сам чекпоинт хранит и снимки, и пик игрока на тот момент.
+  const peakFromCheckpointPlayers = new Map();
+  (Array.isArray(checkpoints) ? checkpoints : []).forEach(cp => {
+    if (!cp || typeof cp !== 'object') return;
+    if (cp.seasonsHistory && typeof cp.seasonsHistory === 'object') {
+      Object.values(cp.seasonsHistory).forEach(considerSeason);
+    }
+    if (Array.isArray(cp.players)) {
+      cp.players.forEach(p => {
+        const name = p && p.name ? String(p.name).trim().toLowerCase() : '';
+        const br = Number(p && p.bestRank);
+        if (!name || !Number.isFinite(br) || br <= 0) return;
+        const prev = peakFromCheckpointPlayers.get(name);
+        if (prev === undefined || br < prev) peakFromCheckpointPlayers.set(name, br);
+      });
+    }
   });
 
+  // В evidence для проверки №1 попадают только реально наблюдённые позиции из снимков,
+  // а не сохранённый bestRank чекпоинта (он мог быть ошибочным).
   archivePeakEvidence.clear();
   bestFromHistory.forEach((rank, name) => archivePeakEvidence.set(name, rank));
 
@@ -361,11 +386,22 @@ export function repairCareerHighRanksFromHistory(players, seasonsHistory) {
   players.forEach(p => {
     if (!p || !p.name) return;
     const key = String(p.name).trim().toLowerCase();
-    const evidence = bestFromHistory.get(key);
-    if (evidence === undefined) return;
-
     const canonicalPeak = HISTORICAL_PEAK_RANK_BY_NAME[key];
-    const target = canonicalPeak !== undefined ? Math.min(evidence, canonicalPeak) : evidence;
+
+    let target;
+    const snapEvidence = bestFromHistory.get(key);
+    if (snapEvidence !== undefined) {
+      target = canonicalPeak !== undefined ? Math.min(snapEvidence, canonicalPeak) : snapEvidence;
+    }
+    const cpEvidence = peakFromCheckpointPlayers.get(key);
+    if (cpEvidence !== undefined) {
+      // bestRank в чекпоинте мог быть ошибочным (баг #1 у Salkar): для канонических игроков
+      // он не может доказывать пик лучше канонического — лучше подтверждают только снимки.
+      const cpTarget = canonicalPeak !== undefined ? Math.max(cpEvidence, canonicalPeak) : cpEvidence;
+      target = target === undefined ? cpTarget : Math.min(target, cpTarget);
+    }
+    if (target === undefined) return;
+
     const current = Number(p.bestRank);
     if (!Number.isFinite(current) || current > target) {
       p.bestRank = target;

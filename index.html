@@ -169,6 +169,7 @@
                     <button type="button" class="btn-gold" id="btnOlympicTeams" onclick="openOlympicTeamsModal()" style="display: none;">🌍 Сборные и квоты ОИ</button>
                     <button type="button" class="btn-gold" id="btnFinalsDefending" onclick="openFinalsDefendingModal()" style="display: none;">🛡️ Защита очков Итогового</button>
                     <button type="button" class="btn-green" id="btnMakeDraw" onclick="generateRealisticDraw()">🎲 Жеребьевка</button>
+                    <button type="button" class="btn-edit" id="btnManualWithdrawals" onclick="openManualWithdrawalsModal()" title="Сами отметьте, кто снимается с турнира — без случайных снятий и пережеребьёвок">✋ Снятия вручную</button>
                     <button type="button" class="btn-edit" id="btnSimRound" onclick="autoSimulateRound()">⚡ Симулировать раунд</button>
                     <button type="button" class="btn-edit" id="btnSimAllTourney" onclick="autoSimulateEntireTournament()">⏩ Весь турнир</button>
                     <button type="button" class="btn-gold" id="btnFinishTourney" onclick="finishTournamentAndAwardPoints()">🏆 Завершить турнир</button>
@@ -615,17 +616,6 @@
                 <input type="date" id="editPlayerBirth">
             </div>
             <div class="form-group">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                    <label for="editPlayerNickname" style="margin-bottom: 0;">Прозвище игрока (для ньюгенов и звезд тура):</label>
-                    <button type="button" class="btn-purple btn-compact" id="btnGenPlayerStyleGroq" onclick="generateSinglePlayerStyleWithGroq()" style="font-size: 11px; padding: 3px 8px;">🧠 Сгенерировать профиль (ИИ)</button>
-                </div>
-                <input type="text" id="editPlayerNickname" placeholder="напр: Молния корта">
-            </div>
-            <div class="form-group">
-                <label for="editPlayerPlayStyle">Стиль игры и характер:</label>
-                <input type="text" id="editPlayerPlayStyle" placeholder="напр: Агрессивный бейслайнер с мощной подачей">
-            </div>
-            <div class="form-group">
                 <label for="editPlayerPoints">Очки рейтинга (рассчитываются строго на турнирах):</label>
                 <input type="number" id="editPlayerPoints" disabled style="opacity: 0.6; cursor: not-allowed; background: #1f2937;">
                 <small style="color: var(--text-dim); font-size: 11px;">Ручной ввод отключен (disabled), чтобы не нарушать математику 52 недель и Чемпионской гонки.</small>
@@ -682,6 +672,29 @@
             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 15px;">
                 <button type="button" onclick="closeModal('editTourneyModal')">Отмена</button>
                 <button type="button" class="btn-green" onclick="saveTourneyEdit()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА РУЧНОГО ВЫБОРА СНЯТИЙ С ТУРНИРА (БЕЗ СЛУЧАЙНЫХ СНЯТИЙ И ПЕРЕЖЕРЕБЬЁВОК) -->
+    <div class="modal" id="manualWithdrawalsModal" role="dialog" aria-modal="true" aria-labelledby="manualWithdrawalsTitle">
+        <div class="modal-content manual-wd-modal">
+            <div class="modal-header-row">
+                <div>
+                    <h3 id="manualWithdrawalsTitle" class="modal-main-title">✋ Снятия с турнира вручную</h3>
+                    <div id="manualWithdrawalsSubtitle" class="modal-sub-caption"></div>
+                </div>
+                <button type="button" class="btn-edit btn-compact" onclick="closeModal('manualWithdrawalsModal')">Закрыть ✕</button>
+            </div>
+            <div class="manual-wd-toolbar">
+                <input type="text" id="manualWithdrawalsSearch" class="manual-wd-search" placeholder="Поиск: фамилия или страна..." oninput="handleManualWithdrawalsSearch(this.value)" aria-label="Поиск игрока для снятия">
+                <span id="manualWithdrawalsCounter" class="manual-wd-counter">Выбрано снятий: 0</span>
+                <button type="button" class="btn-edit btn-compact" onclick="clearManualWithdrawalsSelection()">Очистить выбор</button>
+            </div>
+            <div id="manualWithdrawalsList" class="manual-wd-list"></div>
+            <div class="manual-wd-actions">
+                <button type="button" class="btn-edit" onclick="closeModal('manualWithdrawalsModal')">Отмена</button>
+                <button type="button" class="btn-green" onclick="applyManualWithdrawalsAndDraw()">🎲 Провести жеребьёвку с этими снятиями</button>
             </div>
         </div>
     </div>

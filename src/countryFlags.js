@@ -165,15 +165,17 @@ export function getCountryMeta(rawFlag) {
       isUnknown: false
     };
   }
+  // Нераспознанный код: показываем безопасный «?», а не сырой ввод — иначе
+  // произвольная строка (с кавычками/тегами) попала бы в title/alt атрибуты флага.
   return {
-    code: upper,
-    displayCode: upper,
+    code: '?',
+    displayCode: '?',
     iso2: null,
-    nameRu: upper,
-    nameEn: upper,
-    ru: upper,
-    en: upper,
-    isUnknown: false
+    nameRu: 'Страна не указана',
+    nameEn: 'Unknown',
+    ru: 'Страна не указана',
+    en: 'Unknown',
+    isUnknown: true
   };
 }
 
@@ -197,7 +199,8 @@ export function normalizeCountryCode(rawInput) {
   if (BY_NAME.has(lower)) {
     return BY_NAME.get(lower).code;
   }
-  return upper;
+  // Принимаем только буквенные коды 2-3 символа; произвольный ввод не сохраняем как флаг
+  return /^[A-Z]{2,3}$/.test(upper) ? upper : '?';
 }
 
 /**
