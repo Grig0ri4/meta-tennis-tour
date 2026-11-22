@@ -2701,6 +2701,15 @@ function escapeHtmlText(v) {
     .replace(/'/g, '&#39;');
 }
 
+function decodeHtmlEntities(v) {
+  return String(v ?? '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
 // DOM-санитайзер на белом списке тегов. Парсер инертен (скрипты не выполняются,
 // ресурсы не загружаются), а значения атрибутов уже декодированы браузером — поэтому
 // обходы regex-версии (src=x/onerror=, href="jav&#x61;script:") здесь не работают.
@@ -3043,7 +3052,8 @@ export function handleImportUniverseFile(event) {
       }
       if (data.bg250 && typeof data.bg250 === 'object') {
         Object.entries(data.bg250).forEach(([k, v]) => {
-          universeStorage.setItem(k, escapeHtmlText(v));
+          // Отчёт рендерится через innerHTML: полное экранирование показывало теги текстом.
+          universeStorage.setItem(k, stripDangerousHtml(v));
         });
       }
 
@@ -3346,7 +3356,14 @@ export function loadSelectedTournament() {
     }
   }
 
-  const bgReport = universeStorage.getItem(`bg250_${activeTourney.id}_${viewingYear}`);
+  const bg250Key = `bg250_${activeTourney.id}_${viewingYear}`;
+  let bgReport = universeStorage.getItem(bg250Key);
+  // Legacy-импорт экранировал отчёт целиком: декодируем только полностью экранированную
+  // строку и чистим белым списком, иначе <b> и кнопка показывались как текст.
+  if (bgReport && bgReport.includes('&lt;') && !/<[a-zA-Z]/.test(bgReport)) {
+    bgReport = stripDangerousHtml(decodeHtmlEntities(bgReport));
+    universeStorage.setItem(bg250Key, bgReport);
+  }
   const bgBox = document.getElementById('bg250Notice');
   if (bgBox) {
     if (bgReport) {
