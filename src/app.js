@@ -10357,6 +10357,45 @@ if (typeof window !== 'undefined') {
 
   authorCanonRestoreHook = restoreAuthorCanonPositionsOnce;
 
+  function setupVersionUpdateBanner() {
+    const bundleRe = /assets\/index-[^"']+\.js/;
+    const current = (document.querySelector('script[src*="assets/index-"]')?.getAttribute('src') || '').match(bundleRe)?.[0];
+    if (!current) return; // dev-режим: бандл не хэширован, сравнивать нечего
+    let dismissedFor = '';
+    let bannerEl = null;
+    const showBanner = (latest) => {
+      if (bannerEl) return;
+      bannerEl = document.createElement('div');
+      bannerEl.className = 'app-update-banner';
+      bannerEl.innerHTML = `
+        <div class="app-update-text">🎾 <b>Доступна новая версия тура.</b><span>Обновите вкладку — последние изменения уже на сайте.</span></div>
+        <div class="app-update-actions">
+          <button type="button" class="app-update-reload">Обновить</button>
+          <button type="button" class="app-update-dismiss" aria-label="Скрыть уведомление">✕</button>
+        </div>`;
+      bannerEl.querySelector('.app-update-reload').addEventListener('click', () => window.location.reload());
+      bannerEl.querySelector('.app-update-dismiss').addEventListener('click', () => {
+        dismissedFor = latest;
+        bannerEl.remove();
+        bannerEl = null;
+      });
+      document.body.appendChild(bannerEl);
+    };
+    const checkForNewVersion = async () => {
+      try {
+        const res = await fetch('./index.html', { cache: 'no-store' });
+        if (!res.ok) return;
+        const latest = (await res.text()).match(bundleRe)?.[0];
+        if (latest && latest !== current && dismissedFor !== latest) showBanner(latest);
+      } catch {}
+    };
+    window.setTimeout(checkForNewVersion, 15000);
+    window.setInterval(checkForNewVersion, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkForNewVersion();
+    });
+  }
+
   function setupPwa() {
     const installButton = document.getElementById('btnInstallPwa');
     let deferredPrompt = null;
@@ -10389,6 +10428,13 @@ if (typeof window !== 'undefined') {
     }
 
     if ('serviceWorker' in navigator) {
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      let updateReloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController || updateReloaded) return;
+        updateReloaded = true;
+        window.location.reload();
+      });
       const registerServiceWorker = () => {
         navigator.serviceWorker.register('./sw.js').catch(() => {});
       };
@@ -10397,6 +10443,7 @@ if (typeof window !== 'undefined') {
       } else {
         window.addEventListener('load', registerServiceWorker, { once: true });
       }
+      setupVersionUpdateBanner();
     }
   }
 

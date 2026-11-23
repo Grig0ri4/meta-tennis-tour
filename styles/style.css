@@ -3309,3 +3309,61 @@ button:disabled {
     .profile-top-grid > :nth-child(2) { grid-column: 1; grid-row: 3; }
     .profile-top-grid > :nth-child(3) { grid-column: 1; grid-row: 2; }
 }
+
+/* Баннер доступного обновления (новая версия задеплоена, вкладка ещё старая) */
+.app-update-banner {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 1300;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: min(420px, calc(100vw - 32px));
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #0d1a2e 0%, #0a1120 100%);
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), 0 0 24px rgba(56, 189, 248, 0.12);
+    animation: appUpdateIn 0.25s ease;
+}
+
+@keyframes appUpdateIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.app-update-text { font-size: 12.5px; color: var(--text-main); line-height: 1.4; }
+.app-update-text b { color: #7dd3fc; }
+.app-update-text span { display: block; color: var(--text-dim); font-size: 11.5px; margin-top: 2px; }
+.app-update-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+.app-update-reload {
+    font-size: 12px;
+    font-weight: 800;
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(234, 179, 8, 0.55);
+    background: rgba(234, 179, 8, 0.14);
+    color: var(--gold);
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.app-update-reload:hover { background: rgba(234, 179, 8, 0.26); transform: translateY(-1px); }
+
+.app-update-dismiss {
+    font-size: 12px;
+    padding: 5px 8px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.app-update-dismiss:hover { color: var(--text-main); border-color: rgba(255, 255, 255, 0.25); }
+
+@media (max-width: 640px) {
+    .app-update-banner { left: 16px; right: 16px; bottom: 12px; max-width: none; }
+}

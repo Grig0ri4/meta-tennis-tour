@@ -1,4 +1,4 @@
-const CACHE_NAME = 'meta-tennis-shell-v1';
+const CACHE_NAME = 'meta-tennis-shell-v2';
 const PRECACHE_URLS = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -34,8 +34,12 @@ self.addEventListener('fetch', (event) => {
 
 async function networkFirst(request) {
   const cache = await caches.open(CACHE_NAME);
+  const url = new URL(request.url);
+  // Оболочку (index.html) всегда берём мимо HTTP-кэша: иначе после деплоя
+  // GitHub Pages ещё ~10 минут отдаёт старый HTML из max-age=600.
+  const isShell = request.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, isShell ? { cache: 'no-store' } : undefined);
     if (response && response.ok && response.type === 'basic') {
       cache.put(request, response.clone()).catch(() => undefined);
     }
