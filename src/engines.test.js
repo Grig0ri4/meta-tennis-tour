@@ -2471,4 +2471,51 @@ test('H2H строго хронологичен: самые свежие вст�
   assert.equal(h2h.p2Wins, 2, 'Ussistian Shifter выиграл 2 очных матча');
 });
 
+test('Портреты игроков: фото главных, детерминированный авто-портрет для любого, приоритет загруженного фото', async () => {
+  const fs = await import('node:fs');
+  const {
+    BUNDLED_PLAYER_PHOTOS,
+    resolvePlayerPhoto,
+    findBundledPhoto,
+    renderPlayerPortraitHtml,
+    renderGeneratedPortraitDataUri
+  } = await import('./playerPhotos.js');
+
+  const canon = JSON.parse(fs.readFileSync(new URL('../public/canon.json', import.meta.url), 'utf8'));
+  const ids = Object.keys(BUNDLED_PLAYER_PHOTOS);
+  assert.equal(ids.length, 10, 'Десять авторских портретов главных игроков');
+
+  for (const id of ids) {
+    const meta = BUNDLED_PLAYER_PHOTOS[id];
+    assert.ok(canon.players.some(p => p.id === id && p.name === meta.name), `id ${id} соответствует имени в каноне`);
+    assert.ok(fs.existsSync(new URL(`../public/players/${meta.slug}.webp`, import.meta.url)), `webp-дериватив ${meta.slug} в поставке`);
+    assert.ok(fs.existsSync(new URL(`../public/players/full/${meta.slug}.png`, import.meta.url)), `оригинал ${meta.slug} в поставке`);
+    const photo = resolvePlayerPhoto({ id, name: meta.name, flag: 'USA', rank: 1 });
+    assert.equal(photo.kind, 'bundled');
+    assert.equal(photo.panel, `players/${meta.slug}.webp`);
+  }
+
+  const other = canon.players.find(p => !BUNDLED_PLAYER_PHOTOS[p.id]);
+  const a = resolvePlayerPhoto(other);
+  const b = resolvePlayerPhoto(other);
+  assert.equal(a.kind, 'generated', 'Игрок без фото получает авто-портрет');
+  assert.equal(a.panel, b.panel, 'Авто-портрет детерминирован');
+  assert.ok(a.panel.startsWith('data:image/svg+xml'), 'Авто-портрет — inline SVG, без внешних запросов');
+  const other2 = canon.players.find(p => p.id !== other.id && !BUNDLED_PLAYER_PHOTOS[p.id]);
+  assert.notEqual(resolvePlayerPhoto(other2).panel, a.panel, 'Разные игроки получают разные портреты');
+  assert.equal(renderGeneratedPortraitDataUri(other), a.panel);
+
+  assert.equal(findBundledPhoto({ id: 'legacy_7', name: 'Istep Fofol' }).slug, 'istep-fofol', 'Фото находится и по имени (архив/другая вселенная)');
+
+  const custom = resolvePlayerPhoto(other, 'data:image/jpeg;base64,AAAA');
+  assert.equal(custom.kind, 'custom');
+  assert.equal(custom.panel, 'data:image/jpeg;base64,AAAA', 'Загруженное фото приоритетнее авто-портрета');
+
+  const html = renderPlayerPortraitHtml({ id: 'p_x', name: '<img src=x onerror=alert(1)>', flag: 'USA', rank: 99 });
+  assert.ok(!html.includes('<img src=x'), 'Имя игрока экранируется в панели портрета');
+  assert.ok(html.includes('&lt;img'), 'Имя игрока экранируется в панели портрета');
+  assert.ok(html.includes('openPlayerPhotoLightbox'), 'Панель открывает лайтбокс');
+  assert.ok(html.includes('triggerPlayerPhotoUpload'), 'Панель даёт загрузку своего фото');
+});
+
 

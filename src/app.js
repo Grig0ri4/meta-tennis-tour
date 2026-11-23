@@ -120,6 +120,10 @@ import {
   normalizeCountryCode,
   renderFlagBadge
 } from './countryFlags.js';
+import {
+  resolvePlayerPhoto,
+  renderPlayerPortraitHtml
+} from './playerPhotos.js';
 
 // --- СИСТЕМА МУЛЬТИВСЕЛЕННЫХ (SAVE SLOTS В LOCALSTORAGE) И ЗАЩИТА КАНОНА АВТОРА ---
 const UNIVERSES_LIST_KEY = 'meta_universes_registry_v1';
@@ -370,6 +374,7 @@ function isHeavyStorageKey(k) {
   const s = String(k || '');
   return s.includes('draw_') ||
     s.includes('checkpoints') ||
+    s.includes('playerphoto_') ||
     s.includes('pre_sim_snapshot') ||
     s.includes('test_sim_report');
 }
@@ -826,7 +831,8 @@ export const universeStorage = {
     const strVal = String(v);
     const fullKey = this.key(k);
     memoryUniverseStore[fullKey] = strVal;
-    if (canonSnapshotInfo && activeUniverseId === '1') return;
+    // Фото игроков — локальная косметика устройства, а не данные канона: гостю тоже можно.
+    if (canonSnapshotInfo && activeUniverseId === '1' && !String(k).startsWith('playerphoto_')) return;
     // Сетки и чекпоинты идут в IndexedDB: их объём в разы больше квоты localStorage.
     // Если IndexedDB недоступен, работает прежний путь с фоллбэками по квоте.
     if (isHeavyStorageKey(fullKey) && !heavyStorageDbDisabled) {
@@ -7291,6 +7297,131 @@ function computePlayerCareerAndSeasonStats(player, seasonYear = currentTourYear)
   };
 }
 
+function findProfilePlayerById(playerId) {
+  const idStr = String(playerId);
+  const nameKey = idStr.trim().toLowerCase();
+  return players.find(x => String(x.id) === idStr) ||
+    retiredLegends.find(x => String(x.id) === idStr || String(x.name || '').trim().toLowerCase() === nameKey) ||
+    null;
+}
+
+let lightboxPlayerId = null;
+let lightboxDismissBound = false;
+
+function bindLightboxDismiss() {
+  if (lightboxDismissBound) return;
+  lightboxDismissBound = true;
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal('playerPhotoLightbox');
+  });
+  const modal = document.getElementById('playerPhotoLightbox');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal('playerPhotoLightbox');
+    });
+  }
+}
+
+export function openPlayerPhotoLightbox(playerId) {
+  const player = findProfilePlayerById(playerId);
+  const modal = document.getElementById('playerPhotoLightbox');
+  const img = document.getElementById('playerPhotoLightboxImg');
+  if (!player || !modal || !img) {
+    showToast('⚠️ Портрет этого игрока не найден.');
+    return;
+  }
+  bindLightboxDismiss();
+  const photo = resolvePlayerPhoto(player, universeStorage.getItem(`playerphoto_${player.id}`));
+  lightboxPlayerId = String(player.id);
+  img.src = photo.full;
+  img.alt = photo.alt;
+  const capEl = document.getElementById('playerPhotoLightboxCaption');
+  if (capEl) capEl.innerHTML = `${renderFlagBadge(player.flag)} <b>${escapeHtmlText(player.name)}</b>`;
+  const kindEl = document.getElementById('playerPhotoLightboxKind');
+  if (kindEl) {
+    kindEl.textContent = photo.kind === 'bundled'
+      ? 'Авторский портрет тура · полный размер'
+      : photo.kind === 'custom'
+        ? 'Ваше фото · хранится только на этом устройстве'
+        : 'Авто-портрет · векторная карточка в палитре страны';
+  }
+  const dl = document.getElementById('playerPhotoLightboxDownload');
+  if (dl) {
+    dl.href = photo.full;
+    dl.setAttribute('download', photo.downloadName);
+  }
+  modal.classList.add('open');
+}
+
+function loadImageElement(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image decode failed')); };
+    img.src = url;
+  });
+}
+
+async function downscaleImageFileToDataUrl(file, maxSide = 1000, quality = 0.86) {
+  const source = typeof createImageBitmap === 'function'
+    ? await createImageBitmap(file).catch(() => loadImageElement(file))
+    : await loadImageElement(file);
+  const scale = Math.min(1, maxSide / Math.max(source.width, source.height));
+  const w = Math.max(1, Math.round(source.width * scale));
+  const h = Math.max(1, Math.round(source.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0b1220';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(source, 0, 0, w, h);
+  if (typeof source.close === 'function') source.close();
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
+export function triggerPlayerPhotoUpload(playerId) {
+  const idStr = String(playerId);
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/png,image/jpeg,image/webp,image/gif';
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
+      showToast('⚠️ Нужен файл изображения: PNG, JPEG, WebP или GIF.');
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      showToast('⚠️ Файл больше 15 МБ — выберите фото поменьше.');
+      return;
+    }
+    try {
+      const dataUrl = await downscaleImageFileToDataUrl(file);
+      universeStorage.setItem(`playerphoto_${idStr}`, dataUrl);
+      showToast('📷 Фото игрока сохранено на этом устройстве.');
+      if (String(activeProfilePlayerId) === idStr) openPlayerProfileModal(idStr);
+      if (lightboxPlayerId === idStr && document.getElementById('playerPhotoLightbox')?.classList.contains('open')) {
+        openPlayerPhotoLightbox(idStr);
+      }
+    } catch {
+      showToast('⚠️ Не удалось прочитать это изображение.');
+    }
+  };
+  input.click();
+}
+
+export function resetPlayerPhoto(playerId) {
+  const idStr = String(playerId);
+  universeStorage.removeItem(`playerphoto_${idStr}`);
+  showToast('↺ Загруженное фото убрано, портрет снова стандартный.');
+  if (String(activeProfilePlayerId) === idStr) openPlayerProfileModal(idStr);
+  if (lightboxPlayerId === idStr && document.getElementById('playerPhotoLightbox')?.classList.contains('open')) {
+    openPlayerPhotoLightbox(idStr);
+  }
+}
+
 export function openPlayerProfileModal(playerId) {
   const idStr = String(playerId);
   let player = players.find(x => String(x.id) === idStr) || null;
@@ -7534,8 +7665,17 @@ export function openPlayerProfileModal(playerId) {
             ${surfaceStatsHtml}
           </div>`;
 
+    const customPhoto = universeStorage.getItem(`playerphoto_${player.id}`);
+    const portraitHtml = renderPlayerPortraitHtml(player, {
+      custom: customPhoto,
+      rankLabel: isRetiredProfile
+        ? `🏛️ Пик #${retiredLegend.bestRank || retiredLegend.finalRank || '—'}`
+        : `ATP #${player.rank}`
+    });
+
     bodyEl.innerHTML = `
-      <div style="display: grid; grid-template-columns: minmax(290px, 340px) 1fr; gap: 14px; margin-bottom: 14px; align-items: stretch;">
+      <div class="profile-top-grid">
+        ${portraitHtml}
         ${overviewCardHtml}
         <div class="profile-header-card" style="margin-bottom: 0; flex-direction: column; justify-content: space-between; align-items: stretch;">
           <div class="profile-identity">
@@ -7587,7 +7727,7 @@ export function openPlayerProfileModal(playerId) {
             Набрано в ${currentTourYear}: <b style="color: var(--primary);">+${(player.racePoints || 0).toLocaleString()} pts</b>${player.finalsPoints ? ` (+${player.finalsPoints.toLocaleString()} Итоговый)` : ''}
           </div>
         </div>
-        <div style="border: 1px solid var(--border); border-radius: 6px;">
+        <div class="profile-table-scroll" style="border: 1px solid var(--border); border-radius: 6px;">
           <table class="custom-table" style="font-size: 12px;">
             <thead>
               <tr>
@@ -9890,6 +10030,9 @@ if (typeof window !== 'undefined') {
   window.renderCalendarTable = renderCalendarTable;
   window.jumpToTourney = jumpToTourney;
   window.openPlayerProfileModal = openPlayerProfileModal;
+  window.openPlayerPhotoLightbox = openPlayerPhotoLightbox;
+  window.triggerPlayerPhotoUpload = triggerPlayerPhotoUpload;
+  window.resetPlayerPhoto = resetPlayerPhoto;
   window.openEditFromPlayerProfile = openEditFromPlayerProfile;
   window.openAddPlayerModal = openAddPlayerModal;
   window.confirmAddPlayer = confirmAddPlayer;
